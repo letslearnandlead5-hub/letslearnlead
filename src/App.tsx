@@ -9,6 +9,7 @@ import Footer from './components/layout/Footer';
 import ErrorBoundary from './components/ui/ErrorBoundary';
 import Maintenance from './pages/Maintenance';
 import Home from './pages/Home';
+import { settingsAPI } from './services/api';
 import SignUp from './pages/auth/SignUp';
 import Login from './pages/auth/Login';
 import ForgotPassword from './pages/auth/ForgotPassword';
@@ -112,9 +113,8 @@ function App() {
 
   const checkMaintenanceMode = async () => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/settings`);
-      const data = await response.json();
-      
+      const data: any = await settingsAPI.get();
+
       // Only show maintenance page if not admin
       if (data.success && data.data.maintenanceMode && user?.role !== 'admin') {
         setMaintenanceMode(true);

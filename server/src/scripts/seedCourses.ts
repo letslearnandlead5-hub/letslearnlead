@@ -13,61 +13,34 @@ const sampleCourses = [
         category: 'Web Development',
         price: 0, // Free course
         thumbnail: 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?w=800',
-        level: 'Beginner',
-        duration: 240, // 240 minutes = 4 hours
-        lessons: 45,
+        level: 'beginner', // lowercase as per enum
+        duration: '4h 30m', // string format
         studentsEnrolled: 0,
         rating: 4.8,
-        syllabus: [
-            {
-                title: 'Introduction to Web Development',
-                topics: [
-                    'What is Web Development?',
-                    'Setting up your development environment',
-                    'Understanding how the web works',
-                    'Your first HTML page'
-                ]
-            },
-            {
-                title: 'HTML & CSS Fundamentals',
-                topics: [
-                    'HTML tags and structure',
-                    'CSS styling basics',
-                    'Flexbox and Grid layouts',
-                    'Responsive design principles'
-                ]
-            },
-            {
-                title: 'JavaScript Essentials',
-                topics: [
-                    'Variables and data types',
-                    'Functions and control flow',
-                    'DOM manipulation',
-                    'Event handling'
-                ]
-            },
-            {
-                title: 'React for Beginners',
-                topics: [
-                    'Introduction to React',
-                    'Components and Props',
-                    'State and Hooks',
-                    'Building your first React app'
-                ]
-            }
-        ],
-        videos: [
+        lessons: [
             {
                 title: 'Course Introduction',
-                url: 'https://www.youtube.com/watch?v=example1',
-                duration: 15
+                description: 'Welcome to the course! Learn what you will build.',
+                videoUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+                duration: '15:00',
+                order: 0
             },
             {
                 title: 'Setting Up Development Environment',
-                url: 'https://www.youtube.com/watch?v=example2',
-                duration: 30
+                description: 'Install VS Code, Node.js, and other essential tools.',
+                videoUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+                duration: '30:00',
+                order: 1
+            },
+            {
+                title: 'HTML Basics',
+                description: 'Learn HTML tags, structure, and semantic HTML.',
+                videoUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+                duration: '45:00',
+                order: 2
             }
-        ]
+        ],
+        demoVideoUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ'
     },
     {
         title: 'Data Science with Python',
@@ -76,61 +49,41 @@ const sampleCourses = [
         category: 'Data Science',
         price: 999, // Paid course
         thumbnail: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800',
-        level: 'Intermediate',
-        duration: 360, // 360 minutes = 6 hours
-        lessons: 60,
+        level: 'intermediate', // lowercase
+        duration: '6h 15m', // string format
         studentsEnrolled: 0,
         rating: 4.9,
-        syllabus: [
-            {
-                title: 'Python Basics for Data Science',
-                topics: [
-                    'Python installation and setup',
-                    'Python syntax and fundamentals',
-                    'NumPy and Pandas introduction',
-                    'Working with data structures'
-                ]
-            },
-            {
-                title: 'Data Analysis and Visualization',
-                topics: [
-                    'Exploratory Data Analysis (EDA)',
-                    'Matplotlib and Seaborn',
-                    'Creating interactive visualizations',
-                    'Statistical analysis basics'
-                ]
-            },
-            {
-                title: 'Machine Learning Fundamentals',
-                topics: [
-                    'Introduction to ML concepts',
-                    'Supervised vs Unsupervised learning',
-                    'Linear and Logistic Regression',
-                    'Model evaluation techniques'
-                ]
-            },
-            {
-                title: 'Real-World Projects',
-                topics: [
-                    'Building a prediction model',
-                    'Data preprocessing pipeline',
-                    'Deploying ML models',
-                    'Best practices and tips'
-                ]
-            }
-        ],
-        videos: [
+        lessons: [
             {
                 title: 'Welcome to Data Science',
-                url: 'https://www.youtube.com/watch?v=example3',
-                duration: 20
+                description: 'Introduction to the exciting world of data science and AI.',
+                videoUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+                duration: '20:00',
+                order: 0
             },
             {
                 title: 'Python Setup for Data Science',
-                url: 'https://www.youtube.com/watch?v=example4',
-                duration: 25
+                description: 'Install Python, Anaconda, and Jupyter Notebooks.',
+                videoUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+                duration: '25:00',
+                order: 1
+            },
+            {
+                title: 'NumPy Fundamentals',
+                description: 'Master NumPy arrays and mathematical operations.',
+                videoUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+                duration: '40:00',
+                order: 2
+            },
+            {
+                title: 'Pandas for Data Analysis',
+                description: 'Learn to manipulate and analyze data with Pandas.',
+                videoUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+                duration: '50:00',
+                order: 3
             }
-        ]
+        ],
+        demoVideoUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ'
     }
 ];
 

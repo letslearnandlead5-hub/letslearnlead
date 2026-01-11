@@ -105,27 +105,37 @@ router.get('/:id', async (req: Request, res: Response, next) => {
 });
 
 // @route   POST /api/notes
-// @desc    Create a new note (with optional file upload)
+// @desc    Create a new note (with file upload OR markdown content)
 // @access  Private (Admin/Teacher)
 router.post('/', protect, authorize('admin', 'teacher'), upload.single('file'), async (req: any, res: Response, next) => {
     try {
+        const { fileType } = req.body;
+
         const noteData: any = {
             title: req.body.title,
             description: req.body.description,
             courseId: req.body.courseId,
-            fileType: 'file',
             category: req.body.category || '',
-            tags: req.body.tags ? JSON.parse(req.body.tags) : [],
+            tags: req.body.tags ? (typeof req.body.tags === 'string' ? JSON.parse(req.body.tags) : req.body.tags) : [],
             uploadedBy: req.user._id,
         };
 
-        // File upload is required
-        if (!req.file) {
-            throw new AppError('File upload is required', 400);
+        // Handle different content types
+        if (fileType === 'html') {
+            // Markdown/HTML content mode
+            if (!req.body.markdownContent) {
+                throw new AppError('Markdown content is required for html type notes', 400);
+            }
+            noteData.fileType = 'html';
+            noteData.markdownContent = req.body.markdownContent;
+        } else {
+            // File upload mode
+            if (!req.file) {
+                throw new AppError('File upload is required for file type notes', 400);
+            }
+            noteData.fileUrl = `/notes/${req.file.filename}`;
+            noteData.fileType = 'file';
         }
-
-        noteData.fileUrl = `/notes/${req.file.filename}`;
-        noteData.fileType = 'file';
 
         const note = await Note.create(noteData);
 
@@ -143,7 +153,7 @@ router.post('/', protect, authorize('admin', 'teacher'), upload.single('file'), 
 });
 
 // @route   PUT /api/notes/:id
-// @desc    Update a note
+// @desc    Update a note (file upload OR markdown content)
 // @access  Private (Admin/Teacher)
 router.put('/:id', protect, authorize('admin', 'teacher'), upload.single('file'), async (req: any, res: Response, next) => {
     try {
@@ -153,25 +163,46 @@ router.put('/:id', protect, authorize('admin', 'teacher'), upload.single('file')
             throw new AppError('Note not found', 404);
         }
 
+        const { fileType } = req.body;
+
         const updateData: any = {
             title: req.body.title,
             description: req.body.description,
             courseId: req.body.courseId,
             category: req.body.category || '',
-            tags: req.body.tags ? JSON.parse(req.body.tags) : [],
+            tags: req.body.tags ? (typeof req.body.tags === 'string' ? JSON.parse(req.body.tags) : req.body.tags) : [],
         };
 
-        // If new file is uploaded
-        if (req.file) {
-            // Delete old file if exists
-            if (note.fileUrl) {
-                const oldFilePath = path.join(__dirname, '../../public', note.fileUrl);
-                if (fs.existsSync(oldFilePath)) {
-                    fs.unlinkSync(oldFilePath);
+        // Handle different content types
+        if (fileType === 'html') {
+            // Markdown/HTML content mode
+            if (req.body.markdownContent) {
+                updateData.markdownContent = req.body.markdownContent;
+                updateData.fileType = 'html';
+                // Clear fileUrl if switching from file to html
+                if (note.fileUrl) {
+                    const oldFilePath = path.join(__dirname, '../../public', note.fileUrl);
+                    if (fs.existsSync(oldFilePath)) {
+                        fs.unlinkSync(oldFilePath);
+                    }
+                    updateData.fileUrl = undefined;
                 }
             }
-            updateData.fileUrl = `/notes/${req.file.filename}`;
-            updateData.fileType = 'file';
+        } else {
+            // File upload mode
+            if (req.file) {
+                // Delete old file if exists
+                if (note.fileUrl) {
+                    const oldFilePath = path.join(__dirname, '../../public', note.fileUrl);
+                    if (fs.existsSync(oldFilePath)) {
+                        fs.unlinkSync(oldFilePath);
+                    }
+                }
+                updateData.fileUrl = `/notes/${req.file.filename}`;
+                updateData.fileType = 'file';
+                // Clear markdownContent if switching from html to file
+                updateData.markdownContent = undefined;
+            }
         }
 
         const updatedNote = await Note.findByIdAndUpdate(

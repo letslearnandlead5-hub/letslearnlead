@@ -108,7 +108,7 @@ export const statsAPI = {
 
 /* ================= NOTIFICATIONS ================= */
 export const notificationAPI = {
-  getAll: () => api.get("/notifications"),
+  getAll: (params?: any) => api.get("/notifications", { params }),
   markAsRead: (id: string) => api.put(`/notifications/${id}/read`),
   markAllAsRead: () => api.put("/notifications/read-all"),
   create: (data: any) => api.post("/notifications", data),
@@ -120,6 +120,8 @@ export const notificationAPI = {
 export const paymentAPI = {
   createOrder: (data: any) => api.post("/payment/create-order", data),
   verifyPayment: (data: any) => api.post("/payment/verify", data),
+  checkEnrollment: (courseId: string) => api.get(`/payment/check-enrollment/${courseId}`),
+  freeEnroll: (courseId: string) => api.post(`/payment/free-enroll/${courseId}`),
 };
 
 /* ================= ADMIN ================= */
@@ -140,6 +142,7 @@ export const adminAPI = {
     getAll: (params?: any) => api.get("/admin/orders", { params }),
     getById: (id: string) => api.get(`/admin/orders/${id}`),
     update: (id: string, data: any) => api.put(`/admin/orders/${id}`, data),
+    updateStatus: (id: string, status: string) => api.put(`/admin/orders/${id}/status`, { status }),
   },
   products: {
     create: (data: any) => api.post("/admin/products", data),
@@ -148,6 +151,9 @@ export const adminAPI = {
   },
   dashboard: {
     getStats: () => api.get("/admin/dashboard/stats"),
+  },
+  analytics: {
+    overview: () => api.get("/admin/analytics/overview"),
   },
 };
 

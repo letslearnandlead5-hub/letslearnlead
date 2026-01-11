@@ -23,9 +23,10 @@ if (import.meta.env.DEV) {
 const api = axios.create({
   baseURL: `${API_BASE_URL}/api`,
   withCredentials: true, // ✅ REQUIRED for cookies
-  headers: {
-    "Content-Type": "application/json",
-  },
+  // NOTE: Don't set Content-Type here! 
+  // Axios automatically sets it based on request data:
+  // - FormData → multipart/form-data (for file uploads)
+  // - Objects → application/json (for regular API calls)
 });
 
 // 🔐 Request interceptor (JWT from Zustand)

@@ -321,7 +321,8 @@ const NotesManagement: React.FC = () => {
                             <div className="flex-1 bg-gray-100 dark:bg-gray-900 overflow-auto">
                                 {(() => {
                                     const fileExtension = selectedNote.fileUrl.split('.').pop()?.toLowerCase();
-                                    const baseUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000';
+                                    // VITE_API_URL is like https://api.letslearnandlead.com (without /api)
+                                    const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
                                     const fileUrl = `${baseUrl}${selectedNote.fileUrl}`;
 
                                     // PDF Viewer - Use object tag for better compatibility
@@ -421,7 +422,7 @@ const NotesManagement: React.FC = () => {
                             {/* Download Button Footer */}
                             {(() => {
                                 const fileExtension = selectedNote.fileUrl.split('.').pop()?.toLowerCase();
-                                const baseUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000';
+                                const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
                                 const fileUrl = `${baseUrl}${selectedNote.fileUrl}`;
 
                                 // Show download button for viewable files

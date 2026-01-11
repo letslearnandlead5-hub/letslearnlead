@@ -46,6 +46,26 @@ router.get('/', async (req: Request, res: Response, next) => {
     }
 });
 
+// @route   GET /api/courses/enrolled/my-courses
+// @desc    Get user's enrolled courses
+// @access  Private (Student)
+router.get('/enrolled/my-courses', protect, async (req: AuthRequest, res: Response, next) => {
+    try {
+        const user = await User.findById(req.user?.id).populate('enrolledCourses');
+        if (!user) {
+            throw new AppError('User not found', 404);
+        }
+
+        res.status(200).json({
+            success: true,
+            count: user.enrolledCourses.length,
+            data: user.enrolledCourses,
+        });
+    } catch (error) {
+        next(error);
+    }
+});
+
 // @route   GET /api/courses/:id
 // @desc    Get single course
 // @access  Public
@@ -182,26 +202,6 @@ router.post('/:id/enroll', protect, async (req: AuthRequest, res: Response, next
             success: true,
             message: 'Successfully enrolled in course',
             data: course,
-        });
-    } catch (error) {
-        next(error);
-    }
-});
-
-// @route   GET /api/courses/enrolled/my-courses
-// @desc    Get user's enrolled courses
-// @access  Private (Student)
-router.get('/enrolled/my-courses', protect, async (req: AuthRequest, res: Response, next) => {
-    try {
-        const user = await User.findById(req.user?.id).populate('enrolledCourses');
-        if (!user) {
-            throw new AppError('User not found', 404);
-        }
-
-        res.status(200).json({
-            success: true,
-            count: user.enrolledCourses.length,
-            data: user.enrolledCourses,
         });
     } catch (error) {
         next(error);

@@ -1,6 +1,6 @@
 import dotenv from 'dotenv';
-import { connectDB } from './config/database';
-import { User } from './models/User';
+import { connectDB } from '../config/database';
+import { User } from '../models/User';
 import bcrypt from 'bcryptjs';
 
 // Load environment variables

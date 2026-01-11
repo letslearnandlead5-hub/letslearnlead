@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
-import { X, Upload, File, Trash2 } from 'lucide-react';
+import { X, Upload, File, Trash2, FileText, Edit3 } from 'lucide-react';
 import Button from '../ui/Button';
 import Input from '../ui/Input';
+import ReactQuill from 'react-quill';
+import 'react-quill/dist/quill.snow.css';
 
 interface NoteFormProps {
     initialData?: {
@@ -11,6 +13,7 @@ interface NoteFormProps {
         fileType: string;
         category?: string;
         tags?: string[];
+        markdownContent?: string;
     };
     courses?: Array<{ _id: string; title: string }>;
     onSubmit: (noteData: any) => void;
@@ -39,6 +42,12 @@ const NoteForm: React.FC<NoteFormProps> = ({
     const [tagInput, setTagInput] = useState('');
     const [uploadedFile, setUploadedFile] = useState<File | null>(null);
     const [filePreview, setFilePreview] = useState<string>('');
+
+    // New states for rich text editor
+    const [contentMode, setContentMode] = useState<'upload' | 'write'>(
+        initialData?.markdownContent ? 'write' : 'upload'
+    );
+    const [htmlContent, setHtmlContent] = useState(initialData?.markdownContent || '');
 
     const handleChange = (field: string, value: any) => {
         setFormData((prev) => ({ ...prev, [field]: value }));
@@ -94,22 +103,54 @@ const NoteForm: React.FC<NoteFormProps> = ({
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
-        if (!uploadedFile) {
-            alert('Please upload a file');
-            return;
+        // Validation based on mode
+        if (contentMode === 'upload') {
+            if (!uploadedFile) {
+                alert('Please upload a file');
+                return;
+            }
+
+            // Create FormData for file upload
+            const formDataToSend = new FormData();
+            formDataToSend.append('title', formData.title);
+            formDataToSend.append('description', formData.description);
+            formDataToSend.append('courseId', formData.courseId);
+            formDataToSend.append('fileType', 'file');
+            formDataToSend.append('category', formData.category);
+            formDataToSend.append('tags', JSON.stringify(formData.tags));
+            formDataToSend.append('file', uploadedFile);
+
+            onSubmit(formDataToSend);
+        } else {
+            // Write mode - send HTML content
+            if (!htmlContent || htmlContent.trim() === '' || htmlContent === '<p><br></p>') {
+                alert('Please write some content');
+                return;
+            }
+
+            onSubmit({
+                title: formData.title,
+                description: formData.description,
+                courseId: formData.courseId,
+                fileType: 'html',
+                category: formData.category,
+                tags: formData.tags,
+                markdownContent: htmlContent, // Storing HTML in markdownContent field
+            });
         }
+    };
 
-        // Create FormData for file upload
-        const formDataToSend = new FormData();
-        formDataToSend.append('title', formData.title);
-        formDataToSend.append('description', formData.description);
-        formDataToSend.append('courseId', formData.courseId);
-        formDataToSend.append('fileType', 'file');
-        formDataToSend.append('category', formData.category);
-        formDataToSend.append('tags', JSON.stringify(formData.tags));
-        formDataToSend.append('file', uploadedFile);
-
-        onSubmit(formDataToSend);
+    // React Quill toolbar configuration
+    const quillModules = {
+        toolbar: [
+            [{ 'header': [1, 2, 3, false] }],
+            ['bold', 'italic', 'underline', 'strike'],
+            [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+            [{ 'color': [] }, { 'background': [] }],
+            [{ 'align': [] }],
+            ['link'],
+            ['clean']
+        ]
     };
 
     return (
@@ -207,66 +248,119 @@ const NoteForm: React.FC<NoteFormProps> = ({
                         )}
                     </div>
 
-                    {/* File Upload */}
+                    {/* Content Mode Toggle */}
                     <div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                Upload File
-                            </label>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                            Content Type
+                        </label>
+                        <div className="flex gap-2 mb-4">
+                            <button
+                                type="button"
+                                onClick={() => setContentMode('upload')}
+                                className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg border-2 transition-all ${contentMode === 'upload'
+                                        ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-300'
+                                        : 'border-gray-300 dark:border-gray-700 hover:border-gray-400 dark:hover:border-gray-600'
+                                    }`}
+                            >
+                                <Upload className="w-5 h-5" />
+                                <span className="font-medium">Upload File</span>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setContentMode('write')}
+                                className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg border-2 transition-all ${contentMode === 'write'
+                                        ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-300'
+                                        : 'border-gray-300 dark:border-gray-700 hover:border-gray-400 dark:hover:border-gray-600'
+                                    }`}
+                            >
+                                <Edit3 className="w-5 h-5" />
+                                <span className="font-medium">Write Content</span>
+                            </button>
+                        </div>
 
-                            {!uploadedFile ? (
-                                <div className="border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-lg p-8 text-center hover:border-primary-500 transition-colors">
-                                    <input
-                                        type="file"
-                                        id="file-upload"
-                                        className="hidden"
-                                        accept=".pdf,.txt"
-                                        onChange={handleFileUpload}
-                                    />
-                                    <label
-                                        htmlFor="file-upload"
-                                        className="cursor-pointer flex flex-col items-center gap-3"
-                                    >
-                                        <div className="w-16 h-16 bg-primary-100 dark:bg-primary-900 rounded-full flex items-center justify-center">
-                                            <Upload className="w-8 h-8 text-primary-600 dark:text-primary-400" />
-                                        </div>
-                                        <div>
-                                            <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                                                Click to upload or drag and drop
-                                            </p>
-                                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                                PDF or TXT files only (Max 10MB)
-                                            </p>
-                                        </div>
-                                    </label>
-                                </div>
-                            ) : (
-                                <div className="border border-gray-300 dark:border-gray-700 rounded-lg p-4 bg-gray-50 dark:bg-gray-900">
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-10 h-10 bg-primary-100 dark:bg-primary-900 rounded-lg flex items-center justify-center">
-                                                <File className="w-5 h-5 text-primary-600 dark:text-primary-400" />
+                        {/* Upload Mode */}
+                        {contentMode === 'upload' && (
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                    Upload File
+                                </label>
+
+                                {!uploadedFile ? (
+                                    <div className="border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-lg p-8 text-center hover:border-primary-500 transition-colors">
+                                        <input
+                                            type="file"
+                                            id="file-upload"
+                                            className="hidden"
+                                            accept=".pdf,.txt"
+                                            onChange={handleFileUpload}
+                                        />
+                                        <label
+                                            htmlFor="file-upload"
+                                            className="cursor-pointer flex flex-col items-center gap-3"
+                                        >
+                                            <div className="w-16 h-16 bg-primary-100 dark:bg-primary-900 rounded-full flex items-center justify-center">
+                                                <Upload className="w-8 h-8 text-primary-600 dark:text-primary-400" />
                                             </div>
                                             <div>
-                                                <p className="text-sm font-medium text-gray-900 dark:text-white">
-                                                    {filePreview}
+                                                <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                                    Click to upload or drag and drop
                                                 </p>
-                                                <p className="text-xs text-gray-500 dark:text-gray-400">
-                                                    {(uploadedFile.size / 1024 / 1024).toFixed(2)} MB
+                                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                                    PDF or TXT files only (Max 10MB)
                                                 </p>
                                             </div>
-                                        </div>
-                                        <button
-                                            type="button"
-                                            onClick={handleRemoveFile}
-                                            className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-950 rounded-lg transition-colors"
-                                        >
-                                            <Trash2 className="w-5 h-5" />
-                                        </button>
+                                        </label>
                                     </div>
+                                ) : (
+                                    <div className="border border-gray-300 dark:border-gray-700 rounded-lg p-4 bg-gray-50 dark:bg-gray-900">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-10 h-10 bg-primary-100 dark:bg-primary-900 rounded-lg flex items-center justify-center">
+                                                    <File className="w-5 h-5 text-primary-600 dark:text-primary-400" />
+                                                </div>
+                                                <div>
+                                                    <p className="text-sm font-medium text-gray-900 dark:text-white">
+                                                        {filePreview}
+                                                    </p>
+                                                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                                                        {(uploadedFile.size / 1024 / 1024).toFixed(2)} MB
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={handleRemoveFile}
+                                                className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-950 rounded-lg transition-colors"
+                                            >
+                                                <Trash2 className="w-5 h-5" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Write Mode - Rich Text Editor */}
+                        {contentMode === 'write' && (
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                    Write Content
+                                </label>
+                                <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-300 dark:border-gray-700 overflow-hidden">
+                                    <ReactQuill
+                                        theme="snow"
+                                        value={htmlContent}
+                                        onChange={setHtmlContent}
+                                        modules={quillModules}
+                                        placeholder="Write your note content here..."
+                                        className="min-h-[300px]"
+                                    />
                                 </div>
-                            )}
-                        </div>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                                    Use the toolbar to format your text with headings, bold, italic, lists, and more.
+                                </p>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>

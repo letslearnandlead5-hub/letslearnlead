@@ -1,8 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { X, Upload, File, Trash2, FileText, Edit3 } from 'lucide-react';
+import React, { useState } from 'react';
+import { X, Upload, File, Trash2, FileText, Edit3, Bold, Italic, List, ListOrdered, Heading1, Heading2 } from 'lucide-react';
 import Button from '../ui/Button';
 import Input from '../ui/Input';
-import 'react-quill/dist/quill.snow.css';
 
 interface NoteFormProps {
     initialData?: {
@@ -41,7 +40,6 @@ const NoteForm: React.FC<NoteFormProps> = ({
     const [tagInput, setTagInput] = useState('');
     const [uploadedFile, setUploadedFile] = useState<File | null>(null);
     const [filePreview, setFilePreview] = useState<string>('');
-    const [ReactQuill, setReactQuill] = useState<any>(null);
 
     // New states for rich text editor
     const [contentMode, setContentMode] = useState<'upload' | 'write'>(
@@ -49,14 +47,24 @@ const NoteForm: React.FC<NoteFormProps> = ({
     );
     const [htmlContent, setHtmlContent] = useState(initialData?.markdownContent || '');
 
-    // Load ReactQuill dynamically
-    useEffect(() => {
-        import('react-quill').then((module) => {
-            setReactQuill(() => module.default);
-        }).catch((err) => {
-            console.error('Failed to load ReactQuill:', err);
-        });
-    }, []);
+    // Simple formatting functions
+    const insertFormatting = (before: string, after: string = '') => {
+        const textarea = document.getElementById('content-editor') as HTMLTextAreaElement;
+        if (!textarea) return;
+
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        const selectedText = htmlContent.substring(start, end);
+        const newText = htmlContent.substring(0, start) + before + selectedText + after + htmlContent.substring(end);
+        
+        setHtmlContent(newText);
+        
+        // Restore cursor position
+        setTimeout(() => {
+            textarea.focus();
+            textarea.setSelectionRange(start + before.length, end + before.length);
+        }, 0);
+    };
 
     const handleChange = (field: string, value: any) => {
         setFormData((prev) => ({ ...prev, [field]: value }));
@@ -132,7 +140,7 @@ const NoteForm: React.FC<NoteFormProps> = ({
             onSubmit(formDataToSend);
         } else {
             // Write mode - send HTML content
-            if (!htmlContent || htmlContent.trim() === '' || htmlContent === '<p><br></p>') {
+            if (!htmlContent || htmlContent.trim() === '') {
                 alert('Please write some content');
                 return;
             }
@@ -144,22 +152,9 @@ const NoteForm: React.FC<NoteFormProps> = ({
                 fileType: 'html',
                 category: formData.category,
                 tags: formData.tags,
-                markdownContent: htmlContent, // Storing HTML in markdownContent field
+                markdownContent: htmlContent,
             });
         }
-    };
-
-    // React Quill toolbar configuration
-    const quillModules = {
-        toolbar: [
-            [{ 'header': [1, 2, 3, false] }],
-            ['bold', 'italic', 'underline', 'strike'],
-            [{ 'list': 'ordered' }, { 'list': 'bullet' }],
-            [{ 'color': [] }, { 'background': [] }],
-            [{ 'align': [] }],
-            ['link'],
-            ['clean']
-        ]
     };
 
     return (
@@ -349,33 +344,79 @@ const NoteForm: React.FC<NoteFormProps> = ({
                             </div>
                         )}
 
-                        {/* Write Mode - Rich Text Editor */}
+                        {/* Write Mode - Simple Text Editor with Markdown */}
                         {contentMode === 'write' && (
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                                     Write Content
                                 </label>
-                                <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-300 dark:border-gray-700 overflow-hidden">
-                                    {ReactQuill ? (
-                                        <ReactQuill
-                                            theme="snow"
-                                            value={htmlContent}
-                                            onChange={setHtmlContent}
-                                            modules={quillModules}
-                                            placeholder="Write your note content here..."
-                                            className="min-h-[300px]"
-                                        />
-                                    ) : (
-                                        <div className="min-h-[300px] flex items-center justify-center">
-                                            <div className="text-center">
-                                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto mb-2"></div>
-                                                <p className="text-sm text-gray-500 dark:text-gray-400">Loading editor...</p>
-                                            </div>
-                                        </div>
-                                    )}
+                                
+                                {/* Formatting Toolbar */}
+                                <div className="bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-t-lg p-2 flex flex-wrap gap-1">
+                                    <button
+                                        type="button"
+                                        onClick={() => insertFormatting('# ', '')}
+                                        className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
+                                        title="Heading 1"
+                                    >
+                                        <Heading1 className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => insertFormatting('## ', '')}
+                                        className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
+                                        title="Heading 2"
+                                    >
+                                        <Heading2 className="w-4 h-4" />
+                                    </button>
+                                    <div className="w-px bg-gray-300 dark:bg-gray-600 mx-1"></div>
+                                    <button
+                                        type="button"
+                                        onClick={() => insertFormatting('**', '**')}
+                                        className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
+                                        title="Bold"
+                                    >
+                                        <Bold className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => insertFormatting('*', '*')}
+                                        className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
+                                        title="Italic"
+                                    >
+                                        <Italic className="w-4 h-4" />
+                                    </button>
+                                    <div className="w-px bg-gray-300 dark:bg-gray-600 mx-1"></div>
+                                    <button
+                                        type="button"
+                                        onClick={() => insertFormatting('- ', '')}
+                                        className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
+                                        title="Bullet List"
+                                    >
+                                        <List className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => insertFormatting('1. ', '')}
+                                        className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
+                                        title="Numbered List"
+                                    >
+                                        <ListOrdered className="w-4 h-4" />
+                                    </button>
                                 </div>
+
+                                {/* Text Editor */}
+                                <textarea
+                                    id="content-editor"
+                                    value={htmlContent}
+                                    onChange={(e) => setHtmlContent(e.target.value)}
+                                    className="w-full px-4 py-3 border-x border-b border-gray-300 dark:border-gray-700 rounded-b-lg bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500 font-mono text-sm resize-none"
+                                    placeholder="Write your note content here using Markdown formatting...&#10;&#10;Examples:&#10;# Heading 1&#10;## Heading 2&#10;**Bold text**&#10;*Italic text*&#10;- Bullet point&#10;1. Numbered list"
+                                    rows={15}
+                                />
+                                
                                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                                    Use the toolbar to format your text with headings, bold, italic, lists, and more.
+                                    Use Markdown formatting: **bold**, *italic*, # headings, - lists
                                 </p>
                             </div>
                         )}

@@ -99,20 +99,13 @@ app.use("/api/quizzes", quizRoutes);
 app.use("/api/settings", settingsRoutes);
 app.use("/api/stats", statsRoutes);
 
-// 🔹 Serve frontend static files (production)
-// This serves the built React app from the 'dist' folder
-app.use(express.static(path.join(__dirname, '../../dist')));
-
-// 🔹 Handle client-side routing
-// All non-API routes should serve the React app's index.html
-// This allows React Router to handle routing on the frontend
-app.get('*', (req, res, next) => {
-    // Skip API routes - they should be handled by route handlers above
-    if (req.path.startsWith('/api') || req.path.startsWith('/invoices') || req.path.startsWith('/notes') || req.path.startsWith('/videos')) {
-        return next();
-    }
-
-    res.sendFile(path.join(__dirname, '../../dist/index.html'));
+// 🔹 API Health check
+app.get("/", (req, res) => {
+    res.json({
+        status: "API is running",
+        timestamp: new Date().toISOString(),
+        environment: process.env.NODE_ENV || 'development'
+    });
 });
 
 // 🔹 Error handler (must be last)

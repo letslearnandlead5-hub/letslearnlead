@@ -1,14 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Upload, File, Trash2, FileText, Edit3 } from 'lucide-react';
 import Button from '../ui/Button';
 import Input from '../ui/Input';
 import 'react-quill/dist/quill.snow.css';
-
-// Dynamically import ReactQuill to avoid SSR issues
-let ReactQuill: any = null;
-if (typeof window !== 'undefined') {
-    ReactQuill = require('react-quill');
-}
 
 interface NoteFormProps {
     initialData?: {
@@ -47,7 +41,7 @@ const NoteForm: React.FC<NoteFormProps> = ({
     const [tagInput, setTagInput] = useState('');
     const [uploadedFile, setUploadedFile] = useState<File | null>(null);
     const [filePreview, setFilePreview] = useState<string>('');
-    const [quillLoaded, setQuillLoaded] = useState(false);
+    const [ReactQuill, setReactQuill] = useState<any>(null);
 
     // New states for rich text editor
     const [contentMode, setContentMode] = useState<'upload' | 'write'>(
@@ -57,14 +51,11 @@ const NoteForm: React.FC<NoteFormProps> = ({
 
     // Load ReactQuill dynamically
     useEffect(() => {
-        if (typeof window !== 'undefined' && !ReactQuill) {
-            import('react-quill').then((module) => {
-                ReactQuill = module.default;
-                setQuillLoaded(true);
-            });
-        } else if (ReactQuill) {
-            setQuillLoaded(true);
-        }
+        import('react-quill').then((module) => {
+            setReactQuill(() => module.default);
+        }).catch((err) => {
+            console.error('Failed to load ReactQuill:', err);
+        });
     }, []);
 
     const handleChange = (field: string, value: any) => {
@@ -365,7 +356,7 @@ const NoteForm: React.FC<NoteFormProps> = ({
                                     Write Content
                                 </label>
                                 <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-300 dark:border-gray-700 overflow-hidden">
-                                    {quillLoaded && ReactQuill ? (
+                                    {ReactQuill ? (
                                         <ReactQuill
                                             theme="snow"
                                             value={htmlContent}

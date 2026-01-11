@@ -19,28 +19,35 @@ const sampleCourses = [
         rating: 4.8,
         lessons: [
             {
-                title: 'Course Introduction',
-                description: 'Welcome to the course! Learn what you will build.',
-                videoUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
-                duration: '15:00',
+                title: 'HTML Tutorial for Beginners',
+                description: 'Learn HTML basics: structure, tags, and how to create your first webpage.',
+                videoUrl: 'https://www.youtube.com/embed/qz0aGYrrlhU',
+                duration: '41:00',
                 order: 0
             },
             {
-                title: 'Setting Up Development Environment',
-                description: 'Install VS Code, Node.js, and other essential tools.',
-                videoUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
-                duration: '30:00',
+                title: 'CSS Tutorial - Zero to Hero',
+                description: 'Master CSS from basics to advanced styling techniques.',
+                videoUrl: 'https://www.youtube.com/embed/1Rs2ND1ryYc',
+                duration: '92:00',
                 order: 1
             },
             {
-                title: 'HTML Basics',
-                description: 'Learn HTML tags, structure, and semantic HTML.',
-                videoUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
-                duration: '45:00',
+                title: 'JavaScript Programming - Full Course',
+                description: 'Complete JavaScript tutorial covering fundamentals to advanced concepts.',
+                videoUrl: 'https://www.youtube.com/embed/PkZNo7MFNFg',
+                duration: '134:00',
                 order: 2
+            },
+            {
+                title: 'React Tutorial for Beginners',
+                description: 'Learn React.js from scratch and build modern web applications.',
+                videoUrl: 'https://www.youtube.com/embed/SqcY0GlETPk',
+                duration: '143:00',
+                order: 3
             }
         ],
-        demoVideoUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ'
+        demoVideoUrl: 'https://www.youtube.com/embed/qz0aGYrrlhU'
     },
     {
         title: 'Data Science with Python',
@@ -55,35 +62,42 @@ const sampleCourses = [
         rating: 4.9,
         lessons: [
             {
-                title: 'Welcome to Data Science',
-                description: 'Introduction to the exciting world of data science and AI.',
-                videoUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
-                duration: '20:00',
+                title: 'Python for Beginners - Full Course',
+                description: 'Complete Python programming tutorial for data science beginners.',
+                videoUrl: 'https://www.youtube.com/embed/rfscVS0vtbw',
+                duration: '270:00',
                 order: 0
             },
             {
-                title: 'Python Setup for Data Science',
-                description: 'Install Python, Anaconda, and Jupyter Notebooks.',
-                videoUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
-                duration: '25:00',
+                title: 'Pandas Tutorial - Data Analysis',
+                description: 'Learn Pandas library for powerful data manipulation and analysis.',
+                videoUrl: 'https://www.youtube.com/embed/vmEHCJofslg',
+                duration: '60:00',
                 order: 1
             },
             {
-                title: 'NumPy Fundamentals',
-                description: 'Master NumPy arrays and mathematical operations.',
-                videoUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
-                duration: '40:00',
+                title: 'NumPy Tutorial for Beginners',
+                description: 'Master NumPy - the fundamental package for scientific computing.',
+                videoUrl: 'https://www.youtube.com/embed/QUT1VHiLmmI',
+                duration: '58:00',
                 order: 2
             },
             {
-                title: 'Pandas for Data Analysis',
-                description: 'Learn to manipulate and analyze data with Pandas.',
-                videoUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
+                title: 'Machine Learning Tutorial',
+                description: 'Introduction to Machine Learning with Python and Scikit-learn.',
+                videoUrl: 'https://www.youtube.com/embed/7eh4d6sabA0',
                 duration: '50:00',
                 order: 3
+            },
+            {
+                title: 'Data Visualization with Matplotlib',
+                description: 'Create stunning data visualizations using Matplotlib and Seaborn.',
+                videoUrl: 'https://www.youtube.com/embed/3Xc3CA655Y4',
+                duration: '120:00',
+                order: 4
             }
         ],
-        demoVideoUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ'
+        demoVideoUrl: 'https://www.youtube.com/embed/rfscVS0vtbw'
     }
 ];
 

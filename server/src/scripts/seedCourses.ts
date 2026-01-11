@@ -21,26 +21,26 @@ const sampleCourses = [
             {
                 title: 'Course Introduction',
                 description: 'Welcome to the course! Learn what you will build.',
-                videoUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+                videoUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
                 duration: '15:00',
                 order: 0
             },
             {
                 title: 'Setting Up Development Environment',
                 description: 'Install VS Code, Node.js, and other essential tools.',
-                videoUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+                videoUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
                 duration: '30:00',
                 order: 1
             },
             {
                 title: 'HTML Basics',
                 description: 'Learn HTML tags, structure, and semantic HTML.',
-                videoUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+                videoUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
                 duration: '45:00',
                 order: 2
             }
         ],
-        demoVideoUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ'
+        demoVideoUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ'
     },
     {
         title: 'Data Science with Python',
@@ -57,33 +57,33 @@ const sampleCourses = [
             {
                 title: 'Welcome to Data Science',
                 description: 'Introduction to the exciting world of data science and AI.',
-                videoUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+                videoUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
                 duration: '20:00',
                 order: 0
             },
             {
                 title: 'Python Setup for Data Science',
                 description: 'Install Python, Anaconda, and Jupyter Notebooks.',
-                videoUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+                videoUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
                 duration: '25:00',
                 order: 1
             },
             {
                 title: 'NumPy Fundamentals',
                 description: 'Master NumPy arrays and mathematical operations.',
-                videoUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+                videoUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
                 duration: '40:00',
                 order: 2
             },
             {
                 title: 'Pandas for Data Analysis',
                 description: 'Learn to manipulate and analyze data with Pandas.',
-                videoUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+                videoUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
                 duration: '50:00',
                 order: 3
             }
         ],
-        demoVideoUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ'
+        demoVideoUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ'
     }
 ];
 

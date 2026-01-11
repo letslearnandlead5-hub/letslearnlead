@@ -127,13 +127,12 @@ const StudentDashboard: React.FC = () => {
     return (
         <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
             {/* Header */}
-            <StudentHeader />
+            <StudentHeader onMenuClick={() => setShowMobileSidebar(true)} />
 
             <div className="flex">
                 {/* Sidebar Navigation - Hidden on mobile, visible on lg+ */}
-                <div className={`fixed lg:sticky top-16 inset-y-0 left-0 z-40 w-64 bg-white dark:bg-gray-900 h-[calc(100vh-4rem)] border-r border-gray-200 dark:border-gray-800 flex flex-col transition-transform duration-300 ${
-                    showMobileSidebar ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
-                }`}>
+                <div className={`fixed lg:sticky top-16 inset-y-0 left-0 z-40 w-64 bg-white dark:bg-gray-900 h-[calc(100vh-4rem)] border-r border-gray-200 dark:border-gray-800 flex flex-col transition-transform duration-300 ${showMobileSidebar ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+                    }`}>
                     <div className="p-6 flex-shrink-0">
                         <h1 className="text-xl font-bold text-gray-900 dark:text-white">My Dashboard</h1>
                     </div>

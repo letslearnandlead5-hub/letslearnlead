@@ -135,6 +135,15 @@ const NoteForm: React.FC<NoteFormProps> = ({
             formDataToSend.append('fileType', 'file');
             formDataToSend.append('category', formData.category);
             formDataToSend.append('tags', JSON.stringify(formData.tags));
+
+            // Debug logging
+            console.log('Uploading file:', uploadedFile);
+            console.log('File details:', {
+                name: uploadedFile?.name,
+                size: uploadedFile?.size,
+                type: uploadedFile?.type
+            });
+
             formDataToSend.append('file', uploadedFile);
 
             onSubmit(formDataToSend);

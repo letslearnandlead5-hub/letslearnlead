@@ -1,9 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { X, Upload, File, Trash2, FileText, Edit3 } from 'lucide-react';
 import Button from '../ui/Button';
 import Input from '../ui/Input';
-import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
+
+// Dynamically import ReactQuill to avoid SSR issues
+let ReactQuill: any = null;
+if (typeof window !== 'undefined') {
+    ReactQuill = require('react-quill');
+}
 
 interface NoteFormProps {
     initialData?: {
@@ -42,12 +47,25 @@ const NoteForm: React.FC<NoteFormProps> = ({
     const [tagInput, setTagInput] = useState('');
     const [uploadedFile, setUploadedFile] = useState<File | null>(null);
     const [filePreview, setFilePreview] = useState<string>('');
+    const [quillLoaded, setQuillLoaded] = useState(false);
 
     // New states for rich text editor
     const [contentMode, setContentMode] = useState<'upload' | 'write'>(
         initialData?.markdownContent ? 'write' : 'upload'
     );
     const [htmlContent, setHtmlContent] = useState(initialData?.markdownContent || '');
+
+    // Load ReactQuill dynamically
+    useEffect(() => {
+        if (typeof window !== 'undefined' && !ReactQuill) {
+            import('react-quill').then((module) => {
+                ReactQuill = module.default;
+                setQuillLoaded(true);
+            });
+        } else if (ReactQuill) {
+            setQuillLoaded(true);
+        }
+    }, []);
 
     const handleChange = (field: string, value: any) => {
         setFormData((prev) => ({ ...prev, [field]: value }));
@@ -347,14 +365,23 @@ const NoteForm: React.FC<NoteFormProps> = ({
                                     Write Content
                                 </label>
                                 <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-300 dark:border-gray-700 overflow-hidden">
-                                    <ReactQuill
-                                        theme="snow"
-                                        value={htmlContent}
-                                        onChange={setHtmlContent}
-                                        modules={quillModules}
-                                        placeholder="Write your note content here..."
-                                        className="min-h-[300px]"
-                                    />
+                                    {quillLoaded && ReactQuill ? (
+                                        <ReactQuill
+                                            theme="snow"
+                                            value={htmlContent}
+                                            onChange={setHtmlContent}
+                                            modules={quillModules}
+                                            placeholder="Write your note content here..."
+                                            className="min-h-[300px]"
+                                        />
+                                    ) : (
+                                        <div className="min-h-[300px] flex items-center justify-center">
+                                            <div className="text-center">
+                                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto mb-2"></div>
+                                                <p className="text-sm text-gray-500 dark:text-gray-400">Loading editor...</p>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
                                     Use the toolbar to format your text with headings, bold, italic, lists, and more.

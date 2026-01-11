@@ -1,18 +1,19 @@
 import axios from 'axios';
 import type { Quiz, QuizAttempt, QuizResult, LeaderboardEntry, QuizWithStatus } from '../types';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const API_URL = `${API_BASE_URL}/api`;
 
 const getAuthHeader = () => {
     // Get token from Zustand persist storage (auth-storage)
     const authStorage = localStorage.getItem('auth-storage');
     let token = null;
-    
+
     if (authStorage) {
         try {
             const parsed = JSON.parse(authStorage);
             token = parsed?.state?.token;
-            
+
             // Debug: Log token status
             if (!token) {
                 console.error('No token found in auth-storage');
@@ -23,7 +24,7 @@ const getAuthHeader = () => {
     } else {
         console.error('No auth-storage found in localStorage');
     }
-    
+
     return token ? { Authorization: `Bearer ${token}` } : {};
 };
 

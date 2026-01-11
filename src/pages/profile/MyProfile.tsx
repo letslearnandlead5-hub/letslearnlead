@@ -127,7 +127,8 @@ const MyProfile: React.FC = () => {
                 return;
             }
 
-            const response = await fetch('http://localhost:5000/api/auth/profile', {
+            const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+            const response = await fetch(`${API_URL}/api/auth/profile`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
@@ -183,7 +184,8 @@ const MyProfile: React.FC = () => {
                 return;
             }
 
-            const response = await fetch('http://localhost:5000/api/auth/profile', {
+            const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+            const response = await fetch(`${API_URL}/api/auth/profile`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
@@ -252,7 +254,8 @@ const MyProfile: React.FC = () => {
                 return;
             }
 
-            const response = await fetch('http://localhost:5000/api/auth/profile', {
+            const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+            const response = await fetch(`${API_URL}/api/auth/profile`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
@@ -338,7 +341,8 @@ const MyProfile: React.FC = () => {
                 return;
             }
 
-            const response = await fetch('http://localhost:5000/api/auth/change-password', {
+            const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+            const response = await fetch(`${API_URL}/api/auth/change-password`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
@@ -410,7 +414,7 @@ const MyProfile: React.FC = () => {
                                 </h2>
                                 <p className="text-gray-600 dark:text-gray-400 mb-2">{user?.email}</p>
                                 <Badge variant="primary">Student</Badge>
-                                
+
                                 {/* Photo Actions */}
                                 {profilePhoto && (
                                     <div className="flex gap-2 mt-4">

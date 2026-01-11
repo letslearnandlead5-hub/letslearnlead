@@ -18,7 +18,8 @@ const ForgotPassword: React.FC = () => {
         setLoading(true);
 
         try {
-            await axios.post('http://localhost:5000/api/auth/forgot-password', { email });
+            const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+            await axios.post(`${API_URL}/api/auth/forgot-password`, { email });
             setSubmitted(true);
         } catch (err: any) {
             setError(err.response?.data?.message || 'Something went wrong. Please try again.');

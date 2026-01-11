@@ -36,8 +36,8 @@ const NoteSchema = new Schema<INote>(
         fileType: {
             type: String,
             required: true,
-            enum: ['pdf', 'markdown', 'document', 'text', 'file'],
-            default: 'markdown',
+            enum: ['pdf', 'text', 'file'],
+            default: 'file',
         },
         markdownContent: {
             type: String,

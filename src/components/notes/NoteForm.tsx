@@ -2,13 +2,11 @@ import React, { useState } from 'react';
 import { X, Upload, File, Trash2 } from 'lucide-react';
 import Button from '../ui/Button';
 import Input from '../ui/Input';
-import MarkdownViewer from './MarkdownViewer';
 
 interface NoteFormProps {
     initialData?: {
         title: string;
         description: string;
-        markdownContent?: string;
         courseId?: string;
         fileType: string;
         category?: string;
@@ -32,16 +30,13 @@ const NoteForm: React.FC<NoteFormProps> = ({
     const [formData, setFormData] = useState({
         title: initialData?.title || '',
         description: initialData?.description || '',
-        markdownContent: initialData?.markdownContent || '',
         courseId: initialData?.courseId || '',
-        fileType: initialData?.fileType || 'markdown',
+        fileType: initialData?.fileType || 'file',
         category: initialData?.category || '',
         tags: initialData?.tags || [],
     });
 
     const [tagInput, setTagInput] = useState('');
-    const [isPreview, setIsPreview] = useState(false);
-    const [contentType, setContentType] = useState<'markdown' | 'file'>('markdown');
     const [uploadedFile, setUploadedFile] = useState<File | null>(null);
     const [filePreview, setFilePreview] = useState<string>('');
 
@@ -69,19 +64,14 @@ const NoteForm: React.FC<NoteFormProps> = ({
     const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
-            // Validate file type
+            // Validate file type - Only PDF and text files
             const allowedTypes = [
                 'application/pdf',
-                'application/msword',
-                'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-                'text/plain',
-                'image/jpeg',
-                'image/png',
-                'image/jpg'
+                'text/plain'
             ];
-            
+
             if (!allowedTypes.includes(file.type)) {
-                alert('Please upload a valid file (PDF, DOC, DOCX, TXT, or Image)');
+                alert('Please upload a valid file (PDF or TXT only)');
                 return;
             }
 
@@ -103,23 +93,23 @@ const NoteForm: React.FC<NoteFormProps> = ({
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        
-        if (contentType === 'file' && uploadedFile) {
-            // Create FormData for file upload
-            const formDataToSend = new FormData();
-            formDataToSend.append('title', formData.title);
-            formDataToSend.append('description', formData.description);
-            formDataToSend.append('courseId', formData.courseId);
-            formDataToSend.append('fileType', 'file');
-            formDataToSend.append('category', formData.category);
-            formDataToSend.append('tags', JSON.stringify(formData.tags));
-            formDataToSend.append('file', uploadedFile);
-            
-            onSubmit(formDataToSend);
-        } else {
-            // Submit markdown content
-            onSubmit({ ...formData, fileType: 'markdown' });
+
+        if (!uploadedFile) {
+            alert('Please upload a file');
+            return;
         }
+
+        // Create FormData for file upload
+        const formDataToSend = new FormData();
+        formDataToSend.append('title', formData.title);
+        formDataToSend.append('description', formData.description);
+        formDataToSend.append('courseId', formData.courseId);
+        formDataToSend.append('fileType', 'file');
+        formDataToSend.append('category', formData.category);
+        formDataToSend.append('tags', JSON.stringify(formData.tags));
+        formDataToSend.append('file', uploadedFile);
+
+        onSubmit(formDataToSend);
     };
 
     return (
@@ -217,93 +207,20 @@ const NoteForm: React.FC<NoteFormProps> = ({
                         )}
                     </div>
 
-                    {/* Content Type Selection */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                            Content Type
-                        </label>
-                        <div className="flex gap-4">
-                            <label className="flex items-center gap-2 cursor-pointer">
-                                <input
-                                    type="radio"
-                                    name="contentType"
-                                    value="markdown"
-                                    checked={contentType === 'markdown'}
-                                    onChange={() => setContentType('markdown')}
-                                    className="w-4 h-4 text-primary-600"
-                                />
-                                <span className="text-sm text-gray-700 dark:text-gray-300">Write Markdown</span>
-                            </label>
-                            <label className="flex items-center gap-2 cursor-pointer">
-                                <input
-                                    type="radio"
-                                    name="contentType"
-                                    value="file"
-                                    checked={contentType === 'file'}
-                                    onChange={() => setContentType('file')}
-                                    className="w-4 h-4 text-primary-600"
-                                />
-                                <span className="text-sm text-gray-700 dark:text-gray-300">Upload File</span>
-                            </label>
-                        </div>
-                    </div>
-
-                    {/* Markdown Content */}
-                    {contentType === 'markdown' && (
-                        <div>
-                            <div className="flex items-center justify-between mb-2">
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                                    Content (Markdown)
-                                </label>
-                                <button
-                                    type="button"
-                                    onClick={() => setIsPreview(!isPreview)}
-                                    className="text-sm text-primary-600 hover:underline"
-                                >
-                                    {isPreview ? 'Edit' : 'Preview'}
-                                </button>
-                            </div>
-                            {isPreview ? (
-                                <div className="min-h-[200px] max-h-[300px] overflow-y-auto p-4 border border-gray-300 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-900">
-                                    <MarkdownViewer content={formData.markdownContent} />
-                                </div>
-                            ) : (
-                                <textarea
-                                    value={formData.markdownContent}
-                                    onChange={(e) => handleChange('markdownContent', e.target.value)}
-                                    rows={10}
-                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500 font-mono text-sm"
-                                    placeholder="# Your Note Title
-
-Write your content here using markdown...
-
-**Bold text** and *italic text*
-
-- List item 1
-- List item 2
-
-```
-Code block
-```"
-                                />
-                            )}
-                        </div>
-                    )}
-
                     {/* File Upload */}
-                    {contentType === 'file' && (
+                    <div>
                         <div>
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                                 Upload File
                             </label>
-                            
+
                             {!uploadedFile ? (
                                 <div className="border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-lg p-8 text-center hover:border-primary-500 transition-colors">
                                     <input
                                         type="file"
                                         id="file-upload"
                                         className="hidden"
-                                        accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png"
+                                        accept=".pdf,.txt"
                                         onChange={handleFileUpload}
                                     />
                                     <label
@@ -318,7 +235,7 @@ Code block
                                                 Click to upload or drag and drop
                                             </p>
                                             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                                PDF, DOC, DOCX, TXT, or Images (Max 10MB)
+                                                PDF or TXT files only (Max 10MB)
                                             </p>
                                         </div>
                                     </label>
@@ -350,7 +267,7 @@ Code block
                                 </div>
                             )}
                         </div>
-                    )}
+                    </div>
                 </div>
             </div>
 

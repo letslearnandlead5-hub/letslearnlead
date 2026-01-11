@@ -27,18 +27,13 @@ const storage = multer.diskStorage({
 const fileFilter = (req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
     const allowedTypes = [
         'application/pdf',
-        'application/msword',
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        'text/plain',
-        'image/jpeg',
-        'image/png',
-        'image/jpg'
+        'text/plain'
     ];
 
     if (allowedTypes.includes(file.mimetype)) {
         cb(null, true);
     } else {
-        cb(new Error('Invalid file type. Only PDF, DOC, DOCX, TXT, and images are allowed.'));
+        cb(new Error('Invalid file type. Only PDF and TXT files are allowed.'));
     }
 };
 
@@ -118,21 +113,19 @@ router.post('/', protect, authorize('admin', 'teacher'), upload.single('file'), 
             title: req.body.title,
             description: req.body.description,
             courseId: req.body.courseId,
-            fileType: req.body.fileType || 'markdown',
+            fileType: 'file',
             category: req.body.category || '',
             tags: req.body.tags ? JSON.parse(req.body.tags) : [],
             uploadedBy: req.user._id,
         };
 
-        // If file is uploaded
-        if (req.file) {
-            noteData.fileUrl = `/notes/${req.file.filename}`;
-            noteData.fileType = 'file';
-        } else if (req.body.markdownContent) {
-            // If markdown content is provided
-            noteData.markdownContent = req.body.markdownContent;
-            noteData.fileType = 'markdown';
+        // File upload is required
+        if (!req.file) {
+            throw new AppError('File upload is required', 400);
         }
+
+        noteData.fileUrl = `/notes/${req.file.filename}`;
+        noteData.fileType = 'file';
 
         const note = await Note.create(noteData);
 
@@ -179,19 +172,6 @@ router.put('/:id', protect, authorize('admin', 'teacher'), upload.single('file')
             }
             updateData.fileUrl = `/notes/${req.file.filename}`;
             updateData.fileType = 'file';
-            updateData.markdownContent = ''; // Clear markdown if switching to file
-        } else if (req.body.markdownContent !== undefined) {
-            // If markdown content is provided
-            updateData.markdownContent = req.body.markdownContent;
-            updateData.fileType = 'markdown';
-            // Delete old file if switching from file to markdown
-            if (note.fileUrl) {
-                const oldFilePath = path.join(__dirname, '../../public', note.fileUrl);
-                if (fs.existsSync(oldFilePath)) {
-                    fs.unlinkSync(oldFilePath);
-                }
-                updateData.fileUrl = '';
-            }
         }
 
         const updatedNote = await Note.findByIdAndUpdate(

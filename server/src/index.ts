@@ -28,6 +28,7 @@ dotenv.config();
 
 // 🔹 Create app
 const app = express();
+app.set('trust proxy', 1);
 
 // 🔹 Connect to database
 connectDB();

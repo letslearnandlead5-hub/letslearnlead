@@ -2,11 +2,22 @@ import axios from "axios";
 
 /**
  * IMPORTANT:
- * VITE_API_URL must be:
- * https://api.letslearnandlead.com
- * (NO /api here)
+ * VITE_API_URL should be:
+ * https://api.letslearnandlead.com (production)
+ * http://localhost:5000 (development)
+ * 
+ * The /api prefix is added automatically below
  */
-const API_BASE_URL = import.meta.env.VITE_API_URL;
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
+// Debug: Log the API base URL in development
+if (import.meta.env.DEV) {
+  console.log('🔧 API Configuration:', {
+    VITE_API_URL: import.meta.env.VITE_API_URL,
+    baseURL: `${API_BASE_URL}/api`,
+    mode: import.meta.env.MODE
+  });
+}
 
 // Create axios instance
 const api = axios.create({

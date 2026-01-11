@@ -197,7 +197,7 @@ const NotesManagement: React.FC = () => {
                 <Card className="p-4">
                     <div className="text-sm text-gray-600 dark:text-gray-400">Markdown Notes</div>
                     <div className="text-2xl font-bold text-gray-900 dark:text-white">
-                        {notes.filter(n => n.fileType === 'markdown').length}
+                        {notes.filter(n => n.fileType === 'html').length}
                     </div>
                 </Card>
             </div>
@@ -311,7 +311,7 @@ const NotesManagement: React.FC = () => {
             {/* Note Viewer Modal */}
             <Modal isOpen={isViewerOpen} onClose={() => setIsViewerOpen(false)} title={selectedNote?.title || ''} size="full">
                 <div className="min-h-[60vh]">
-                    {selectedNote?.fileType === 'markdown' && selectedNote.markdownContent ? (
+                    {selectedNote?.fileType === 'html' && selectedNote.markdownContent ? (
                         <div className="p-6">
                             <MarkdownViewer content={selectedNote.markdownContent} />
                         </div>
@@ -323,7 +323,7 @@ const NotesManagement: React.FC = () => {
                                     const fileExtension = selectedNote.fileUrl.split('.').pop()?.toLowerCase();
                                     const baseUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000';
                                     const fileUrl = `${baseUrl}${selectedNote.fileUrl}`;
-                                    
+
                                     // PDF Viewer - Use object tag for better compatibility
                                     if (fileExtension === 'pdf') {
                                         return (
@@ -355,7 +355,7 @@ const NotesManagement: React.FC = () => {
                                             </div>
                                         );
                                     }
-                                    
+
                                     // Image Viewer
                                     if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(fileExtension || '')) {
                                         return (
@@ -368,7 +368,7 @@ const NotesManagement: React.FC = () => {
                                             </div>
                                         );
                                     }
-                                    
+
                                     // Text File Viewer
                                     if (['txt', 'text'].includes(fileExtension || '')) {
                                         return (
@@ -381,7 +381,7 @@ const NotesManagement: React.FC = () => {
                                             </div>
                                         );
                                     }
-                                    
+
                                     // Document files (DOC, DOCX) - Show download option
                                     return (
                                         <div className="flex items-center justify-center h-[60vh]">
@@ -404,8 +404,8 @@ const NotesManagement: React.FC = () => {
                                                     target="_blank"
                                                     rel="noopener noreferrer"
                                                 >
-                                                    <Button 
-                                                        variant="primary" 
+                                                    <Button
+                                                        variant="primary"
                                                         leftIcon={<Download className="w-5 h-5" />}
                                                         className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
                                                     >
@@ -417,13 +417,13 @@ const NotesManagement: React.FC = () => {
                                     );
                                 })()}
                             </div>
-                            
+
                             {/* Download Button Footer */}
                             {(() => {
                                 const fileExtension = selectedNote.fileUrl.split('.').pop()?.toLowerCase();
                                 const baseUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000';
                                 const fileUrl = `${baseUrl}${selectedNote.fileUrl}`;
-                                
+
                                 // Show download button for viewable files
                                 if (['pdf', 'jpg', 'jpeg', 'png', 'gif', 'webp', 'txt', 'text'].includes(fileExtension || '')) {
                                     return (
@@ -438,8 +438,8 @@ const NotesManagement: React.FC = () => {
                                                     target="_blank"
                                                     rel="noopener noreferrer"
                                                 >
-                                                    <Button 
-                                                        variant="outline" 
+                                                    <Button
+                                                        variant="outline"
                                                         size="sm"
                                                         leftIcon={<Download className="w-4 h-4" />}
                                                         className="border-2"

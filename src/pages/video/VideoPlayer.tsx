@@ -107,7 +107,8 @@ const VideoPlayer: React.FC = () => {
         console.log(`   Total: ${totalLessons}, Completed: ${completedCount}, Progress: ${completionPercentage}%`);
 
         try {
-            const response = await fetch(`http://localhost:5000/api/enrollment/progress/${courseId}`, {
+            const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+            const response = await fetch(`${API_URL}/api/enrollment/progress/${courseId}`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',

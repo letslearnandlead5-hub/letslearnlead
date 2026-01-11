@@ -61,7 +61,8 @@ const MyCourses: React.FC = () => {
     const fetchEnrolledCourses = async () => {
         try {
             // Fetch enrollments with progress data
-            const enrollmentsResponse = await fetch('http://localhost:5000/api/enrollment/my-enrollments', {
+            const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+            const enrollmentsResponse = await fetch(`${API_URL}/api/enrollment/my-enrollments`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                 },
@@ -488,8 +489,8 @@ const MyCourses: React.FC = () => {
                                                 </div>
                                             </div>
                                             <div className="flex items-center gap-2">
-                                                <Button 
-                                                    variant="ghost" 
+                                                <Button
+                                                    variant="ghost"
                                                     size="sm"
                                                     onClick={() => {
                                                         // Open note viewer (you can add a modal here)

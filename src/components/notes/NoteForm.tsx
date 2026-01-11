@@ -56,9 +56,9 @@ const NoteForm: React.FC<NoteFormProps> = ({
         const end = textarea.selectionEnd;
         const selectedText = htmlContent.substring(start, end);
         const newText = htmlContent.substring(0, start) + before + selectedText + after + htmlContent.substring(end);
-        
+
         setHtmlContent(newText);
-        
+
         // Restore cursor position
         setTimeout(() => {
             textarea.focus();
@@ -139,21 +139,23 @@ const NoteForm: React.FC<NoteFormProps> = ({
 
             onSubmit(formDataToSend);
         } else {
-            // Write mode - send HTML content
+            // Write mode - send markdown content as FormData
             if (!htmlContent || htmlContent.trim() === '') {
                 alert('Please write some content');
                 return;
             }
 
-            onSubmit({
-                title: formData.title,
-                description: formData.description,
-                courseId: formData.courseId,
-                fileType: 'html',
-                category: formData.category,
-                tags: formData.tags,
-                markdownContent: htmlContent,
-            });
+            // Create FormData for markdown content (backend expects FormData)
+            const formDataToSend = new FormData();
+            formDataToSend.append('title', formData.title);
+            formDataToSend.append('description', formData.description);
+            formDataToSend.append('courseId', formData.courseId);
+            formDataToSend.append('fileType', 'html');
+            formDataToSend.append('category', formData.category);
+            formDataToSend.append('tags', JSON.stringify(formData.tags));
+            formDataToSend.append('markdownContent', htmlContent);
+
+            onSubmit(formDataToSend);
         }
     };
 
@@ -262,8 +264,8 @@ const NoteForm: React.FC<NoteFormProps> = ({
                                 type="button"
                                 onClick={() => setContentMode('upload')}
                                 className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg border-2 transition-all ${contentMode === 'upload'
-                                        ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-300'
-                                        : 'border-gray-300 dark:border-gray-700 hover:border-gray-400 dark:hover:border-gray-600'
+                                    ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-300'
+                                    : 'border-gray-300 dark:border-gray-700 hover:border-gray-400 dark:hover:border-gray-600'
                                     }`}
                             >
                                 <Upload className="w-5 h-5" />
@@ -273,8 +275,8 @@ const NoteForm: React.FC<NoteFormProps> = ({
                                 type="button"
                                 onClick={() => setContentMode('write')}
                                 className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg border-2 transition-all ${contentMode === 'write'
-                                        ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-300'
-                                        : 'border-gray-300 dark:border-gray-700 hover:border-gray-400 dark:hover:border-gray-600'
+                                    ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-300'
+                                    : 'border-gray-300 dark:border-gray-700 hover:border-gray-400 dark:hover:border-gray-600'
                                     }`}
                             >
                                 <Edit3 className="w-5 h-5" />
@@ -350,7 +352,7 @@ const NoteForm: React.FC<NoteFormProps> = ({
                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                                     Write Content
                                 </label>
-                                
+
                                 {/* Formatting Toolbar */}
                                 <div className="bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-t-lg p-2 flex flex-wrap gap-1">
                                     <button
@@ -414,7 +416,7 @@ const NoteForm: React.FC<NoteFormProps> = ({
                                     placeholder="Write your note content here using Markdown formatting...&#10;&#10;Examples:&#10;# Heading 1&#10;## Heading 2&#10;**Bold text**&#10;*Italic text*&#10;- Bullet point&#10;1. Numbered list"
                                     rows={15}
                                 />
-                                
+
                                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
                                     Use Markdown formatting: **bold**, *italic*, # headings, - lists
                                 </p>

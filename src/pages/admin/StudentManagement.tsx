@@ -19,6 +19,7 @@ interface Student {
 
 const StudentManagement: React.FC = () => {
     const [students, setStudents] = useState<Student[]>([]);
+    const [totalStudents, setTotalStudents] = useState(0);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
@@ -32,11 +33,12 @@ const StudentManagement: React.FC = () => {
     const fetchStudents = async () => {
         try {
             setLoading(true);
-            const params: any = { role: 'student' };
+            const params: any = { role: 'student', limit: 1000 };
             if (searchTerm) params.search = searchTerm;
 
-            const response = await adminAPI.users.getAll(params);
+            const response: any = await adminAPI.users.getAll(params);
             setStudents(response.data || []);
+            setTotalStudents(response.total || response.data?.length || 0);
         } catch (error: any) {
             console.error('Error fetching students:', error);
             addToast({ type: 'error', message: 'Failed to load students' });
@@ -148,7 +150,7 @@ const StudentManagement: React.FC = () => {
                         </div>
                         <div>
                             <div className="text-sm text-gray-600 dark:text-gray-400">Total Students</div>
-                            <div className="text-2xl font-bold text-gray-900 dark:text-white">{students.length}</div>
+                            <div className="text-2xl font-bold text-gray-900 dark:text-white">{totalStudents}</div>
                         </div>
                     </div>
                 </Card>
@@ -290,11 +292,10 @@ const StudentManagement: React.FC = () => {
                                                 </button>
                                                 <button
                                                     onClick={() => handleBlockUnblock(student)}
-                                                    className={`${
-                                                        student.isBlocked
-                                                            ? 'text-green-600 hover:text-green-900 dark:text-green-400'
-                                                            : 'text-red-600 hover:text-red-900 dark:text-red-400'
-                                                    }`}
+                                                    className={`${student.isBlocked
+                                                        ? 'text-green-600 hover:text-green-900 dark:text-green-400'
+                                                        : 'text-red-600 hover:text-red-900 dark:text-red-400'
+                                                        }`}
                                                     title={student.isBlocked ? 'Unblock' : 'Block'}
                                                 >
                                                     {student.isBlocked ? (

@@ -69,7 +69,8 @@ app.use('/invoices', express.static(path.join(__dirname, '../invoices')));
 // Serve notes files with permissive headers for iframe viewing
 app.use('/notes', (req, res, next) => {
     res.header('X-Frame-Options', 'SAMEORIGIN');
-    res.header('Content-Security-Policy', "frame-ancestors 'self' http://localhost:5173 https://localhost:5173");
+    res.header('Content-Security-Policy', "frame-ancestors 'self' http://localhost:5173 https://localhost:5173 https://letslearnandlead.com https://www.letslearnandlead.com");
+    res.header('Access-Control-Allow-Origin', '*');
     next();
 });
 app.use('/notes', express.static(path.join(__dirname, '../public/notes')));

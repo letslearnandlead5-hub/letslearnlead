@@ -325,15 +325,17 @@ const NotesManagement: React.FC = () => {
                                     const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
                                     const fileUrl = `${baseUrl}${selectedNote.fileUrl}`;
 
-                                    // PDF Viewer - Use iframe for better browser compatibility
+                                    // PDF Viewer - iframe now works with proper backend headers
                                     if (fileExtension === 'pdf') {
                                         return (
-                                            <div className="w-full h-[600px] bg-gray-200 dark:bg-gray-800 p-4">
-                                                <iframe
-                                                    src={`${fileUrl}#toolbar=0`}
-                                                    className="w-full h-full rounded-lg border-2 border-gray-300 dark:border-gray-700"
-                                                    title={selectedNote.title}
-                                                />
+                                            <div className="p-4">
+                                                <div className="w-full h-[600px] bg-gray-200 dark:bg-gray-800 rounded-lg overflow-hidden border-2 border-gray-300 dark:border-gray-700">
+                                                    <iframe
+                                                        src={`${fileUrl}#toolbar=0`}
+                                                        className="w-full h-full"
+                                                        title={selectedNote.title}
+                                                    />
+                                                </div>
                                             </div>
                                         );
                                     }

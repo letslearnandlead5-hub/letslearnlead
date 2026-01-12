@@ -538,27 +538,97 @@ const MyCourses: React.FC = () => {
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
             line-height: 1.6;
-            max-width: 800px;
+            max-width: 900px;
             margin: 0 auto;
-            padding: 20px;
+            padding: 40px 20px;
             color: #333;
+            background: #fff;
         }
-        h1, h2, h3, h4, h5, h6 { margin-top: 24px; margin-bottom: 16px; font-weight: 600; }
+        h1, h2, h3, h4, h5, h6 { 
+            margin-top: 24px; 
+            margin-bottom: 16px; 
+            font-weight: 600; 
+            line-height: 1.25;
+        }
         h1 { font-size: 2em; border-bottom: 1px solid #eee; padding-bottom: 0.3em; }
         h2 { font-size: 1.5em; border-bottom: 1px solid #eee; padding-bottom: 0.3em; }
-        code { background: #f6f8fa; padding: 2px 6px; border-radius: 3px; font-family: monospace; }
-        pre { background: #f6f8fa; padding: 16px; border-radius: 6px; overflow-x: auto; }
-        pre code { background: none; padding: 0; }
-        table { border-collapse: collapse; width: 100%; margin: 16px 0; }
-        th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
-        th { background: #f6f8fa; font-weight: 600; }
-        blockquote { border-left: 4px solid #ddd; padding-left: 16px; color: #666; margin: 0; }
-        img { max-width: 100%; height: auto; }
+        h3 { font-size: 1.25em; }
+        h4 { font-size: 1em; }
+        p { margin: 16px 0; }
+        ul, ol { 
+            margin: 16px 0; 
+            padding-left: 32px;
+        }
+        li { 
+            margin: 8px 0;
+            line-height: 1.6;
+        }
+        li > p {
+            margin: 4px 0;
+        }
+        code { 
+            background: #f6f8fa; 
+            padding: 2px 6px; 
+            border-radius: 3px; 
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 0.9em;
+        }
+        pre { 
+            background: #f6f8fa; 
+            padding: 16px; 
+            border-radius: 6px; 
+            overflow-x: auto;
+            margin: 16px 0;
+        }
+        pre code { 
+            background: none; 
+            padding: 0; 
+        }
+        table { 
+            border-collapse: collapse; 
+            width: 100%; 
+            margin: 16px 0; 
+        }
+        th, td { 
+            border: 1px solid #ddd; 
+            padding: 8px 12px; 
+            text-align: left; 
+        }
+        th { 
+            background: #f6f8fa; 
+            font-weight: 600; 
+        }
+        blockquote { 
+            border-left: 4px solid #ddd; 
+            padding-left: 16px; 
+            color: #666; 
+            margin: 16px 0;
+            font-style: italic;
+        }
+        img { 
+            max-width: 100%; 
+            height: auto; 
+            margin: 16px 0;
+        }
+        strong { font-weight: 600; }
+        em { font-style: italic; }
+        hr { 
+            border: none; 
+            border-top: 2px solid #eee; 
+            margin: 24px 0; 
+        }
+        a { 
+            color: #0366d6; 
+            text-decoration: none; 
+        }
+        a:hover { 
+            text-decoration: underline; 
+        }
     </style>
 </head>
 <body>
     <h1>${material.title}</h1>
-    <div>${material.markdownContent}</div>
+    <div class="content">${material.markdownContent}</div>
 </body>
 </html>`;
                                                             const blob = new Blob([htmlContent], { type: 'text/html' });

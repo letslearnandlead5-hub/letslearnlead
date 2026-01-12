@@ -493,14 +493,15 @@ const MyCourses: React.FC = () => {
                                                     variant="ghost"
                                                     size="sm"
                                                     onClick={() => {
-                                                        // Open note viewer (you can add a modal here)
-                                                        window.open(`${import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000'}${material.fileUrl}`, '_blank');
+                                                        // Open note viewer
+                                                        const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+                                                        window.open(`${baseUrl}${material.fileUrl}`, '_blank');
                                                     }}
                                                 >
                                                     <Eye className="w-4 h-4" />
                                                 </Button>
                                                 <a
-                                                    href={`${import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000'}${material.fileUrl}`}
+                                                    href={`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}${material.fileUrl}`}
                                                     download
                                                     target="_blank"
                                                     rel="noopener noreferrer"

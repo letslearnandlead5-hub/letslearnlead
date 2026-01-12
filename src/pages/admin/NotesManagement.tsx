@@ -310,15 +310,15 @@ const NotesManagement: React.FC = () => {
 
             {/* Note Viewer Modal */}
             <Modal isOpen={isViewerOpen} onClose={() => setIsViewerOpen(false)} title={selectedNote?.title || ''} size="full">
-                <div className="min-h-[60vh]">
+                <div>
                     {selectedNote?.fileType === 'html' && selectedNote.markdownContent ? (
                         <div className="p-6">
                             <MarkdownViewer content={selectedNote.markdownContent} />
                         </div>
                     ) : selectedNote?.fileUrl ? (
-                        <div className="flex flex-col h-full">
+                        <div className="flex flex-col">
                             {/* File Viewer */}
-                            <div className="flex-1 bg-gray-100 dark:bg-gray-900 overflow-auto">
+                            <div className="bg-gray-100 dark:bg-gray-900">
                                 {(() => {
                                     const fileExtension = selectedNote.fileUrl.split('.').pop()?.toLowerCase();
                                     // VITE_API_URL is like https://api.letslearnandlead.com (without /api)
@@ -328,7 +328,7 @@ const NotesManagement: React.FC = () => {
                                     // PDF Viewer - Use object tag for better compatibility
                                     if (fileExtension === 'pdf') {
                                         return (
-                                            <div className="w-full h-[70vh] bg-gray-200 dark:bg-gray-800">
+                                            <div className="w-full h-[600px] bg-gray-200 dark:bg-gray-800">
                                                 <object
                                                     data={fileUrl}
                                                     type="application/pdf"
@@ -360,11 +360,11 @@ const NotesManagement: React.FC = () => {
                                     // Image Viewer
                                     if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(fileExtension || '')) {
                                         return (
-                                            <div className="flex items-center justify-center p-8 min-h-[60vh]">
+                                            <div className="flex items-center justify-center p-8">
                                                 <img
                                                     src={fileUrl}
                                                     alt={selectedNote.title}
-                                                    className="max-w-full max-h-[70vh] object-contain rounded-lg shadow-2xl"
+                                                    className="max-w-full max-h-[600px] object-contain rounded-lg shadow-2xl"
                                                 />
                                             </div>
                                         );
@@ -376,7 +376,7 @@ const NotesManagement: React.FC = () => {
                                             <div className="p-8">
                                                 <iframe
                                                     src={fileUrl}
-                                                    className="w-full h-[60vh] border-2 border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800"
+                                                    className="w-full h-[500px] border-2 border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800"
                                                     title={selectedNote.title}
                                                 />
                                             </div>
@@ -385,7 +385,7 @@ const NotesManagement: React.FC = () => {
 
                                     // Document files (DOC, DOCX) - Show download option
                                     return (
-                                        <div className="flex items-center justify-center h-[60vh]">
+                                        <div className="flex items-center justify-center py-16">
                                             <div className="text-center">
                                                 <div className="w-24 h-24 bg-gradient-to-br from-blue-100 to-purple-100 dark:from-blue-900 dark:to-purple-900 rounded-full flex items-center justify-center mx-auto mb-6">
                                                     <FileText className="w-12 h-12 text-blue-600 dark:text-blue-400" />
@@ -456,7 +456,7 @@ const NotesManagement: React.FC = () => {
                             })()}
                         </div>
                     ) : (
-                        <div className="flex items-center justify-center h-[60vh]">
+                        <div className="flex items-center justify-center py-16">
                             <div className="text-center">
                                 <FileText className="w-24 h-24 text-gray-400 mx-auto mb-4" />
                                 <h3 className="text-xl font-bold mb-2">No Content Available</h3>

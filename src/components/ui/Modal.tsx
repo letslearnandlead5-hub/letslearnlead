@@ -71,7 +71,7 @@ const Modal: React.FC<ModalProps> = ({
                     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
                         <motion.div
                             className={cn(
-                                'relative w-full bg-white dark:bg-gray-900 rounded-2xl shadow-2xl',
+                                'relative w-full bg-white dark:bg-gray-900 rounded-2xl shadow-2xl my-8 max-h-[calc(100vh-4rem)] flex flex-col',
                                 sizes[size]
                             )}
                             variants={modalVariants}
@@ -82,7 +82,7 @@ const Modal: React.FC<ModalProps> = ({
                         >
                             {/* Header */}
                             {(title || showCloseButton) && (
-                                <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-800">
+                                <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-800 flex-shrink-0">
                                     {title && (
                                         <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
                                             {title}
@@ -100,7 +100,7 @@ const Modal: React.FC<ModalProps> = ({
                             )}
 
                             {/* Content */}
-                            <div className="p-6">{children}</div>
+                            <div className="overflow-y-auto flex-1">{children}</div>
                         </motion.div>
                     </div>
                 </>

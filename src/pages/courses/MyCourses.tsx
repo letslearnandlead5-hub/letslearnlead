@@ -23,6 +23,7 @@ import { staggerContainer, staggerItem } from '../../utils/animations';
 import { courseAPI, noteAPI } from '../../services/api';
 import { useToastStore } from '../../store/useToastStore';
 import { useAuthStore } from '../../store/useAuthStore';
+import MarkdownViewer from '../../components/notes/MarkdownViewer';
 
 interface EnrolledCourse {
     _id: string;
@@ -51,6 +52,8 @@ const MyCourses: React.FC = () => {
     const [selectedCourse, setSelectedCourse] = useState<EnrolledCourse | null>(null);
     const [isDetailsOpen, setIsDetailsOpen] = useState(false);
     const [courseMaterials, setCourseMaterials] = useState<any[]>([]);
+    const [selectedNote, setSelectedNote] = useState<any>(null);
+    const [isNoteViewerOpen, setIsNoteViewerOpen] = useState(false);
     const { addToast } = useToastStore();
     const { token } = useAuthStore();
 
@@ -493,23 +496,32 @@ const MyCourses: React.FC = () => {
                                                     variant="ghost"
                                                     size="sm"
                                                     onClick={() => {
-                                                        // Open note viewer
-                                                        const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-                                                        window.open(`${baseUrl}${material.fileUrl}`, '_blank');
+                                                        // Check if HTML note or file-based note
+                                                        if (material.fileType === 'html' && material.markdownContent) {
+                                                            // Open HTML note in modal
+                                                            setSelectedNote(material);
+                                                            setIsNoteViewerOpen(true);
+                                                        } else if (material.fileUrl) {
+                                                            // Open file in new tab
+                                                            const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+                                                            window.open(`${baseUrl}${material.fileUrl}`, '_blank');
+                                                        }
                                                     }}
                                                 >
                                                     <Eye className="w-4 h-4" />
                                                 </Button>
-                                                <a
-                                                    href={`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}${material.fileUrl}`}
-                                                    download
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                >
-                                                    <Button variant="outline" size="sm">
-                                                        <Download className="w-4 h-4" />
-                                                    </Button>
-                                                </a>
+                                                {material.fileUrl && (
+                                                    <a
+                                                        href={`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}${material.fileUrl}`}
+                                                        download
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                    >
+                                                        <Button variant="outline" size="sm">
+                                                            <Download className="w-4 h-4" />
+                                                        </Button>
+                                                    </a>
+                                                )}
                                             </div>
                                         </div>
                                     ))}
@@ -573,6 +585,20 @@ const MyCourses: React.FC = () => {
                                 </Button>
                             </Link>
                         </div>
+                    </div>
+                )}
+            </Modal>
+
+            {/* Note Viewer Modal for HTML Notes */}
+            <Modal
+                isOpen={isNoteViewerOpen}
+                onClose={() => setIsNoteViewerOpen(false)}
+                title={selectedNote?.title || 'Note'}
+                size="full"
+            >
+                {selectedNote?.markdownContent && (
+                    <div className="p-6">
+                        <MarkdownViewer content={selectedNote.markdownContent} />
                     </div>
                 )}
             </Modal>

@@ -10,6 +10,7 @@ server/dist/
 # Environment files (NEVER commit real credentials!)
 .env
 .env.local
+.env.production
 .env.production.local
 server/.env
 server/.env.local

@@ -5,6 +5,8 @@ import dotenv from "dotenv";
 import path from "path";
 import { connectDB } from "./config/database";
 import { errorHandler } from "./middleware/error";
+import { configurePassport } from "./config/passport";
+import passport from "passport";
 
 // 🔹 Import routes
 import authRoutes from "./routes/auth";
@@ -32,6 +34,9 @@ app.set('trust proxy', 1);
 
 // 🔹 Connect to database
 connectDB();
+
+// 🔹 Configure Passport for Google OAuth
+configurePassport();
 
 // 🔹 Allowed frontend origins
 const allowedOrigins = [
@@ -62,6 +67,7 @@ app.use(
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
+app.use(passport.initialize());
 
 // 🔹 Serve static files
 app.use('/invoices', express.static(path.join(__dirname, '../invoices')));

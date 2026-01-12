@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import * as jwt from 'jsonwebtoken';
 import crypto from 'crypto';
+import passport from 'passport';
 import { User } from '../models/User';
 import { PasswordReset } from '../models/PasswordReset';
 import { AppError } from '../middleware/error';
@@ -19,10 +20,10 @@ router.post('/signup', authLimiter, async (req: Request, res: Response, next) =>
         // Check if registration is allowed
         const { PlatformSettings } = await import('../models/PlatformSettings');
         const settings = await PlatformSettings.findOne();
-        
+
         console.log('Registration attempt - Settings:', settings);
         console.log('User registration allowed:', settings?.userRegistration);
-        
+
         if (settings && !settings.userRegistration) {
             console.log('Registration blocked - userRegistration is disabled');
             throw new AppError('User registration is currently disabled. Please contact support.', 403);
@@ -329,5 +330,44 @@ router.put('/change-password', protect, async (req: AuthRequest, res: Response, 
         next(error);
     }
 });
+
+// ==================== GOOGLE OAUTH ====================
+
+// @route   GET /api/auth/google
+// @desc    Initiate Google OAuth flow
+// @access  Public
+router.get('/google', passport.authenticate('google', {
+    scope: ['profile', 'email'],
+    session: false
+}));
+
+// @route   GET /api/auth/google/callback
+// @desc    Handle Google OAuth callback
+// @access  Public
+router.get('/google/callback',
+    passport.authenticate('google', { session: false, failureRedirect: '/login' }),
+    async (req: any, res: Response) => {
+        try {
+            const user = req.user;
+
+            if (!user) {
+                return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:5173'}/login?error=auth_failed`);
+            }
+
+            // Generate JWT token
+            const token = jwt.sign(
+                { id: user._id },
+                process.env.JWT_SECRET || 'secret',
+                { expiresIn: process.env.JWT_EXPIRES_IN || '7d' } as jwt.SignOptions
+            );
+
+            // Redirect to frontend with token
+            res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:5173'}/auth/google/callback?token=${token}`);
+        } catch (error) {
+            console.error('Google OAuth callback error:', error);
+            res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:5173'}/login?error=auth_failed`);
+        }
+    }
+);
 
 export default router;

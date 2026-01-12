@@ -14,6 +14,7 @@ import SignUp from './pages/auth/SignUp';
 import Login from './pages/auth/Login';
 import ForgotPassword from './pages/auth/ForgotPassword';
 import ResetPassword from './pages/auth/ResetPassword';
+import GoogleCallback from './pages/auth/GoogleCallback';
 import CoursesList from './pages/courses/CoursesList';
 import CourseDetails from './pages/courses/CourseDetails';
 import MyCourses from './pages/courses/MyCourses';
@@ -252,6 +253,7 @@ function App() {
           <Route path="/login" element={<MainLayout><Login /></MainLayout>} />
           <Route path="/auth/forgot-password" element={<MainLayout><ForgotPassword /></MainLayout>} />
           <Route path="/auth/reset-password" element={<MainLayout><ResetPassword /></MainLayout>} />
+          <Route path="/auth/google/callback" element={<GoogleCallback />} />
           <Route path="/courses" element={<MainLayout><CoursesList /></MainLayout>} />
           <Route path="/courses/:id" element={<MainLayout><CourseDetails /></MainLayout>} />
           <Route path="/courses/:id/purchase" element={<MainLayout><CoursePurchase /></MainLayout>} />

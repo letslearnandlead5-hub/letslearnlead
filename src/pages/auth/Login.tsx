@@ -8,6 +8,7 @@ import { slideInUp } from '../../utils/animations';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useToastStore } from '../../store/useToastStore';
 import grammarSvg from '../../assets/Grammar-correction.svg';
+import GoogleSignInButton from '../../components/auth/GoogleSignInButton';
 
 const Login: React.FC = () => {
     const [email, setEmail] = useState('');
@@ -91,6 +92,18 @@ const Login: React.FC = () => {
                                 <p className="text-sm text-red-800 dark:text-red-200">{error}</p>
                             </div>
                         )}
+
+                        {/* Google Sign In */}
+                        <GoogleSignInButton onSignIn={() => { }} />
+
+                        {/* Divider */}
+                        <div className="relative flex items-center my-6">
+                            <div className="flex-grow border-t border-gray-300 dark:border-gray-700"></div>
+                            <span className="flex-shrink mx-4 text-gray-500 dark:text-gray-400 text-sm">
+                                Or continue with email
+                            </span>
+                            <div className="flex-grow border-t border-gray-300 dark:border-gray-700"></div>
+                        </div>
 
                         {/* Form */}
                         <form onSubmit={handleSubmit} className="space-y-5">

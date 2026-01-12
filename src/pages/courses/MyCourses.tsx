@@ -526,7 +526,47 @@ const MyCourses: React.FC = () => {
                                                         variant="outline"
                                                         size="sm"
                                                         onClick={() => {
-                                                            // Create HTML file from markdown content
+                                                            // Parse markdown content to HTML (same as MarkdownViewer)
+                                                            const parseMarkdown = (text: string) => {
+                                                                if (!text) return '';
+                                                                let html = text;
+
+                                                                // Headers
+                                                                html = html.replace(/^### (.*$)/gim, '<h3>$1</h3>');
+                                                                html = html.replace(/^## (.*$)/gim, '<h2>$1</h2>');
+                                                                html = html.replace(/^# (.*$)/gim, '<h1>$1</h1>');
+
+                                                                // Bold
+                                                                html = html.replace(/\*\*(.*?)\*\*/gim, '<strong>$1</strong>');
+
+                                                                // Italic
+                                                                html = html.replace(/\*(.*?)\*/gim, '<em>$1</em>');
+
+                                                                // Links
+                                                                html = html.replace(/\[(.*?)\]\((.*?)\)/gim, '<a href="$2">$1</a>');
+
+                                                                // Code blocks
+                                                                html = html.replace(/```(.*?)```/gis, '<pre><code>$1</code></pre>');
+
+                                                                // Inline code
+                                                                html = html.replace(/`(.*?)`/gim, '<code>$1</code>');
+
+                                                                // Lists - wrap consecutive li items in ul
+                                                                html = html.replace(/^\* (.*$)/gim, '<li>$1</li>');
+                                                                html = html.replace(/^- (.*$)/gim, '<li>$1</li>');
+
+                                                                // Wrap consecutive <li> in <ul>
+                                                                html = html.replace(/(<li>.*?<\/li>\s*)+/gis, '<ul>$&</ul>');
+
+                                                                // Line breaks
+                                                                html = html.replace(/\n/gim, '<br />');
+
+                                                                return html;
+                                                            };
+
+                                                            const parsedContent = parseMarkdown(material.markdownContent);
+
+                                                            // Create HTML file from parsed content
                                                             const htmlContent = `
 <!DOCTYPE html>
 <html lang="en">
@@ -628,7 +668,7 @@ const MyCourses: React.FC = () => {
 </head>
 <body>
     <h1>${material.title}</h1>
-    <div class="content">${material.markdownContent}</div>
+    <div class="content">${parsedContent}</div>
 </body>
 </html>`;
                                                             const blob = new Blob([htmlContent], { type: 'text/html' });

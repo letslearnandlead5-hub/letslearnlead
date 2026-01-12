@@ -325,34 +325,15 @@ const NotesManagement: React.FC = () => {
                                     const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
                                     const fileUrl = `${baseUrl}${selectedNote.fileUrl}`;
 
-                                    // PDF Viewer - Use object tag for better compatibility
+                                    // PDF Viewer - Use iframe for better browser compatibility
                                     if (fileExtension === 'pdf') {
                                         return (
-                                            <div className="w-full h-[600px] bg-gray-200 dark:bg-gray-800">
-                                                <object
-                                                    data={fileUrl}
-                                                    type="application/pdf"
-                                                    className="w-full h-full"
-                                                >
-                                                    <div className="flex items-center justify-center h-full">
-                                                        <div className="text-center p-8">
-                                                            <FileText className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                                                            <p className="text-gray-600 dark:text-gray-400 mb-4">
-                                                                Your browser doesn't support PDF viewing.
-                                                            </p>
-                                                            <a
-                                                                href={fileUrl}
-                                                                download
-                                                                target="_blank"
-                                                                rel="noopener noreferrer"
-                                                            >
-                                                                <Button variant="primary" leftIcon={<Download className="w-5 h-5" />}>
-                                                                    Download PDF
-                                                                </Button>
-                                                            </a>
-                                                        </div>
-                                                    </div>
-                                                </object>
+                                            <div className="w-full h-[600px] bg-gray-200 dark:bg-gray-800 p-4">
+                                                <iframe
+                                                    src={`${fileUrl}#toolbar=0`}
+                                                    className="w-full h-full rounded-lg border-2 border-gray-300 dark:border-gray-700"
+                                                    title={selectedNote.title}
+                                                />
                                             </div>
                                         );
                                     }

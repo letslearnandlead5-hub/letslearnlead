@@ -364,8 +364,8 @@ const NotesLibrary: React.FC = () => {
                                     {/* Header with Icon */}
                                     <div className="flex items-start gap-4 mb-4">
                                         <div className={`p-3 rounded-xl ${note.fileType === 'markdown' || note.fileType === 'html'
-                                                ? 'bg-gradient-to-br from-blue-100 to-purple-100 dark:from-blue-900 dark:to-purple-900'
-                                                : 'bg-gradient-to-br from-green-100 to-cyan-100 dark:from-green-900 dark:to-cyan-900'
+                                            ? 'bg-gradient-to-br from-blue-100 to-purple-100 dark:from-blue-900 dark:to-purple-900'
+                                            : 'bg-gradient-to-br from-green-100 to-cyan-100 dark:from-green-900 dark:to-cyan-900'
                                             }`}>
                                             {note.fileType === 'markdown' || note.fileType === 'html' ? (
                                                 <FileText className="w-7 h-7 text-blue-600 dark:text-blue-400" />
@@ -463,34 +463,16 @@ const NotesLibrary: React.FC = () => {
                                         const baseUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000';
                                         const fileUrl = `${baseUrl}${selectedNote.fileUrl}`;
 
-                                        // PDF Viewer - Use object tag for better compatibility
+                                        // PDF Viewer - Use iframe for better compatibility
                                         if (fileExtension === 'pdf') {
+                                            console.log('PDF URL:', fileUrl); // Debug log
                                             return (
                                                 <div className="w-full h-[70vh] bg-gray-200 dark:bg-gray-800">
-                                                    <object
-                                                        data={fileUrl}
-                                                        type="application/pdf"
-                                                        className="w-full h-full"
-                                                    >
-                                                        <div className="flex items-center justify-center h-full">
-                                                            <div className="text-center p-8">
-                                                                <FileText className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                                                                <p className="text-gray-600 dark:text-gray-400 mb-4">
-                                                                    Your browser doesn't support PDF viewing.
-                                                                </p>
-                                                                <a
-                                                                    href={fileUrl}
-                                                                    download
-                                                                    target="_blank"
-                                                                    rel="noopener noreferrer"
-                                                                >
-                                                                    <Button variant="primary" leftIcon={<Download className="w-5 h-5" />}>
-                                                                        Download PDF
-                                                                    </Button>
-                                                                </a>
-                                                            </div>
-                                                        </div>
-                                                    </object>
+                                                    <iframe
+                                                        src={fileUrl}
+                                                        className="w-full h-full border-0"
+                                                        title={selectedNote.title}
+                                                    />
                                                 </div>
                                             );
                                         }

@@ -108,11 +108,11 @@ const StudentHeader: React.FC<StudentHeaderProps> = ({ onMenuClick }) => {
                             alt="Let's L-earn and Lead"
                             className="h-10 w-auto object-contain"
                         />
-                        <div className="flex flex-col">
-                            <span className="text-lg font-bold text-gray-900 dark:text-white leading-tight">
-                                Lets <span className="text-yellow-500">L-Earn</span> and Lead
+                        <div className="hidden sm:flex flex-col">
+                            <span className="text-lg font-bold text-gray-900 dark:text-white leading-tight whitespace-nowrap">
+                                Lets <span className="text-yellow-500">L-earn</span> and Lead
                             </span>
-                            <span className="text-xs font-semibold text-yellow-600 dark:text-yellow-500 tracking-widest leading-tight">
+                            <span className="text-xs font-semibold text-yellow-600 dark:text-yellow-500 tracking-widest leading-tight whitespace-nowrap">
                                 LEARN EARN LEAD
                             </span>
                         </div>

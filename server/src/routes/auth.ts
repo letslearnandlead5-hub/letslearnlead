@@ -372,4 +372,49 @@ router.get('/google/callback',
     }
 );
 
+// @route   DELETE /api/auth/delete-account
+// @desc    Delete user account and all associated data
+// @access  Private
+router.delete('/delete-account', protect, async (req: AuthRequest, res: Response, next) => {
+    try {
+        const userId = req.user._id;
+
+        // Find user
+        const user = await User.findById(userId);
+        if (!user) {
+            throw new AppError('User not found', 404);
+        }
+
+        // Delete user's enrollments
+        const { Enrollment } = await import('../models/Enrollment');
+        await Enrollment.deleteMany({ userId });
+
+        // Delete user's progress
+        const { Progress } = await import('../models/Progress');
+        await Progress.deleteMany({ userId });
+
+        // Delete user's notifications
+        const { Notification } = await import('../models/Notification');
+        await Notification.deleteMany({ userId });
+
+        // Delete user's doubts
+        const { Doubt } = await import('../models/Doubt');
+        await Doubt.deleteMany({ userId });
+
+        // Delete user's quiz attempts
+        const { QuizAttempt } = await import('../models/QuizAttempt');
+        await QuizAttempt.deleteMany({ userId });
+
+        // Finally, delete the user
+        await User.findByIdAndDelete(userId);
+
+        res.status(200).json({
+            success: true,
+            message: 'Account deleted successfully',
+        });
+    } catch (error) {
+        next(error);
+    }
+});
+
 export default router;

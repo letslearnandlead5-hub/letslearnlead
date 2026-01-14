@@ -11,7 +11,9 @@ import {
     Camera,
     GraduationCap,
     BookOpen,
-    Lock
+    Lock,
+    Trash2,
+    AlertTriangle
 } from 'lucide-react';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
@@ -49,6 +51,8 @@ const MyProfile: React.FC = () => {
         newPassword: '',
         confirmPassword: '',
     });
+
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
     useEffect(() => {
         if (user) {
@@ -777,7 +781,116 @@ const MyProfile: React.FC = () => {
                                 </Button>
                             </div>
                         </form>
+
+                        {/* Delete Account Section */}
+                        <div className="mt-8 pt-8 border-t border-gray-200 dark:border-gray-700">
+                            <div className="max-w-md">
+                                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                                    Delete Account
+                                </h3>
+                                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                                    Once you delete your account, there is no going back. All your data, enrollments, and progress will be permanently deleted.
+                                </p>
+                                <Button
+                                    variant="outline"
+                                    onClick={() => setShowDeleteConfirm(true)}
+                                    leftIcon={<Trash2 className="w-4 h-4" />}
+                                    className="border-red-600 text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
+                                >
+                                    Delete My Account
+                                </Button>
+                            </div>
+                        </div>
                     </Card>
+
+                    {/* Delete Confirmation Modal */}
+                    {showDeleteConfirm && (
+                        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                            <div className="bg-white dark:bg-gray-900 rounded-lg max-w-md w-full p-6">
+                                <div className="flex items-center gap-3 mb-4">
+                                    <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-950 flex items-center justify-center">
+                                        <AlertTriangle className="w-6 h-6 text-red-600" />
+                                    </div>
+                                    <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+                                        Delete Account?
+                                    </h3>
+                                </div>
+                                <p className="text-gray-600 dark:text-gray-400 mb-6">
+                                    This action cannot be undone. All your data, including:
+                                </p>
+                                <ul className="list-disc list-inside text-sm text-gray-600 dark:text-gray-400 mb-6 space-y-1">
+                                    <li>Course enrollments and progress</li>
+                                    <li>Quiz results and certificates</li>
+                                    <li>Personal information and profile</li>
+                                    <li>Purchase history</li>
+                                </ul>
+                                <p className="text-gray-600 dark:text-gray-400 mb-6">
+                                    will be permanently deleted.
+                                </p>
+                                <div className="flex gap-3">
+                                    <Button
+                                        variant="outline"
+                                        onClick={() => setShowDeleteConfirm(false)}
+                                        className="flex-1"
+                                    >
+                                        Cancel
+                                    </Button>
+                                    <Button
+                                        variant="primary"
+                                        onClick={async () => {
+                                            setLoading(true);
+                                            try {
+                                                const authStorage = localStorage.getItem('auth-storage');
+                                                let token = null;
+                                                if (authStorage) {
+                                                    try {
+                                                        const parsed = JSON.parse(authStorage);
+                                                        token = parsed?.state?.token;
+                                                    } catch (e) {
+                                                        console.error('Failed to parse auth-storage:', e);
+                                                    }
+                                                }
+
+                                                if (!token) {
+                                                    addToast({ type: 'error', message: 'Session expired. Please login again.' });
+                                                    localStorage.clear();
+                                                    window.location.href = '/login';
+                                                    return;
+                                                }
+
+                                                const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+                                                const response = await fetch(`${API_URL}/api/auth/delete-account`, {
+                                                    method: 'DELETE',
+                                                    headers: {
+                                                        'Authorization': `Bearer ${token}`,
+                                                    },
+                                                });
+
+                                                if (!response.ok) {
+                                                    const data = await response.json();
+                                                    throw new Error(data.message || 'Failed to delete account');
+                                                }
+
+                                                addToast({ type: 'success', message: 'Account deleted successfully' });
+                                                localStorage.clear();
+                                                window.location.href = '/';
+                                            } catch (error: any) {
+                                                console.error('Error deleting account:', error);
+                                                addToast({ type: 'error', message: error.message || 'Failed to delete account' });
+                                                setShowDeleteConfirm(false);
+                                            } finally {
+                                                setLoading(false);
+                                            }
+                                        }}
+                                        disabled={loading}
+                                        className="flex-1 bg-red-600 hover:bg-red-700"
+                                    >
+                                        {loading ? 'Deleting...' : 'Yes, Delete My Account'}
+                                    </Button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
         </div>

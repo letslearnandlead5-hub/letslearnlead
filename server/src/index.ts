@@ -3,6 +3,7 @@ import cors from "cors";
 import cookieParser from "cookie-parser";
 import dotenv from "dotenv";
 import path from "path";
+import helmet from "helmet";
 import { connectDB } from "./config/database";
 import { errorHandler } from "./middleware/error";
 import { configurePassport } from "./config/passport";
@@ -28,6 +29,28 @@ import statsRoutes from "./routes/stats";
 // 🔹 Load environment variables
 dotenv.config();
 
+// 🔹 CRITICAL: Validate required environment variables
+const requiredEnvVars = ['JWT_SECRET', 'MONGODB_URI'];
+const missingEnvVars = requiredEnvVars.filter(varName => !process.env[varName]);
+
+if (missingEnvVars.length > 0) {
+    console.error('❌ FATAL ERROR: Missing required environment variables:');
+    missingEnvVars.forEach(varName => {
+        console.error(`   - ${varName}`);
+    });
+    console.error('\nPlease set these variables in your .env file before starting the server.');
+    process.exit(1);
+}
+
+// Validate JWT_SECRET strength (minimum 32 characters)
+if (process.env.JWT_SECRET && process.env.JWT_SECRET.length < 32) {
+    console.error('❌ FATAL ERROR: JWT_SECRET must be at least 32 characters long for security.');
+    console.error('   Generate a strong secret with: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"');
+    process.exit(1);
+}
+
+console.log('✅ Environment variables validated');
+
 // 🔹 Create app
 const app = express();
 app.set('trust proxy', 1);
@@ -41,7 +64,14 @@ configurePassport();
 // 🔹 Allowed frontend origins
 const allowedOrigins = [
     "https://letslearnandlead.com",
-    "https://www.letslearnandlead.com"
+    "https://www.letslearnandlead.com",
+    // Add localhost for development
+    ...(process.env.NODE_ENV === 'development' ? [
+        "http://localhost:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:3000"
+    ] : [])
 ];
 
 // 🔹 CORS (MUST be before routes)
@@ -62,6 +92,26 @@ app.use(
         allowedHeaders: ["Content-Type", "Authorization"]
     })
 );
+
+// 🔹 Security headers with Helmet
+app.use(helmet({
+    contentSecurityPolicy: {
+        directives: {
+            defaultSrc: ["'self'"],
+            styleSrc: ["'self'", "'unsafe-inline'"], // Allow inline styles for Tailwind
+            scriptSrc: ["'self'"],
+            imgSrc: ["'self'", "data:", "https:", "http:"],
+            connectSrc: ["'self'", "https://api.letslearnandlead.com"],
+            frameSrc: ["'self'", "https://api.letslearnandlead.com"], // Allow iframes for PDFs
+            fontSrc: ["'self'", "data:"],
+            objectSrc: ["'none'"],
+            upgradeInsecureRequests: [],
+        },
+    },
+    crossOriginEmbedderPolicy: false, // Allow embedding resources
+}));
+
+console.log('✅ Security headers configured');
 
 // 🔹 Required middleware
 app.use(express.json());

@@ -9,13 +9,15 @@ import { AppError } from '../middleware/error';
 import { protect, AuthRequest } from '../middleware/auth';
 import { authLimiter, passwordResetLimiter } from '../middleware/rateLimiter';
 import { sendPasswordResetEmail } from '../utils/emailService';
+import { validate } from '../middleware/validate';
+import { signupSchema, loginSchema, changePasswordSchema, resetPasswordSchema, forgotPasswordSchema, updateProfileSchema } from '../validators/schemas';
 
 const router = Router();
 
 // @route   POST /api/auth/signup
 // @desc    Register a new user
 // @access  Public
-router.post('/signup', authLimiter, async (req: Request, res: Response, next) => {
+router.post('/signup', authLimiter, validate(signupSchema), async (req: Request, res: Response, next) => {
     try {
         // Check if registration is allowed
         const { PlatformSettings } = await import('../models/PlatformSettings');
@@ -52,7 +54,7 @@ router.post('/signup', authLimiter, async (req: Request, res: Response, next) =>
         // Generate JWT token
         const token = jwt.sign(
             { id: user._id },
-            process.env.JWT_SECRET || 'secret',
+            process.env.JWT_SECRET!,
             { expiresIn: process.env.JWT_EXPIRES_IN || '7d' } as jwt.SignOptions
         );
 
@@ -85,7 +87,7 @@ router.post('/signup', authLimiter, async (req: Request, res: Response, next) =>
 // @route   POST /api/auth/login
 // @desc    Login user
 // @access  Public
-router.post('/login', authLimiter, async (req: Request, res: Response, next) => {
+router.post('/login', authLimiter, validate(loginSchema), async (req: Request, res: Response, next) => {
     try {
         const { email, password } = req.body;
 
@@ -109,7 +111,7 @@ router.post('/login', authLimiter, async (req: Request, res: Response, next) => 
         // Generate JWT token
         const token = jwt.sign(
             { id: user._id },
-            process.env.JWT_SECRET || 'secret',
+            process.env.JWT_SECRET!,
             { expiresIn: process.env.JWT_EXPIRES_IN || '7d' } as jwt.SignOptions
         );
 
@@ -145,7 +147,7 @@ router.get('/me', protect, async (req: AuthRequest, res: Response, next) => {
 // @route   POST /api/auth/forgot-password
 // @desc    Request password reset email
 // @access  Public
-router.post('/forgot-password', passwordResetLimiter, async (req: Request, res: Response, next) => {
+router.post('/forgot-password', passwordResetLimiter, validate(forgotPasswordSchema), async (req: Request, res: Response, next) => {
     try {
         const { email } = req.body;
 
@@ -191,7 +193,7 @@ router.post('/forgot-password', passwordResetLimiter, async (req: Request, res: 
 // @route   POST /api/auth/reset-password
 // @desc    Reset password with token
 // @access  Public
-router.post('/reset-password', passwordResetLimiter, async (req: Request, res: Response, next) => {
+router.post('/reset-password', passwordResetLimiter, validate(resetPasswordSchema), async (req: Request, res: Response, next) => {
     try {
         const { token, password } = req.body;
 
@@ -241,7 +243,7 @@ router.post('/reset-password', passwordResetLimiter, async (req: Request, res: R
 // @route   PUT /api/auth/profile
 // @desc    Update user profile
 // @access  Private
-router.put('/profile', protect, async (req: AuthRequest, res: Response, next) => {
+router.put('/profile', protect, validate(updateProfileSchema), async (req: AuthRequest, res: Response, next) => {
     try {
         const { name, phone, profilePicture, address, city, state, zipCode, grade, stream, institution, subjectInterests } = req.body;
         const userId = req.user._id;
@@ -293,7 +295,7 @@ router.put('/profile', protect, async (req: AuthRequest, res: Response, next) =>
 // @route   PUT /api/auth/change-password
 // @desc    Change user password
 // @access  Private
-router.put('/change-password', protect, async (req: AuthRequest, res: Response, next) => {
+router.put('/change-password', protect, validate(changePasswordSchema), async (req: AuthRequest, res: Response, next) => {
     try {
         const { currentPassword, newPassword } = req.body;
         const userId = req.user._id;
@@ -357,7 +359,7 @@ router.get('/google/callback',
             // Generate JWT token
             const token = jwt.sign(
                 { id: user._id },
-                process.env.JWT_SECRET || 'secret',
+                process.env.JWT_SECRET!,
                 { expiresIn: process.env.JWT_EXPIRES_IN || '7d' } as jwt.SignOptions
             );
 

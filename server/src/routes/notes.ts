@@ -5,6 +5,9 @@ import fs from 'fs';
 import { Note } from '../models/Note';
 import { protect, authorize } from '../middleware/auth';
 import { AppError } from '../middleware/error';
+import { validate } from '../middleware/validate';
+import { createNoteSchema, updateNoteSchema } from '../validators/schemas';
+import { fileUploadLimiter } from '../middleware/rateLimiter';
 
 const router = Router();
 
@@ -25,23 +28,31 @@ const storage = multer.diskStorage({
 });
 
 const fileFilter = (req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
-    const allowedTypes = [
+    const allowedMimes = [
         'application/pdf',
         'text/plain'
     ];
+    const allowedExtensions = ['.pdf', '.txt'];
 
-    if (allowedTypes.includes(file.mimetype)) {
-        cb(null, true);
-    } else {
-        cb(new Error('Invalid file type. Only PDF and TXT files are allowed.'));
+    // Check MIME type
+    if (!allowedMimes.includes(file.mimetype)) {
+        return cb(new Error('Invalid file type. Only PDF and TXT files are allowed.'));
     }
+
+    // Check file extension
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (!allowedExtensions.includes(ext)) {
+        return cb(new Error(`Invalid file extension. Only ${allowedExtensions.join(', ')} files are allowed.`));
+    }
+
+    cb(null, true);
 };
 
 const upload = multer({
     storage,
     fileFilter,
     limits: {
-        fileSize: 10 * 1024 * 1024, // 10MB max
+        fileSize: 5 * 1024 * 1024, // 5MB max (reduced from 10MB)
     }
 });
 
@@ -107,7 +118,7 @@ router.get('/:id', async (req: Request, res: Response, next) => {
 // @route   POST /api/notes
 // @desc    Create a new note (with file upload OR markdown content)
 // @access  Private (Admin/Teacher)
-router.post('/', protect, authorize('admin', 'teacher'), upload.single('file'), async (req: any, res: Response, next) => {
+router.post('/', protect, authorize('admin', 'teacher'), fileUploadLimiter, upload.single('file'), async (req: any, res: Response, next) => {
     try {
         const { fileType } = req.body;
 
@@ -155,7 +166,7 @@ router.post('/', protect, authorize('admin', 'teacher'), upload.single('file'), 
 // @route   PUT /api/notes/:id
 // @desc    Update a note (file upload OR markdown content)
 // @access  Private (Admin/Teacher)
-router.put('/:id', protect, authorize('admin', 'teacher'), upload.single('file'), async (req: any, res: Response, next) => {
+router.put('/:id', protect, authorize('admin', 'teacher'), fileUploadLimiter, upload.single('file'), async (req: any, res: Response, next) => {
     try {
         const note = await Note.findById(req.params.id);
 

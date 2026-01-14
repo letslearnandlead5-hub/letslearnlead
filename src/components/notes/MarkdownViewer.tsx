@@ -1,50 +1,44 @@
-import React from 'react';
+import React, { useMemo } from 'react';
+import { marked } from 'marked';
+import DOMPurify from 'dompurify';
 
 interface MarkdownViewerProps {
     content: string;
 }
 
 const MarkdownViewer: React.FC<MarkdownViewerProps> = ({ content }) => {
-    // Simple markdown parser for basic syntax
-    const parseMarkdown = (text: string) => {
-        if (!text) return '';
+    // Configure marked for security
+    marked.setOptions({
+        breaks: true,
+        gfm: true,
+    });
 
-        let html = text;
+    // Parse and sanitize markdown
+    const sanitizedHtml = useMemo(() => {
+        if (!content) return '';
 
-        // Headers
-        html = html.replace(/^### (.*$)/gim, '<h3 class="text-lg font-bold mt-4 mb-2">$1</h3>');
-        html = html.replace(/^## (.*$)/gim, '<h2 class="text-xl font-bold mt-6 mb-3">$1</h2>');
-        html = html.replace(/^# (.*$)/gim, '<h1 class="text-2xl font-bold mt-8 mb-4">$1</h1>');
+        // Convert markdown to HTML
+        const rawHtml = marked(content) as string;
 
-        // Bold
-        html = html.replace(/\*\*(.*?)\*\*/gim, '<strong class="font-bold">$1</strong>');
-
-        // Italic
-        html = html.replace(/\*(.*?)\*/gim, '<em class="italic">$1</em>');
-
-        // Links
-        html = html.replace(/\[(.*?)\]\((.*?)\)/gim, '<a href="$2" class="text-primary-600 hover:underline">$1</a>');
-
-        // Code blocks
-        html = html.replace(/```(.*?)```/gis, '<pre class="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg overflow-x-auto my-4"><code>$1</code></pre>');
-
-        // Inline code
-        html = html.replace(/`(.*?)`/gim, '<code class="bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded text-sm">$1</code>');
-
-        // Lists
-        html = html.replace(/^\* (.*$)/gim, '<li class="ml-4">$1</li>');
-        html = html.replace(/^- (.*$)/gim, '<li class="ml-4">$1</li>');
-
-        // Line breaks
-        html = html.replace(/\n/gim, '<br />');
-
-        return html;
-    };
+        // Sanitize HTML to prevent XSS
+        return DOMPurify.sanitize(rawHtml, {
+            ALLOWED_TAGS: [
+                'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+                'p', 'br', 'strong', 'em', 'u', 's',
+                'ul', 'ol', 'li',
+                'a', 'code', 'pre',
+                'blockquote', 'hr',
+                'table', 'thead', 'tbody', 'tr', 'th', 'td'
+            ],
+            ALLOWED_ATTR: ['href', 'class', 'id'],
+            ALLOW_DATA_ATTR: false,
+        });
+    }, [content]);
 
     return (
         <div
-            className="prose dark:prose-invert max-w-none"
-            dangerouslySetInnerHTML={{ __html: parseMarkdown(content) }}
+            className="prose dark:prose-invert max-w-none prose-headings:font-bold prose-h1:text-2xl prose-h1:mt-8 prose-h1:mb-4 prose-h2:text-xl prose-h2:mt-6 prose-h2:mb-3 prose-h3:text-lg prose-h3:mt-4 prose-h3:mb-2 prose-a:text-primary-600 prose-a:hover:underline prose-code:bg-gray-100 prose-code:dark:bg-gray-800 prose-code:px-2 prose-code:py-1 prose-code:rounded prose-code:text-sm prose-pre:bg-gray-100 prose-pre:dark:bg-gray-800 prose-pre:p-4 prose-pre:rounded-lg prose-pre:overflow-x-auto prose-pre:my-4 prose-li:ml-4"
+            dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
         />
     );
 };

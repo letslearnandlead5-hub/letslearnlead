@@ -80,3 +80,18 @@ export const adminLimiter = rateLimit({
     standardHeaders: true,
     legacyHeaders: false,
 });
+
+/**
+ * File upload rate limiter
+ * Prevent abuse of file upload functionality
+ */
+export const fileUploadLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 20, // Limit each IP to 20 file uploads per 15 minutes
+    message: {
+        success: false,
+        message: 'Too many file uploads, please try again later.',
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+});

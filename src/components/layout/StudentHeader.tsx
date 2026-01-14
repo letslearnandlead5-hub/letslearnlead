@@ -106,7 +106,7 @@ const StudentHeader: React.FC<StudentHeaderProps> = ({ onMenuClick }) => {
                         <img
                             src="/logo.png"
                             alt="Let's L-earn and Lead"
-                            className="h-10 sm:h-14 w-auto object-contain"
+                            className="h-12 sm:h-16 w-auto object-contain"
                         />
                         <div className="hidden sm:flex flex-col">
                             <span className="text-lg font-bold text-gray-900 dark:text-white leading-tight whitespace-nowrap">
@@ -149,7 +149,7 @@ const StudentHeader: React.FC<StudentHeaderProps> = ({ onMenuClick }) => {
 
                         {/* Notifications Dropdown */}
                         {showNotifications && (
-                            <div className="absolute right-1 sm:right-0 mt-2 w-[calc(100vw-2rem)] sm:w-96 max-w-md bg-white dark:bg-gray-900 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-50">
+                            <div className="absolute left-4 sm:left-auto sm:right-0 mt-2 w-[calc(100vw-2rem)] sm:w-96 max-w-[calc(100vw-2rem)] bg-white dark:bg-gray-900 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-50">
                                 <div className="p-4 border-b border-gray-200 dark:border-gray-700">
                                     <div className="flex items-center justify-between">
                                         <h3 className="font-semibold text-gray-900 dark:text-white">

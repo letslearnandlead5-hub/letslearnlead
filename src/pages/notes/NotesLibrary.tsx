@@ -460,9 +460,9 @@ const NotesLibrary: React.FC = () => {
                                 <div className="flex-1 bg-gray-100 dark:bg-gray-900 overflow-auto">
                                     {(() => {
                                         const fileExtension = selectedNote.fileUrl.split('.').pop()?.toLowerCase();
-                                        // Use window.location.origin for static files (they're served from the main domain, not API domain)
-                                        const baseUrl = window.location.origin;
-                                        const fileUrl = `${baseUrl}${selectedNote.fileUrl}`;
+                                        // Use API URL for static files (backend serves them), fallback to current origin for local dev
+                                        const apiUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || window.location.origin;
+                                        const fileUrl = `${apiUrl}${selectedNote.fileUrl}`;
 
 
                                         // PDF Viewer - Use iframe for better compatibility
@@ -544,8 +544,8 @@ const NotesLibrary: React.FC = () => {
                                 {/* Download Button Footer */}
                                 {(() => {
                                     const fileExtension = selectedNote.fileUrl.split('.').pop()?.toLowerCase();
-                                    const baseUrl = window.location.origin;
-                                    const fileUrl = `${baseUrl}${selectedNote.fileUrl}`;
+                                    const apiUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || window.location.origin;
+                                    const fileUrl = `${apiUrl}${selectedNote.fileUrl}`;
 
                                     // Show download button for viewable files
                                     if (['pdf', 'jpg', 'jpeg', 'png', 'gif', 'webp', 'txt', 'text'].includes(fileExtension || '')) {

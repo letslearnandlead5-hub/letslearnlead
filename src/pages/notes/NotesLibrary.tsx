@@ -16,7 +16,7 @@ interface Note {
     title: string;
     description: string;
     fileUrl?: string;
-    fileType: string;
+    fileType: 'markdown' | 'html' | 'pdf' | 'text' | 'document' | 'file';
     markdownContent?: string;
     tags?: string[];
     category?: string;
@@ -173,9 +173,9 @@ const NotesLibrary: React.FC = () => {
                             </p>
                         </div>
                         {user?.role === 'admin' && (
-                            <Button 
-                                variant="primary" 
-                                leftIcon={<Plus className="w-5 h-5" />} 
+                            <Button
+                                variant="primary"
+                                leftIcon={<Plus className="w-5 h-5" />}
                                 onClick={handleCreateNote}
                                 className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 shadow-lg hover:shadow-xl transition-all"
                             >
@@ -259,13 +259,13 @@ const NotesLibrary: React.FC = () => {
                                     📄 Filter by Type
                                 </label>
                                 <div className="flex flex-wrap gap-3">
-                                    {['all', 'markdown', 'pdf', 'document', 'text'].map((type) => (
+                                    {['all', 'markdown', 'html', 'pdf', 'document', 'text'].map((type) => (
                                         <button
                                             key={type}
                                             onClick={() => setSelectedType(type)}
                                             className={`px-5 py-2.5 rounded-xl font-semibold transition-all transform hover:scale-105 ${selectedType === type
-                                                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg'
-                                                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                                                ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg'
+                                                : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                                                 }`}>
                                             {type.charAt(0).toUpperCase() + type.slice(1)}
                                         </button>
@@ -283,8 +283,8 @@ const NotesLibrary: React.FC = () => {
                                         <button
                                             onClick={() => setSelectedCategory('all')}
                                             className={`px-5 py-2.5 rounded-xl font-semibold transition-all transform hover:scale-105 ${selectedCategory === 'all'
-                                                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg'
-                                                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                                                ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg'
+                                                : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                                                 }`}>
                                             All Categories
                                         </button>
@@ -293,8 +293,8 @@ const NotesLibrary: React.FC = () => {
                                                 key={cat}
                                                 onClick={() => setSelectedCategory(cat)}
                                                 className={`px-5 py-2.5 rounded-xl font-semibold transition-all transform hover:scale-105 ${selectedCategory === cat
-                                                        ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg'
-                                                        : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                                                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg'
+                                                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                                                     }`}>
                                                 {cat}
                                             </button>
@@ -339,9 +339,9 @@ const NotesLibrary: React.FC = () => {
                                 {activeFiltersCount > 0 ? 'Try adjusting your search or filters to find what you\'re looking for' : 'Create your first note to get started with your study materials!'}
                             </p>
                             {user?.role === 'admin' && (
-                                <Button 
-                                    variant="primary" 
-                                    leftIcon={<Plus className="w-5 h-5" />} 
+                                <Button
+                                    variant="primary"
+                                    leftIcon={<Plus className="w-5 h-5" />}
                                     onClick={handleCreateNote}
                                     className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
                                 >
@@ -363,12 +363,11 @@ const NotesLibrary: React.FC = () => {
                                 <Card className="p-6 h-full flex flex-col bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 hover:border-blue-500 dark:hover:border-blue-500 hover:shadow-2xl transition-all duration-300 rounded-2xl">
                                     {/* Header with Icon */}
                                     <div className="flex items-start gap-4 mb-4">
-                                        <div className={`p-3 rounded-xl ${
-                                            note.fileType === 'markdown' 
-                                                ? 'bg-gradient-to-br from-blue-100 to-purple-100 dark:from-blue-900 dark:to-purple-900' 
+                                        <div className={`p-3 rounded-xl ${note.fileType === 'markdown' || note.fileType === 'html'
+                                                ? 'bg-gradient-to-br from-blue-100 to-purple-100 dark:from-blue-900 dark:to-purple-900'
                                                 : 'bg-gradient-to-br from-green-100 to-cyan-100 dark:from-green-900 dark:to-cyan-900'
-                                        }`}>
-                                            {note.fileType === 'markdown' ? (
+                                            }`}>
+                                            {note.fileType === 'markdown' || note.fileType === 'html' ? (
                                                 <FileText className="w-7 h-7 text-blue-600 dark:text-blue-400" />
                                             ) : (
                                                 <FolderOpen className="w-7 h-7 text-green-600 dark:text-green-400" />
@@ -451,7 +450,7 @@ const NotesLibrary: React.FC = () => {
                 {/* Note Viewer Modal */}
                 <Modal isOpen={isViewerOpen} onClose={() => setIsViewerOpen(false)} title={selectedNote?.title || ''} size="full">
                     <div className="min-h-[60vh]">
-                        {selectedNote?.fileType === 'markdown' && selectedNote.markdownContent ? (
+                        {(selectedNote?.fileType === 'markdown' || selectedNote?.fileType === 'html') && selectedNote.markdownContent ? (
                             <div className="p-6">
                                 <MarkdownViewer content={selectedNote.markdownContent} />
                             </div>
@@ -463,7 +462,7 @@ const NotesLibrary: React.FC = () => {
                                         const fileExtension = selectedNote.fileUrl.split('.').pop()?.toLowerCase();
                                         const baseUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000';
                                         const fileUrl = `${baseUrl}${selectedNote.fileUrl}`;
-                                        
+
                                         // PDF Viewer - Use object tag for better compatibility
                                         if (fileExtension === 'pdf') {
                                             return (
@@ -495,7 +494,7 @@ const NotesLibrary: React.FC = () => {
                                                 </div>
                                             );
                                         }
-                                        
+
                                         // Image Viewer
                                         if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(fileExtension || '')) {
                                             return (
@@ -508,7 +507,7 @@ const NotesLibrary: React.FC = () => {
                                                 </div>
                                             );
                                         }
-                                        
+
                                         // Text File Viewer
                                         if (['txt', 'text'].includes(fileExtension || '')) {
                                             return (
@@ -521,7 +520,7 @@ const NotesLibrary: React.FC = () => {
                                                 </div>
                                             );
                                         }
-                                        
+
                                         // Document files (DOC, DOCX) - Show download option
                                         return (
                                             <div className="flex items-center justify-center h-[60vh]">
@@ -544,8 +543,8 @@ const NotesLibrary: React.FC = () => {
                                                         target="_blank"
                                                         rel="noopener noreferrer"
                                                     >
-                                                        <Button 
-                                                            variant="primary" 
+                                                        <Button
+                                                            variant="primary"
                                                             leftIcon={<Download className="w-5 h-5" />}
                                                             className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
                                                         >
@@ -557,13 +556,13 @@ const NotesLibrary: React.FC = () => {
                                         );
                                     })()}
                                 </div>
-                                
+
                                 {/* Download Button Footer */}
                                 {(() => {
                                     const fileExtension = selectedNote.fileUrl.split('.').pop()?.toLowerCase();
                                     const baseUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000';
                                     const fileUrl = `${baseUrl}${selectedNote.fileUrl}`;
-                                    
+
                                     // Show download button for viewable files
                                     if (['pdf', 'jpg', 'jpeg', 'png', 'gif', 'webp', 'txt', 'text'].includes(fileExtension || '')) {
                                         return (
@@ -578,8 +577,8 @@ const NotesLibrary: React.FC = () => {
                                                         target="_blank"
                                                         rel="noopener noreferrer"
                                                     >
-                                                        <Button 
-                                                            variant="outline" 
+                                                        <Button
+                                                            variant="outline"
                                                             size="sm"
                                                             leftIcon={<Download className="w-4 h-4" />}
                                                             className="border-2"

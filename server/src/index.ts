@@ -109,6 +109,7 @@ app.use(helmet({
         },
     },
     crossOriginEmbedderPolicy: false, // Allow embedding resources
+    crossOriginResourcePolicy: false, // Don't block CORS requests
 }));
 
 console.log('✅ Security headers configured');

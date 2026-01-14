@@ -460,8 +460,11 @@ const NotesLibrary: React.FC = () => {
                                 <div className="flex-1 bg-gray-100 dark:bg-gray-900 overflow-auto">
                                     {(() => {
                                         const fileExtension = selectedNote.fileUrl.split('.').pop()?.toLowerCase();
-                                        // Use API URL for static files (backend serves them), fallback to current origin for local dev
-                                        const apiUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || window.location.origin;
+                                        // In production, use API domain; in development, use current origin
+                                        const isProduction = window.location.hostname.includes('letslearnandlead.com');
+                                        const apiUrl = isProduction
+                                            ? 'https://api.letslearnandlead.com'
+                                            : (import.meta.env.VITE_API_URL?.replace('/api', '') || window.location.origin);
                                         const fileUrl = `${apiUrl}${selectedNote.fileUrl}`;
 
 
@@ -544,7 +547,10 @@ const NotesLibrary: React.FC = () => {
                                 {/* Download Button Footer */}
                                 {(() => {
                                     const fileExtension = selectedNote.fileUrl.split('.').pop()?.toLowerCase();
-                                    const apiUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || window.location.origin;
+                                    const isProduction = window.location.hostname.includes('letslearnandlead.com');
+                                    const apiUrl = isProduction
+                                        ? 'https://api.letslearnandlead.com'
+                                        : (import.meta.env.VITE_API_URL?.replace('/api', '') || window.location.origin);
                                     const fileUrl = `${apiUrl}${selectedNote.fileUrl}`;
 
                                     // Show download button for viewable files

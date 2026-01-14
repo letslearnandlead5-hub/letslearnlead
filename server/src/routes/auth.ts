@@ -389,9 +389,9 @@ router.delete('/delete-account', protect, async (req: AuthRequest, res: Response
         const { Enrollment } = await import('../models/Enrollment');
         await Enrollment.deleteMany({ userId });
 
-        // Delete user's progress
-        const { Progress } = await import('../models/Progress');
-        await Progress.deleteMany({ userId });
+        // Delete user's video progress
+        const { VideoProgress } = await import('../models/VideoProgress');
+        await VideoProgress.deleteMany({ userId });
 
         // Delete user's notifications
         const { Notification } = await import('../models/Notification');
@@ -404,6 +404,10 @@ router.delete('/delete-account', protect, async (req: AuthRequest, res: Response
         // Delete user's quiz attempts
         const { QuizAttempt } = await import('../models/QuizAttempt');
         await QuizAttempt.deleteMany({ userId });
+
+        // Delete user's quiz results
+        const { QuizResult } = await import('../models/QuizResult');
+        await QuizResult.deleteMany({ userId });
 
         // Finally, delete the user
         await User.findByIdAndDelete(userId);

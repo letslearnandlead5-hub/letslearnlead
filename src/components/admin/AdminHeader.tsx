@@ -27,7 +27,7 @@ const AdminHeader: React.FC<AdminHeaderProps> = ({ onMenuClick }) => {
                     {/* Logo and Brand */}
                     <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                         <img
-                            src="/logo.png"
+                            src="/logo.png?v=2"
                             alt="Let's L-earn and Lead"
                             className="h-12 w-auto object-contain flex-shrink-0"
                         />

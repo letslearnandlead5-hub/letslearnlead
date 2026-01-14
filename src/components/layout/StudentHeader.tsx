@@ -104,7 +104,7 @@ const StudentHeader: React.FC<StudentHeaderProps> = ({ onMenuClick }) => {
 
                     <Link to="/dashboard" className="flex items-center gap-3">
                         <img
-                            src="/logo.png"
+                            src="/logo.png?v=2"
                             alt="Let's L-earn and Lead"
                             className="h-14 sm:h-20 w-auto object-contain"
                         />

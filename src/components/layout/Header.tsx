@@ -40,7 +40,7 @@ const Header: React.FC = () => {
                     {/* Logo */}
                     <Link to="/" className="flex items-center space-x-2 sm:space-x-3">
                         <img
-                            src="/logo.png"
+                            src="/logo.png?v=2"
                             alt="Let's L-Earn and Lead"
                             className="h-8 sm:h-10 w-auto flex-shrink-0"
                         />
@@ -198,7 +198,7 @@ const Header: React.FC = () => {
                         )}
 
                         {/* Mobile Menu */}
-                        <button 
+                        <button
                             onClick={() => setShowMobileMenu(!showMobileMenu)}
                             className="md:hidden p-2 text-gray-600 dark:text-gray-400"
                         >

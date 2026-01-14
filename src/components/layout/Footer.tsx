@@ -56,7 +56,7 @@ const Footer: React.FC = () => {
                     <div>
                         <Link to="/" className="flex items-center space-x-3 mb-4">
                             <img
-                                src="/logo.png"
+                                src="/logo.png?v=2"
                                 alt="Let's L-Earn and Lead"
                                 className="h-12 w-auto"
                             />

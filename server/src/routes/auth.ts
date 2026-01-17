@@ -67,6 +67,25 @@ router.post('/signup', authLimiter, validate(signupSchema), async (req: Request,
                 message: 'Start your learning journey by exploring our courses and enrolling in the ones that interest you.',
                 type: 'info',
             });
+
+            // Notify all admins about new student signup
+            try {
+                const adminUsers = await User.find({ role: 'admin' });
+                const notificationPromises = adminUsers.map(admin =>
+                    Notification.create({
+                        userId: admin._id,
+                        title: '👤 New Student Signup',
+                        message: `${user.name} (${user.email}) just signed up on the platform.`,
+                        type: 'info',
+                        link: '/admin/students',
+                    })
+                );
+                await Promise.all(notificationPromises);
+                console.log(`📬 Created signup notifications for ${adminUsers.length} admin(s)`);
+            } catch (notificationError) {
+                console.error('Failed to create admin signup notification:', notificationError);
+                // Continue even if notification fails
+            }
         }
 
         res.status(201).json({

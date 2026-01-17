@@ -194,11 +194,13 @@ const VideoPlayer: React.FC = () => {
         const isYouTube = currentLesson.videoUrl?.includes('youtube.com') || currentLesson.videoUrl?.includes('youtu.be');
 
         if (isYouTube) {
-            if (!youtubeDuration || youtubeDuration === 0) return;
-            const watchPercentage = (youtubeWatchTime / youtubeDuration) * 100;
-            console.log(`🎬 YouTube progress: ${watchPercentage.toFixed(1)}% (${youtubeWatchTime}/${youtubeDuration})`);
+            // For YouTube videos, mark complete after 90 seconds of watch time
+            // This is more reliable than percentage-based tracking
+            const YOUTUBE_COMPLETION_TIME = 90; // 90 seconds = 1.5 minutes
 
-            if (watchPercentage >= 70) {
+            console.log(`🎬 YouTube progress: ${youtubeWatchTime}s / ${YOUTUBE_COMPLETION_TIME}s required`);
+
+            if (youtubeWatchTime >= YOUTUBE_COMPLETION_TIME) {
                 console.log('✅ Video completed! Marking as done...');
                 const newCompleted = new Set(completedLessons);
                 newCompleted.add(lessonId);
@@ -221,34 +223,24 @@ const VideoPlayer: React.FC = () => {
         }
     }, [currentTime, duration, youtubeWatchTime, youtubeDuration, lessonId, courseId, currentLesson, completedLessons]);
 
-    // YouTube iframe message listener for tracking progress
+    // YouTube video progress tracking with polling (more reliable than postMessage)
     useEffect(() => {
-        const handleMessage = (event: MessageEvent) => {
-            // Accept messages from both YouTube domains
-            if (event.origin !== 'https://www.youtube.com' && event.origin !== 'https://www.youtube-nocookie.com') return;
+        if (!lessonId || !currentLesson || currentLesson.type !== 'video') return;
+        const isYouTube = currentLesson.videoUrl?.includes('youtube.com') || currentLesson.videoUrl?.includes('youtu.be');
 
-            try {
-                const data = JSON.parse(event.data);
+        if (!isYouTube) return;
 
-                if (data.event === 'infoDelivery' && data.info) {
-                    // Update current time and duration from YouTube player
-                    if (data.info.currentTime !== undefined) {
-                        setYoutubeWatchTime(data.info.currentTime);
-                        console.log('📹 YouTube time:', data.info.currentTime);
-                    }
-                    if (data.info.duration !== undefined) {
-                        setYoutubeDuration(data.info.duration);
-                        console.log('⏱️ YouTube duration:', data.info.duration);
-                    }
-                }
-            } catch (e) {
-                // Ignore parse errors
-            }
-        };
+        // Poll every second to increment watch time
+        const interval = setInterval(() => {
+            setYoutubeWatchTime(prev => {
+                const newTime = prev + 1;
+                console.log(`📹 YouTube watch time: ${newTime}s`);
+                return newTime;
+            });
+        }, 1000);
 
-        window.addEventListener('message', handleMessage);
-        return () => window.removeEventListener('message', handleMessage);
-    }, []);
+        return () => clearInterval(interval);
+    }, [lessonId, currentLesson]);
 
     // Request periodic updates from YouTube player
     useEffect(() => {

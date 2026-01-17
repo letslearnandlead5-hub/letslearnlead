@@ -6,6 +6,7 @@ import { Order } from '../models/Order';
 import { Enrollment } from '../models/Enrollment';
 import { AppError } from '../middleware/error';
 import { protect, authorize, AuthRequest } from '../middleware/auth';
+import bcrypt from 'bcryptjs';
 
 const router = Router();
 
@@ -145,11 +146,15 @@ router.post('/users/create-student', async (req: AuthRequest, res: Response, nex
             throw new AppError('A user with this email already exists', 400);
         }
 
+        // Hash password
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(password, salt);
+
         // Create new student
         const student = await User.create({
             name,
             email,
-            password, // Will be hashed by pre-save hook
+            password: hashedPassword,
             role: 'student',
         });
 

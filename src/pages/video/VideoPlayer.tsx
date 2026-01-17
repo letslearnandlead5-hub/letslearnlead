@@ -355,20 +355,26 @@ const VideoPlayer: React.FC = () => {
                                                 />
                                                 {/* Click-blocking overlays - blocks clicks but keeps controls visible */}
                                                 {/* Top-left: YouTube logo */}
-                                                <div 
+                                                <div
                                                     className="absolute top-0 left-0 w-28 h-14 z-50"
                                                     style={{ pointerEvents: 'auto', background: 'transparent', cursor: 'default' }}
                                                     onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
                                                 />
                                                 {/* Top-center: Video title area */}
-                                                <div 
+                                                <div
                                                     className="absolute top-0 left-28 right-60 h-14 z-50"
                                                     style={{ pointerEvents: 'auto', background: 'transparent', cursor: 'default' }}
                                                     onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
                                                 />
                                                 {/* Top-right: Copy link button */}
-                                                <div 
+                                                <div
                                                     className="absolute top-0 right-0 w-60 h-16 z-50"
+                                                    style={{ pointerEvents: 'auto', background: 'transparent', cursor: 'default' }}
+                                                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                                                />
+                                                {/* Bottom-right: YouTube logo in control bar */}
+                                                <div
+                                                    className="absolute bottom-0 right-0 w-32 h-16 z-50"
                                                     style={{ pointerEvents: 'auto', background: 'transparent', cursor: 'default' }}
                                                     onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
                                                 />

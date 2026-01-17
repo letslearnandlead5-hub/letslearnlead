@@ -196,8 +196,10 @@ const VideoPlayer: React.FC = () => {
         if (isYouTube) {
             if (!youtubeDuration || youtubeDuration === 0) return;
             const watchPercentage = (youtubeWatchTime / youtubeDuration) * 100;
+            console.log(`🎬 YouTube progress: ${watchPercentage.toFixed(1)}% (${youtubeWatchTime}/${youtubeDuration})`);
 
             if (watchPercentage >= 70) {
+                console.log('✅ Video completed! Marking as done...');
                 const newCompleted = new Set(completedLessons);
                 newCompleted.add(lessonId);
                 setCompletedLessons(newCompleted);
@@ -232,9 +234,11 @@ const VideoPlayer: React.FC = () => {
                     // Update current time and duration from YouTube player
                     if (data.info.currentTime !== undefined) {
                         setYoutubeWatchTime(data.info.currentTime);
+                        console.log('📹 YouTube time:', data.info.currentTime);
                     }
                     if (data.info.duration !== undefined) {
                         setYoutubeDuration(data.info.duration);
+                        console.log('⏱️ YouTube duration:', data.info.duration);
                     }
                 }
             } catch (e) {

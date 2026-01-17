@@ -35,11 +35,15 @@ const AdminHeader: React.FC<AdminHeaderProps> = ({ onMenuClick }) => {
     const fetchUnreadCount = async () => {
         try {
             const response = await api.get('/notifications');
-            const notifications = response.data?.data || [];
+            console.log('📬 Notifications response:', response.data);
+            const notifications = response.data?.data || response.data || [];
             const count = notifications.filter((n: any) => !n.read).length;
+            console.log(`📊 Total notifications: ${notifications.length}, Unread: ${count}`);
             setUnreadCount(count);
-        } catch (error) {
-            console.error('Error fetching notifications:', error);
+        } catch (error: any) {
+            console.error('❌ Error fetching notifications:', error);
+            console.error('❌ Error response:', error.response?.data);
+            console.error('❌ Error status:', error.response?.status);
         }
     };
 

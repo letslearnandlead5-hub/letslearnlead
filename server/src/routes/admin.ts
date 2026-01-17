@@ -7,6 +7,7 @@ import { Enrollment } from '../models/Enrollment';
 import { AppError } from '../middleware/error';
 import { protect, authorize, AuthRequest } from '../middleware/auth';
 import bcrypt from 'bcryptjs';
+import { sendNewStudentNotification } from '../utils/emailService';
 
 const router = Router();
 
@@ -159,6 +160,18 @@ router.post('/users/create-student', async (req: AuthRequest, res: Response, nex
         });
 
         console.log(`✅ Admin created student account: ${student.email}`);
+
+        // Send email notification to admin
+        try {
+            await sendNewStudentNotification(
+                student.name,
+                student.email,
+                req.user?.email || 'Admin'
+            );
+        } catch (emailError) {
+            console.error('Failed to send notification email:', emailError);
+            // Continue even if email fails
+        }
 
         res.status(201).json({
             success: true,

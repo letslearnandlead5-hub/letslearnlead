@@ -214,8 +214,8 @@ const Home: React.FC = () => {
                             >
                                 <div className="text-left">
                                     <div className="text-3xl md:text-4xl font-bold text-white">
-                                        {stats.totalStudents >= 1000 
-                                            ? `${Math.floor(stats.totalStudents / 1000)}K+` 
+                                        {stats.totalStudents >= 1000
+                                            ? `${Math.floor(stats.totalStudents / 1000)}K+`
                                             : `${stats.totalStudents}+`}
                                     </div>
                                     <div className="text-sm text-white/80 mt-1">
@@ -278,7 +278,7 @@ const Home: React.FC = () => {
 
             {/* Why Choose Us Section */}
             <section
-                className="relative min-h-screen py-20 overflow-hidden flex items-center bg-white dark:bg-slate-800"
+                className="relative py-16 overflow-hidden bg-white dark:bg-slate-800"
             >
 
                 {/* Animated Floating Orbs */}
@@ -394,7 +394,7 @@ const Home: React.FC = () => {
 
             {/* Courses We Offer Section */}
             <section
-                className="relative min-h-screen py-20 overflow-hidden flex items-center courses-section"
+                className="relative py-16 overflow-hidden courses-section"
             >
 
                 {/* Animated Floating Shapes */}
@@ -530,7 +530,7 @@ const Home: React.FC = () => {
 
             {/* Popular Subjects Section */}
             <section
-                className="relative min-h-screen py-20 overflow-hidden flex items-center subjects-section"
+                className="relative py-16 overflow-hidden subjects-section"
             >
 
                 {/* Animated Floating Elements */}
@@ -606,7 +606,7 @@ const Home: React.FC = () => {
 
             {/* Contact Us Section */}
             <section
-                className="relative py-20 overflow-hidden contact-section"
+                className="relative py-16 overflow-hidden contact-section"
             >
                 <div className="container mx-auto px-4 relative z-10">
                     <div className="text-center mb-12">

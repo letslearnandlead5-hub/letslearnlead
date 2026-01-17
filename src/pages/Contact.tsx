@@ -23,15 +23,34 @@ const Contact: React.FC = () => {
         e.preventDefault();
         setIsSubmitting(true);
 
-        // Simulate form submission
-        setTimeout(() => {
-            addToast({
-                type: 'success',
-                message: 'Message sent successfully! We\'ll get back to you soon.',
+               try {
+            const response = await fetch(`${import.meta.env.VITE_API_URL}/api/contact`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(formData),
             });
-            setFormData({ name: '', email: '', subject: '', message: '' });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                addToast({
+                    type: 'success',
+                    message: data.message || 'Message sent successfully! We\'ll get back to you soon.',
+                });
+                setFormData({ name: '', email: '', subject: '', message: '' });
+            } else {
+                throw new Error(data.message || 'Failed to send message');
+            }
+        } catch (error: any) {
+            addToast({
+                type: 'error',
+                message: error.message || 'Failed to send message. Please try again.',
+            });
+        } finally {
             setIsSubmitting(false);
-        }, 1500);
+        }
     };
 
     const contactInfo = [

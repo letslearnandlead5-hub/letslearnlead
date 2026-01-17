@@ -119,6 +119,36 @@ router.put('/progress/:courseId', protect, async (req: AuthRequest, res: Respons
             await enrollment.save();
         }
 
+        // Save completedLessons to User model
+        if (completedLessons && Array.isArray(completedLessons)) {
+            const { User } = await import('../models/User');
+            const user = await User.findById(req.user?.id);
+
+            if (user) {
+                // Find or create course progress entry
+                const courseProgressIndex = user.courseProgress?.findIndex(
+                    (cp: any) => cp.courseId.toString() === courseId
+                );
+
+                if (courseProgressIndex !== undefined && courseProgressIndex >= 0) {
+                    // Update existing progress
+                    user.courseProgress[courseProgressIndex].completedLessons = completedLessons;
+                    user.courseProgress[courseProgressIndex].lastAccessed = new Date();
+                } else {
+                    // Create new progress entry
+                    if (!user.courseProgress) user.courseProgress = [];
+                    user.courseProgress.push({
+                        courseId: courseId,
+                        completedLessons: completedLessons,
+                        lastAccessed: new Date(),
+                    });
+                }
+
+                await user.save();
+                console.log(`💾 Saved ${completedLessons.length} completed lessons for user ${user.email}`);
+            }
+        }
+
         res.status(200).json({
             success: true,
             data: enrollment,

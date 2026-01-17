@@ -8,6 +8,8 @@ import { AppError } from '../middleware/error';
 import { protect, authorize, AuthRequest } from '../middleware/auth';
 import bcrypt from 'bcryptjs';
 import { sendNewStudentNotification } from '../utils/emailService';
+import { validate } from '../middleware/validate';
+import { signupSchema } from '../validators/schemas';
 
 const router = Router();
 
@@ -133,7 +135,7 @@ router.delete('/users/:id', async (req: AuthRequest, res: Response, next) => {
 // @route   POST /api/admin/users/create-student
 // @desc    Create a new student account
 // @access  Private (Admin)
-router.post('/users/create-student', async (req: AuthRequest, res: Response, next) => {
+router.post('/users/create-student', validate(signupSchema), async (req: AuthRequest, res: Response, next) => {
     try {
         const { name, email, password } = req.body;
 

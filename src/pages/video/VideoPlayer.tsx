@@ -374,7 +374,7 @@ const VideoPlayer: React.FC = () => {
                                                 />
                                                 {/* Bottom-right: YouTube logo in control bar */}
                                                 <div
-                                                    className="absolute bottom-0 right-0 w-32 h-16 z-50"
+                                                    className="absolute bottom-0 right-0 w-24 h-16 z-50"
                                                     style={{ pointerEvents: 'auto', background: 'transparent', cursor: 'default' }}
                                                     onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
                                                 />

@@ -1,7 +1,9 @@
-import React from 'react';
-import { User, Moon, Sun, Menu } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { User, Moon, Sun, Menu, Bell } from 'lucide-react';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useThemeStore } from '../../store/useThemeStore';
+import { useNavigate } from 'react-router-dom';
+import api from '../../services/api';
 
 interface AdminHeaderProps {
     onMenuClick?: () => void;
@@ -10,6 +12,36 @@ interface AdminHeaderProps {
 const AdminHeader: React.FC<AdminHeaderProps> = ({ onMenuClick }) => {
     const { user } = useAuthStore();
     const { isDark, toggleTheme } = useThemeStore();
+    const navigate = useNavigate();
+    const [unreadCount, setUnreadCount] = useState(0);
+
+    useEffect(() => {
+        fetchUnreadCount();
+        // Refresh every 30 seconds
+        const interval = setInterval(fetchUnreadCount, 30000);
+
+        // Listen for student creation events
+        const handleStudentCreated = () => {
+            fetchUnreadCount();
+        };
+        window.addEventListener('studentCreated', handleStudentCreated);
+
+        return () => {
+            clearInterval(interval);
+            window.removeEventListener('studentCreated', handleStudentCreated);
+        };
+    }, []);
+
+    const fetchUnreadCount = async () => {
+        try {
+            const response = await api.get('/notifications');
+            const notifications = response.data?.data || [];
+            const count = notifications.filter((n: any) => !n.read).length;
+            setUnreadCount(count);
+        } catch (error) {
+            console.error('Error fetching notifications:', error);
+        }
+    };
 
     return (
         <header className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 sticky top-0 z-50">
@@ -61,6 +93,24 @@ const AdminHeader: React.FC<AdminHeaderProps> = ({ onMenuClick }) => {
                             <Sun className="w-5 h-5 text-gray-700 dark:text-gray-300" />
                         ) : (
                             <Moon className="w-5 h-5 text-gray-700 dark:text-gray-300" />
+                        )}
+                    </button>
+
+                    {/* Notification Bell */}
+                    <button
+                        onClick={() => {
+                            navigate('/dashboard');
+                            // Dispatch event to switch to notifications tab
+                            window.dispatchEvent(new CustomEvent('selectAdminTab', { detail: 'notifications' }));
+                        }}
+                        className="relative p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                        aria-label="Notifications"
+                    >
+                        <Bell className="w-5 h-5 text-gray-700 dark:text-gray-300" />
+                        {unreadCount > 0 && (
+                            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center">
+                                {unreadCount}
+                            </span>
                         )}
                     </button>
 

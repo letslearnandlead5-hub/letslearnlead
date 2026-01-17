@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Download, UserX, UserCheck, Eye, BookOpen, Users, GraduationCap, X, UserPlus } from 'lucide-react';
+import { Search, Download, UserX, UserCheck, Eye, BookOpen, Users, GraduationCap, X, UserPlus, Plus } from 'lucide-react';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
@@ -25,9 +25,12 @@ const StudentManagement: React.FC = () => {
     const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
     const [isEnrollmentModalOpen, setIsEnrollmentModalOpen] = useState(false);
     const [isAddEnrollmentModalOpen, setIsAddEnrollmentModalOpen] = useState(false);
+    const [isCreateStudentModalOpen, setIsCreateStudentModalOpen] = useState(false);
     const [courses, setCourses] = useState<any[]>([]);
     const [selectedCourseId, setSelectedCourseId] = useState('');
     const [enrolling, setEnrolling] = useState(false);
+    const [creating, setCreating] = useState(false);
+    const [newStudent, setNewStudent] = useState({ name: '', email: '', password: '' });
     const { addToast } = useToastStore();
 
     useEffect(() => {
@@ -111,6 +114,27 @@ const StudentManagement: React.FC = () => {
         }
     };
 
+    const handleCreateStudent = async () => {
+        if (!newStudent.name || !newStudent.email || !newStudent.password) {
+            addToast({ type: 'error', message: 'All fields are required' });
+            return;
+        }
+
+        try {
+            setCreating(true);
+            await adminAPI.users.createStudent(newStudent);
+            addToast({ type: 'success', message: 'Student account created successfully!' });
+            setIsCreateStudentModalOpen(false);
+            setNewStudent({ name: '', email: '', password: '' });
+            fetchStudents(); // Refresh student list
+        } catch (error: any) {
+            console.error('Error creating student:', error);
+            addToast({ type: 'error', message: error.message || 'Failed to create student' });
+        } finally {
+            setCreating(false);
+        }
+    };
+
     const handleDownloadList = () => {
         try {
             // Create CSV content
@@ -172,13 +196,22 @@ const StudentManagement: React.FC = () => {
                         Manage student accounts and enrollments
                     </p>
                 </div>
-                <Button
-                    variant="primary"
-                    leftIcon={<Download className="w-5 h-5" />}
-                    onClick={handleDownloadList}
-                >
-                    Download List
-                </Button>
+                <div className="flex gap-3">
+                    <Button
+                        variant="primary"
+                        leftIcon={<Plus className="w-5 h-5" />}
+                        onClick={() => setIsCreateStudentModalOpen(true)}
+                    >
+                        Add Student
+                    </Button>
+                    <Button
+                        variant="outline"
+                        leftIcon={<Download className="w-5 h-5" />}
+                        onClick={handleDownloadList}
+                    >
+                        Download List
+                    </Button>
+                </div>
             </div>
 
             {/* Stats */}
@@ -441,6 +474,80 @@ const StudentManagement: React.FC = () => {
                                 leftIcon={<UserPlus className="w-4 h-4" />}
                             >
                                 {enrolling ? 'Enrolling...' : 'Enroll Student'}
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            </Modal>
+
+            {/* Create Student Modal */}
+            <Modal
+                isOpen={isCreateStudentModalOpen}
+                onClose={() => {
+                    setIsCreateStudentModalOpen(false);
+                    setNewStudent({ name: '', email: '', password: '' });
+                }}
+                title="Create New Student Account"
+                size="md"
+            >
+                <div className="p-6">
+                    <div className="space-y-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                Full Name
+                            </label>
+                            <input
+                                type="text"
+                                value={newStudent.name}
+                                onChange={(e) => setNewStudent({ ...newStudent, name: e.target.value })}
+                                placeholder="Enter student's full name"
+                                className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                Email Address
+                            </label>
+                            <input
+                                type="email"
+                                value={newStudent.email}
+                                onChange={(e) => setNewStudent({ ...newStudent, email: e.target.value })}
+                                placeholder="student@example.com"
+                                className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                Password
+                            </label>
+                            <input
+                                type="password"
+                                value={newStudent.password}
+                                onChange={(e) => setNewStudent({ ...newStudent, password: e.target.value })}
+                                placeholder="Enter password"
+                                className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+                            />
+                        </div>
+
+                        <div className="flex gap-3 justify-end pt-4">
+                            <Button
+                                variant="outline"
+                                onClick={() => {
+                                    setIsCreateStudentModalOpen(false);
+                                    setNewStudent({ name: '', email: '', password: '' });
+                                }}
+                            >
+                                Cancel
+                            </Button>
+                            <Button
+                                variant="primary"
+                                onClick={handleCreateStudent}
+                                disabled={creating}
+                                leftIcon={<Plus className="w-4 h-4" />}
+                            >
+                                {creating ? 'Creating...' : 'Create Student'}
                             </Button>
                         </div>
                     </div>

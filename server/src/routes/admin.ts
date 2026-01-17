@@ -128,6 +128,48 @@ router.delete('/users/:id', async (req: AuthRequest, res: Response, next) => {
     }
 });
 
+// @route   POST /api/admin/users/create-student
+// @desc    Create a new student account
+// @access  Private (Admin)
+router.post('/users/create-student', async (req: AuthRequest, res: Response, next) => {
+    try {
+        const { name, email, password } = req.body;
+
+        if (!name || !email || !password) {
+            throw new AppError('Name, email, and password are required', 400);
+        }
+
+        // Check if user already exists
+        const existingUser = await User.findOne({ email });
+        if (existingUser) {
+            throw new AppError('A user with this email already exists', 400);
+        }
+
+        // Create new student
+        const student = await User.create({
+            name,
+            email,
+            password, // Will be hashed by pre-save hook
+            role: 'student',
+        });
+
+        console.log(`✅ Admin created student account: ${student.email}`);
+
+        res.status(201).json({
+            success: true,
+            message: `Student account created successfully for ${name}`,
+            data: {
+                _id: student._id,
+                name: student.name,
+                email: student.email,
+                role: student.role,
+            },
+        });
+    } catch (error) {
+        next(error);
+    }
+});
+
 // ==================== ANALYTICS ====================
 
 // @route   GET /api/admin/analytics/overview

@@ -143,6 +143,8 @@ export const adminAPI = {
     getById: (id: string) => api.get(`/admin/users/${id}`),
     update: (id: string, data: any) => api.put(`/admin/users/${id}`, data),
     delete: (id: string) => api.delete(`/admin/users/${id}`),
+    createStudent: (data: { name: string; email: string; password: string }) =>
+      api.post("/admin/users/create-student", data),
   },
   students: {
     getAll: (params?: any) => api.get("/admin/students", { params }),

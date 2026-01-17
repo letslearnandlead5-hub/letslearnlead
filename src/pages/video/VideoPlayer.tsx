@@ -287,7 +287,22 @@ const VideoPlayer: React.FC = () => {
                                             // YouTube Video - uses native YouTube controls with tracking enabled
                                             <iframe
                                                 className="w-full h-full"
-                                                src={`${currentLesson.videoUrl.replace('watch?v=', 'embed/')}?enablejsapi=1`}
+                                                src={(() => {
+                                                    let videoId = '';
+                                                    const url = currentLesson.videoUrl;
+
+                                                    // Extract video ID from various YouTube URL formats
+                                                    if (url.includes('youtube.com/watch?v=')) {
+                                                        videoId = url.split('watch?v=')[1].split('&')[0];
+                                                    } else if (url.includes('youtu.be/')) {
+                                                        videoId = url.split('youtu.be/')[1].split('?')[0];
+                                                    } else if (url.includes('youtube.com/embed/')) {
+                                                        videoId = url.split('embed/')[1].split('?')[0];
+                                                    }
+
+                                                    // Use youtube-nocookie.com for better privacy and compatibility with unlisted videos
+                                                    return `https://www.youtube-nocookie.com/embed/${videoId}?enablejsapi=1&origin=${window.location.origin}`;
+                                                })()}
                                                 title={currentLesson.title || 'Course Video'}
                                                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                                                 allowFullScreen

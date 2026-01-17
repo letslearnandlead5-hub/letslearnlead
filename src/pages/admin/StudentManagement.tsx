@@ -127,6 +127,9 @@ const StudentManagement: React.FC = () => {
             setIsCreateStudentModalOpen(false);
             setNewStudent({ name: '', email: '', password: '' });
             fetchStudents(); // Refresh student list
+
+            // Trigger event to refresh notification badge
+            window.dispatchEvent(new Event('studentCreated'));
         } catch (error: any) {
             console.error('Error creating student:', error);
             addToast({ type: 'error', message: error.message || 'Failed to create student' });

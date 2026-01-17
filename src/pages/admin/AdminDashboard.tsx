@@ -138,6 +138,17 @@ const AdminDashboard: React.FC = () => {
         return () => clearInterval(interval);
     }, []);
 
+    // Listen for student creation events to refresh notification count
+    useEffect(() => {
+        const handleStudentCreated = () => {
+            fetchUnreadCount();
+        };
+        window.addEventListener('studentCreated', handleStudentCreated);
+        return () => {
+            window.removeEventListener('studentCreated', handleStudentCreated);
+        };
+    }, []);
+
     const fetchUnreadCount = async () => {
         try {
             const response = await api.get('/notifications');

@@ -353,10 +353,24 @@ const VideoPlayer: React.FC = () => {
                                                         border: 'none',
                                                     }}
                                                 />
-                                                {/* Overlay to block YouTube logo click (top-right corner) */}
-                                                <div
-                                                    className="absolute top-0 right-0 w-24 h-12 z-10 bg-transparent"
-                                                    style={{ pointerEvents: 'none' }}
+                                                {/* Click-blocking overlays - blocks clicks but keeps controls visible */}
+                                                {/* Top-left: YouTube logo */}
+                                                <div 
+                                                    className="absolute top-0 left-0 w-28 h-14 z-50"
+                                                    style={{ pointerEvents: 'auto', background: 'transparent', cursor: 'default' }}
+                                                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                                                />
+                                                {/* Top-center: Video title area */}
+                                                <div 
+                                                    className="absolute top-0 left-28 right-60 h-14 z-50"
+                                                    style={{ pointerEvents: 'auto', background: 'transparent', cursor: 'default' }}
+                                                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                                                />
+                                                {/* Top-right: Copy link button */}
+                                                <div 
+                                                    className="absolute top-0 right-0 w-60 h-16 z-50"
+                                                    style={{ pointerEvents: 'auto', background: 'transparent', cursor: 'default' }}
+                                                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
                                                 />
                                             </div>
                                         ) : (
@@ -794,3 +808,4 @@ const VideoPlayer: React.FC = () => {
 };
 
 export default VideoPlayer;
+

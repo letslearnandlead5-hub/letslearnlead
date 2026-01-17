@@ -173,6 +173,29 @@ router.post('/users/create-student', async (req: AuthRequest, res: Response, nex
             // Continue even if email fails
         }
 
+        // Create in-app notification for all admins
+        try {
+            const { Notification } = await import('../models/Notification');
+            const adminUsers = await User.find({ role: 'admin' });
+
+            // Create notification for each admin
+            const notificationPromises = adminUsers.map(admin =>
+                Notification.create({
+                    userId: admin._id,
+                    title: '🎓 New Student Account Created',
+                    message: `${student.name} (${student.email}) has been added to the platform.`,
+                    type: 'success',
+                    link: '/admin/students',
+                })
+            );
+
+            await Promise.all(notificationPromises);
+            console.log(`📬 Created notifications for ${adminUsers.length} admin(s)`);
+        } catch (notificationError) {
+            console.error('Failed to create in-app notification:', notificationError);
+            // Continue even if notification fails
+        }
+
         res.status(201).json({
             success: true,
             message: `Student account created successfully for ${name}`,

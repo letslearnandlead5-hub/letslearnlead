@@ -222,8 +222,8 @@ const VideoPlayer: React.FC = () => {
     // YouTube iframe message listener for tracking progress
     useEffect(() => {
         const handleMessage = (event: MessageEvent) => {
-            // Only accept messages from YouTube
-            if (event.origin !== 'https://www.youtube.com') return;
+            // Accept messages from both YouTube domains
+            if (event.origin !== 'https://www.youtube.com' && event.origin !== 'https://www.youtube-nocookie.com') return;
 
             try {
                 const data = JSON.parse(event.data);

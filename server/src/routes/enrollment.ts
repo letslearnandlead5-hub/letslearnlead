@@ -149,12 +149,30 @@ router.get('/verify/:courseId', protect, async (req: AuthRequest, res: Response,
         );
 
         if (!isEnrolled) {
+            // Log unauthorized access attempt
+            console.log(`🚫 Unauthorized access attempt:`, {
+                userId: req.user?.id,
+                email: user.email,
+                courseId,
+                timestamp: new Date().toISOString(),
+                ip: req.ip || req.socket.remoteAddress,
+            });
+
             return res.status(403).json({
                 success: false,
                 message: 'You are not enrolled in this course',
                 enrolled: false,
             });
         }
+
+        // Log successful video access
+        console.log(`✅ Video access granted:`, {
+            userId: req.user?.id,
+            email: user.email,
+            courseId,
+            timestamp: new Date().toISOString(),
+            ip: req.ip || req.socket.remoteAddress,
+        });
 
         res.status(200).json({
             success: true,

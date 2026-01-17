@@ -25,6 +25,7 @@ import doubtRoutes from "./routes/doubts";
 import quizRoutes from "./routes/quizzes";
 import settingsRoutes from "./routes/settings";
 import statsRoutes from "./routes/stats";
+import contactRoutes from "./routes/contact";
 
 // 🔹 Load environment variables
 dotenv.config();
@@ -157,6 +158,7 @@ app.use("/api/doubts", doubtRoutes);
 app.use("/api/quizzes", quizRoutes);
 app.use("/api/settings", settingsRoutes);
 app.use("/api/stats", statsRoutes);
+app.use("/api/contact", contactRoutes);
 
 // 🔹 API Health check
 app.get("/", (req, res) => {

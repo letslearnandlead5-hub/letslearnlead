@@ -128,4 +128,42 @@ router.put('/progress/:courseId', protect, async (req: AuthRequest, res: Respons
     }
 });
 
+// @route   GET /api/enrollment/verify/:courseId
+// @desc    Verify if user is enrolled in a course
+// @access  Private
+router.get('/verify/:courseId', protect, async (req: AuthRequest, res: Response, next) => {
+    try {
+        const { courseId } = req.params;
+        const { User } = await import('../models/User');
+
+        // Check if user is enrolled in the course
+        const user = await User.findById(req.user?.id);
+
+        if (!user) {
+            throw new AppError('User not found', 404);
+        }
+
+        // Check if course is in user's enrolledCourses
+        const isEnrolled = user.enrolledCourses.some(
+            (enrolledCourseId: any) => enrolledCourseId.toString() === courseId
+        );
+
+        if (!isEnrolled) {
+            return res.status(403).json({
+                success: false,
+                message: 'You are not enrolled in this course',
+                enrolled: false,
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            enrolled: true,
+            message: 'User is enrolled in this course',
+        });
+    } catch (error) {
+        next(error);
+    }
+});
+
 export default router;

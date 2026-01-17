@@ -139,3 +139,20 @@ html {
 .contact-section {
   @apply bg-slate-50 dark:bg-slate-900;
 }
+
+/* YouTube iframe security - Hide branding and prevent copying */
+iframe[src*="youtube.com"],
+iframe[src*="youtube-nocookie.com"] {
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
+
+/* Prevent text selection on video container */
+.video-container {
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}

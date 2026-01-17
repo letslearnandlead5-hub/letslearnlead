@@ -40,12 +40,45 @@ const VideoPlayer: React.FC = () => {
     });
     const [youtubeWatchTime, setYoutubeWatchTime] = useState(0);
     const [youtubeDuration, setYoutubeDuration] = useState(0);
+    const [isEnrolled, setIsEnrolled] = useState<boolean | null>(null);
+
+    // Verify enrollment before allowing access
+    useEffect(() => {
+        const verifyEnrollment = async () => {
+            try {
+                if (!courseId || !token) return;
+
+                const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+                const response = await fetch(`${API_URL}/api/enrollment/verify/${courseId}`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                    },
+                });
+
+                const data = await response.json();
+
+                if (!data.enrolled) {
+                    // User is not enrolled, redirect to course purchase page
+                    navigate(`/courses/${courseId}/purchase`);
+                } else {
+                    setIsEnrolled(true);
+                }
+            } catch (error) {
+                console.error('Error verifying enrollment:', error);
+                // On error, redirect to courses list for safety
+                navigate('/courses');
+            }
+        };
+
+        verifyEnrollment();
+    }, [courseId, token, navigate]);
 
     // Fetch course data
     useEffect(() => {
         const fetchCourse = async () => {
             try {
-                if (!courseId) return;
+                if (!courseId || !isEnrolled) return;
 
                 const response: any = await courseAPI.getById(courseId);
                 setCourse(response.data);
@@ -57,7 +90,7 @@ const VideoPlayer: React.FC = () => {
         };
 
         fetchCourse();
-    }, [courseId]);
+    }, [courseId, isEnrolled]);
 
     // Find current lesson based on lessonId
     useEffect(() => {
@@ -284,29 +317,48 @@ const VideoPlayer: React.FC = () => {
                                 <div className="relative bg-black aspect-video">
                                     {currentLesson.videoUrl ? (
                                         currentLesson.videoUrl.includes('youtube.com') || currentLesson.videoUrl.includes('youtu.be') ? (
-                                            // YouTube Video - uses native YouTube controls with tracking enabled
-                                            <iframe
-                                                className="w-full h-full"
-                                                src={(() => {
-                                                    let videoId = '';
-                                                    const url = currentLesson.videoUrl;
+                                            // YouTube Video - Protected from sharing
+                                            <div
+                                                className="relative w-full h-full"
+                                                onContextMenu={(e) => e.preventDefault()} // Disable right-click
+                                            >
+                                                <iframe
+                                                    className="w-full h-full pointer-events-auto"
+                                                    src={(() => {
+                                                        let videoId = '';
+                                                        const url = currentLesson.videoUrl;
 
-                                                    // Extract video ID from various YouTube URL formats
-                                                    if (url.includes('youtube.com/watch?v=')) {
-                                                        videoId = url.split('watch?v=')[1].split('&')[0];
-                                                    } else if (url.includes('youtu.be/')) {
-                                                        videoId = url.split('youtu.be/')[1].split('?')[0];
-                                                    } else if (url.includes('youtube.com/embed/')) {
-                                                        videoId = url.split('embed/')[1].split('?')[0];
-                                                    }
+                                                        // Extract video ID from various YouTube URL formats
+                                                        if (url.includes('youtube.com/watch?v=')) {
+                                                            videoId = url.split('watch?v=')[1].split('&')[0];
+                                                        } else if (url.includes('youtu.be/')) {
+                                                            videoId = url.split('youtu.be/')[1].split('?')[0];
+                                                        } else if (url.includes('youtube.com/embed/')) {
+                                                            videoId = url.split('embed/')[1].split('?')[0];
+                                                        }
 
-                                                    // Use youtube-nocookie.com for better privacy and compatibility with unlisted videos
-                                                    return `https://www.youtube-nocookie.com/embed/${videoId}?enablejsapi=1&origin=${window.location.origin}`;
-                                                })()}
-                                                title={currentLesson.title || 'Course Video'}
-                                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                                allowFullScreen
-                                            />
+                                                        // Security parameters:
+                                                        // - modestbranding=1: Minimal YouTube branding
+                                                        // - rel=0: Don't show related videos
+                                                        // - showinfo=0: Hide video title
+                                                        // - fs=1: Allow fullscreen
+                                                        // - enablejsapi=1: Enable tracking
+                                                        // - disablekb=1: Disable keyboard controls to prevent shortcuts
+                                                        return `https://www.youtube-nocookie.com/embed/${videoId}?modestbranding=1&rel=0&showinfo=0&fs=1&enablejsapi=1&disablekb=1&origin=${window.location.origin}`;
+                                                    })()}
+                                                    title={currentLesson.title || 'Course Video'}
+                                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                                    allowFullScreen
+                                                    style={{
+                                                        border: 'none',
+                                                    }}
+                                                />
+                                                {/* Overlay to block YouTube logo click (top-right corner) */}
+                                                <div
+                                                    className="absolute top-0 right-0 w-24 h-12 z-10 bg-transparent"
+                                                    style={{ pointerEvents: 'none' }}
+                                                />
+                                            </div>
                                         ) : (
                                             // Local Video File with custom controls
                                             <>

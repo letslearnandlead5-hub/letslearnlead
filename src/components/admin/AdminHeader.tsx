@@ -102,7 +102,15 @@ const AdminHeader: React.FC<AdminHeaderProps> = ({ onMenuClick }) => {
 
                     {/* Notification Bell */}
                     <button
-                        onClick={() => {
+                        onClick={async () => {
+                            // Mark all notifications as read
+                            try {
+                                await api.put('/notifications/mark-all-read');
+                                setUnreadCount(0); // Clear badge immediately
+                            } catch (error) {
+                                console.error('Error marking notifications as read:', error);
+                            }
+
                             navigate('/dashboard');
                             // Dispatch event to switch to notifications tab
                             window.dispatchEvent(new CustomEvent('selectAdminTab', { detail: 'notifications' }));

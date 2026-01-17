@@ -233,9 +233,9 @@ const VideoPlayer: React.FC = () => {
         const isYouTube = currentLesson.videoUrl?.includes('youtube.com') || currentLesson.videoUrl?.includes('youtu.be');
 
         if (isYouTube) {
-            // For YouTube videos, mark complete after 90 seconds of watch time
+            // For YouTube videos, mark complete after 240 seconds of watch time
             // This is more reliable than percentage-based tracking
-            const YOUTUBE_COMPLETION_TIME = 90; // 90 seconds = 1.5 minutes
+            const YOUTUBE_COMPLETION_TIME = 240; // 240 seconds = 4 minutes
 
             console.log(`🎬 YouTube progress: ${youtubeWatchTime}s / ${YOUTUBE_COMPLETION_TIME}s required`);
 

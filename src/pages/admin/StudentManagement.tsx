@@ -532,6 +532,16 @@ const StudentManagement: React.FC = () => {
                                 placeholder="Enter password"
                                 className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
                             />
+                            <div className="mt-2 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                                <p className="text-xs font-semibold text-blue-900 dark:text-blue-200 mb-1">🔐 Password Requirements:</p>
+                                <ul className="text-xs text-blue-700 dark:text-blue-300 space-y-0.5 ml-4 list-disc">
+                                    <li>Minimum 8 characters</li>
+                                    <li>At least 1 number</li>
+                                    <li>At least 1 special character (!@#$%^&*...)</li>
+                                    <li>At least 1 uppercase letter</li>
+                                    <li>At least 1 lowercase letter</li>
+                                </ul>
+                            </div>
                         </div>
 
                         <div className="flex gap-3 justify-end pt-4">

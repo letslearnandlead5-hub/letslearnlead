@@ -22,7 +22,13 @@ export const updateNoteSchema = createNoteSchema.partial().extend({
 export const signupSchema = z.object({
     name: z.string().min(2, 'Name must be at least 2 characters').max(100),
     email: z.string().email('Invalid email address'),
-    password: z.string().min(6, 'Password must be at least 6 characters').max(100),
+    password: z.string()
+        .min(8, 'Password must be at least 8 characters')
+        .max(100)
+        .regex(/[0-9]/, 'Password must contain at least 1 number')
+        .regex(/[!@#$%^&*(),.?":{}|<>]/, 'Password must contain at least 1 special character')
+        .regex(/[A-Z]/, 'Password must contain at least 1 uppercase letter')
+        .regex(/[a-z]/, 'Password must contain at least 1 lowercase letter'),
     role: z.enum(['student', 'teacher', 'admin']).optional(),
 });
 

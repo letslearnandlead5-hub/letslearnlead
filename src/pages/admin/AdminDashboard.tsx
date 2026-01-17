@@ -151,12 +151,15 @@ const AdminDashboard: React.FC = () => {
 
     const fetchUnreadCount = async () => {
         try {
+            console.log('🔔 Fetching notification count...');
             const response = await api.get('/notifications');
+            console.log('📬 Notifications response:', response.data);
             const notifications = response.data?.data || [];
             const unreadCount = notifications.filter((n: any) => !n.read).length;
+            console.log(`📊 Total notifications: ${notifications.length}, Unread: ${unreadCount}`);
             setUnreadNotifications(unreadCount);
         } catch (error) {
-            console.error('Error fetching notifications:', error);
+            console.error('❌ Error fetching notifications:', error);
         }
     };
 

@@ -11,6 +11,10 @@ import {
     Sparkles,
     Star,
     Rocket,
+    Menu,
+    X,
+    Moon,
+    Sun,
 } from 'lucide-react';
 import Button from '../components/ui/Button';
 import Card from '../components/ui/Card';
@@ -50,6 +54,8 @@ const Home: React.FC = () => {
         successRate: 100,
     });
     const [loading, setLoading] = useState(true);
+    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+    const [darkMode, setDarkMode] = useState(false);
 
     useEffect(() => {
         fetchCourses();
@@ -109,9 +115,164 @@ const Home: React.FC = () => {
 
     return (
         <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
+            {/* Navigation Header */}
+            <motion.header
+                initial={{ y: -100 }}
+                animate={{ y: 0 }}
+                transition={{ duration: 0.5 }}
+                className="fixed top-0 left-0 right-0 z-50 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 shadow-sm"
+            >
+                <nav className="container mx-auto px-4">
+                    <div className="flex items-center justify-between h-16">
+                        {/* Logo */}
+                        <motion.div
+                            whileHover={{ scale: 1.05 }}
+                            className="flex items-center cursor-pointer"
+                            onClick={() => navigate('/')}
+                        >
+                            <img
+                                src="/logo.png"
+                                alt="Let's L-Earn and Lead"
+                                className="h-10 w-auto mr-3"
+                            />
+                            <span className="text-xl font-bold bg-gradient-to-r from-purple-600 via-blue-600 to-pink-600 bg-clip-text text-transparent hidden sm:block">
+                                Let's L-Earn & Lead
+                            </span>
+                        </motion.div>
+
+                        {/* Desktop Navigation */}
+                        <div className="hidden md:flex items-center space-x-8">
+                            <a
+                                href="#courses"
+                                className="text-gray-700 dark:text-gray-300 hover:text-purple-600 dark:hover:text-purple-400 transition-colors font-medium"
+                            >
+                                Courses
+                            </a>
+                            <a
+                                href="#subjects"
+                                className="text-gray-700 dark:text-gray-300 hover:text-purple-600 dark:hover:text-purple-400 transition-colors font-medium"
+                            >
+                                Subjects
+                            </a>
+                            <button
+                                onClick={() => navigate('/notes')}
+                                className="text-gray-700 dark:text-gray-300 hover:text-purple-600 dark:hover:text-purple-400 transition-colors font-medium"
+                            >
+                                Notes
+                            </button>
+                            <a
+                                href="#contact"
+                                className="text-gray-700 dark:text-gray-300 hover:text-purple-600 dark:hover:text-purple-400 transition-colors font-medium"
+                            >
+                                Contact
+                            </a>
+                        </div>
+
+                        {/* Right Side - Auth Buttons & Dark Mode */}
+                        <div className="hidden md:flex items-center space-x-4">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => navigate('/login')}
+                                className="border-purple-600 text-purple-600 hover:bg-purple-50 dark:border-purple-400 dark:text-purple-400 dark:hover:bg-purple-900/20"
+                            >
+                                Login
+                            </Button>
+                            <Button
+                                variant="primary"
+                                size="sm"
+                                onClick={() => navigate('/signup')}
+                                className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white"
+                            >
+                                Sign Up
+                            </Button>
+                        </div>
+
+                        {/* Mobile Menu Button */}
+                        <button
+                            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                            className="md:hidden p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                        >
+                            {mobileMenuOpen ? (
+                                <X className="w-6 h-6 text-gray-700 dark:text-gray-300" />
+                            ) : (
+                                <Menu className="w-6 h-6 text-gray-700 dark:text-gray-300" />
+                            )}
+                        </button>
+                    </div>
+
+                    {/* Mobile Menu */}
+                    {mobileMenuOpen && (
+                        <motion.div
+                            initial={{ opacity: 0, y: -20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -20 }}
+                            className="md:hidden py-4 border-t border-gray-200 dark:border-gray-800"
+                        >
+                            <div className="flex flex-col space-y-4">
+                                <a
+                                    href="#courses"
+                                    className="text-gray-700 dark:text-gray-300 hover:text-purple-600 dark:hover:text-purple-400 transition-colors font-medium px-4 py-2"
+                                    onClick={() => setMobileMenuOpen(false)}
+                                >
+                                    Courses
+                                </a>
+                                <a
+                                    href="#subjects"
+                                    className="text-gray-700 dark:text-gray-300 hover:text-purple-600 dark:hover:text-purple-400 transition-colors font-medium px-4 py-2"
+                                    onClick={() => setMobileMenuOpen(false)}
+                                >
+                                    Subjects
+                                </a>
+                                <button
+                                    onClick={() => {
+                                        navigate('/notes');
+                                        setMobileMenuOpen(false);
+                                    }}
+                                    className="text-gray-700 dark:text-gray-300 hover:text-purple-600 dark:hover:text-purple-400 transition-colors font-medium px-4 py-2 text-left"
+                                >
+                                    Notes
+                                </button>
+                                <a
+                                    href="#contact"
+                                    className="text-gray-700 dark:text-gray-300 hover:text-purple-600 dark:hover:text-purple-400 transition-colors font-medium px-4 py-2"
+                                    onClick={() => setMobileMenuOpen(false)}
+                                >
+                                    Contact
+                                </a>
+                                <div className="flex gap-2 px-4 pt-2">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => {
+                                            navigate('/login');
+                                            setMobileMenuOpen(false);
+                                        }}
+                                        className="flex-1 border-purple-600 text-purple-600"
+                                    >
+                                        Login
+                                    </Button>
+                                    <Button
+                                        variant="primary"
+                                        size="sm"
+                                        onClick={() => {
+                                            navigate('/signup');
+                                            setMobileMenuOpen(false);
+                                        }}
+                                        className="flex-1 bg-gradient-to-r from-purple-600 to-blue-600"
+                                    >
+                                        Sign Up
+                                    </Button>
+                                </div>
+                            </div>
+                        </motion.div>
+                    )}
+                </nav>
+            </motion.header>
+
             {/* Hero Section */}
             <section
-                className="relative min-h-screen py-20 overflow-hidden flex items-center"
+                className="relative min-h-screen pt-32 pb-20 overflow-hidden flex items-center"
             >
                 {/* Gradient Overlay for better text readability */}
                 <div className="absolute inset-0 bg-gradient-to-br from-purple-900/70 via-blue-900/60 to-pink-900/70 dark:from-gray-900/80 dark:via-purple-900/70 dark:to-blue-900/80" />
@@ -394,6 +555,7 @@ const Home: React.FC = () => {
 
             {/* Courses We Offer Section */}
             <section
+                id="courses"
                 className="relative py-16 overflow-hidden courses-section"
             >
 
@@ -530,6 +692,7 @@ const Home: React.FC = () => {
 
             {/* Popular Subjects Section */}
             <section
+                id="subjects"
                 className="relative py-16 overflow-hidden subjects-section"
             >
 
@@ -606,6 +769,7 @@ const Home: React.FC = () => {
 
             {/* Contact Us Section */}
             <section
+                id="contact"
                 className="relative py-16 overflow-hidden contact-section"
             >
                 <div className="container mx-auto px-4 relative z-10">

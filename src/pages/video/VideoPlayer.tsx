@@ -269,6 +269,10 @@ const VideoPlayer: React.FC = () => {
 
         if (!isYouTube) return;
 
+        // Reset watch time when lesson changes
+        setYoutubeWatchTime(0);
+        console.log('🔄 Reset YouTube watch time for new lesson');
+
         // Poll every second to increment watch time
         const interval = setInterval(() => {
             setYoutubeWatchTime(prev => {

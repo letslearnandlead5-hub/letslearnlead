@@ -94,6 +94,7 @@ const AdminDashboard: React.FC = () => {
     const { isDark, toggleTheme } = useThemeStore();
     const { addToast } = useToastStore();
     const navigate = useNavigate();
+    const [unreadNotifications, setUnreadNotifications] = useState(0);
 
     // Settings state
     const [profileName, setProfileName] = useState(user?.name || '');
@@ -103,7 +104,7 @@ const AdminDashboard: React.FC = () => {
     const [confirmPassword, setConfirmPassword] = useState('');
     const [savingProfile, setSavingProfile] = useState(false);
     const [changingPassword, setChangingPassword] = useState(false);
-    
+
     // Platform settings state
     const [emailNotifications, setEmailNotifications] = useState(true);
     const [maintenanceMode, setMaintenanceMode] = useState(false);
@@ -128,6 +129,25 @@ const AdminDashboard: React.FC = () => {
             window.removeEventListener('selectAdminTab', handleTabSelection as EventListener);
         };
     }, []);
+
+    // Fetch unread notifications count
+    useEffect(() => {
+        fetchUnreadCount();
+        // Refresh count every 30 seconds
+        const interval = setInterval(fetchUnreadCount, 30000);
+        return () => clearInterval(interval);
+    }, []);
+
+    const fetchUnreadCount = async () => {
+        try {
+            const response = await api.get('/notifications');
+            const notifications = response.data?.data || [];
+            const unreadCount = notifications.filter((n: any) => !n.read).length;
+            setUnreadNotifications(unreadCount);
+        } catch (error) {
+            console.error('Error fetching notifications:', error);
+        }
+    };
 
     const fetchDashboardData = async () => {
         try {
@@ -322,6 +342,10 @@ const AdminDashboard: React.FC = () => {
                                     } else {
                                         setSelectedTab(tab.id);
                                         setShowMobileSidebar(false);
+                                        // Refresh notification count when viewing notifications
+                                        if (tab.id === 'notifications') {
+                                            fetchUnreadCount();
+                                        }
                                     }
                                 }}
                                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${selectedTab === tab.id
@@ -331,6 +355,11 @@ const AdminDashboard: React.FC = () => {
                             >
                                 <tab.icon className="w-5 h-5" />
                                 <span className="font-medium">{tab.label}</span>
+                                {tab.id === 'notifications' && unreadNotifications > 0 && (
+                                    <span className="ml-auto bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                                        {unreadNotifications}
+                                    </span>
+                                )}
                             </button>
                         ))}
                         <button
@@ -546,8 +575,8 @@ const AdminDashboard: React.FC = () => {
                                                     placeholder="admin@example.com"
                                                 />
                                             </div>
-                                            <Button 
-                                                variant="primary" 
+                                            <Button
+                                                variant="primary"
                                                 onClick={handleSaveProfile}
                                                 disabled={savingProfile}
                                             >
@@ -598,9 +627,9 @@ const AdminDashboard: React.FC = () => {
                                                     </p>
                                                 </div>
                                                 <label className="relative inline-flex items-center cursor-pointer">
-                                                    <input 
-                                                        type="checkbox" 
-                                                        className="sr-only peer" 
+                                                    <input
+                                                        type="checkbox"
+                                                        className="sr-only peer"
                                                         checked={emailNotifications}
                                                         onChange={(e) => {
                                                             setEmailNotifications(e.target.checked);
@@ -621,9 +650,9 @@ const AdminDashboard: React.FC = () => {
                                                     </p>
                                                 </div>
                                                 <label className="relative inline-flex items-center cursor-pointer">
-                                                    <input 
-                                                        type="checkbox" 
-                                                        className="sr-only peer" 
+                                                    <input
+                                                        type="checkbox"
+                                                        className="sr-only peer"
                                                         checked={maintenanceMode}
                                                         onChange={(e) => {
                                                             setMaintenanceMode(e.target.checked);
@@ -644,9 +673,9 @@ const AdminDashboard: React.FC = () => {
                                                     </p>
                                                 </div>
                                                 <label className="relative inline-flex items-center cursor-pointer">
-                                                    <input 
-                                                        type="checkbox" 
-                                                        className="sr-only peer" 
+                                                    <input
+                                                        type="checkbox"
+                                                        className="sr-only peer"
                                                         checked={userRegistration}
                                                         onChange={(e) => {
                                                             setUserRegistration(e.target.checked);
@@ -692,7 +721,7 @@ const AdminDashboard: React.FC = () => {
                                                     placeholder="Confirm new password"
                                                 />
                                             </div>
-                                            <Button 
+                                            <Button
                                                 variant="primary"
                                                 onClick={handleChangePassword}
                                                 disabled={changingPassword}

@@ -268,15 +268,6 @@ const MyCourses: React.FC = () => {
                     </div>
                 </Card>
 
-                {/* Browse More Courses Button */}
-                <div className="mb-6">
-                    <Link to="/courses">
-                        <Button variant="primary" className="w-full bg-gray-900 hover:bg-gray-800 dark:bg-gray-800 dark:hover:bg-gray-700" leftIcon={<BookOpen className="w-5 h-5" />}>
-                            Browse All Courses
-                        </Button>
-                    </Link>
-                </div>
-
                 {/* Courses Grid */}
                 <motion.div
                     variants={staggerContainer}
@@ -288,11 +279,7 @@ const MyCourses: React.FC = () => {
                         <div className="col-span-full text-center py-12">
                             <BookOpen className="w-16 h-16 text-gray-400 mx-auto mb-4" />
                             <p className="text-gray-500 dark:text-gray-400 text-lg">No courses found</p>
-                            <Link to="/courses">
-                                <Button variant="primary" className="mt-4">
-                                    Browse Courses
-                                </Button>
-                            </Link>
+                            <p className="text-gray-400 dark:text-gray-500 text-sm mt-2">Contact admin to get enrolled in courses</p>
                         </div>
                     ) : (
                         filteredCourses.map((course) => (

@@ -163,6 +163,45 @@ const VideoPlayer: React.FC = () => {
         }
     };
 
+
+    // Load progress from backend and merge with localStorage
+    useEffect(() => {
+        const loadProgressFromBackend = async () => {
+            if (!course || !courseId) return;
+
+            try {
+                const response = await fetch(`${import.meta.env.VITE_API_URL}/api/enrollment/progress/${courseId}`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                    },
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    const backendCompleted = new Set<string>(data.completedLessons || []);
+
+                    // Merge backend progress with localStorage
+                    const localCompleted = new Set(completedLessons);
+                    const merged = new Set([...backendCompleted, ...localCompleted]);
+
+                    console.log('📥 Loaded progress from backend:', backendCompleted.size, 'lessons');
+                    console.log('💾 Local progress:', localCompleted.size, 'lessons');
+                    console.log('🔀 Merged progress:', merged.size, 'lessons');
+
+                    if (merged.size > completedLessons.size) {
+                        setCompletedLessons(merged);
+                        // Update localStorage with merged progress
+                        localStorage.setItem(`course-${courseId}-completed`, JSON.stringify(Array.from(merged)));
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading progress from backend:', error);
+            }
+        };
+
+        loadProgressFromBackend();
+    }, [course, courseId, token]);
+
     // Sync existing localStorage progress to backend on mount
     useEffect(() => {
         if (course && courseId && completedLessons.size > 0) {

@@ -128,6 +128,42 @@ router.put('/progress/:courseId', protect, async (req: AuthRequest, res: Respons
     }
 });
 
+// @route   GET /api/enrollment/progress/:courseId
+// @desc    Get course progress
+// @access  Private
+router.get('/progress/:courseId', protect, async (req: AuthRequest, res: Response, next) => {
+    try {
+        const { courseId } = req.params;
+        const { User } = await import('../models/User');
+
+        // Find user's enrollment
+        const enrollment = await Enrollment.findOne({
+            userId: req.user?.id,
+            courseId: courseId,
+        });
+
+        if (!enrollment) {
+            return res.status(200).json({
+                success: true,
+                completedLessons: [],
+                completionPercentage: 0,
+            });
+        }
+
+        // Get user to access completedLessons from their course progress
+        const user = await User.findById(req.user?.id);
+        const courseProgress = user?.courseProgress?.find((cp: any) => cp.courseId.toString() === courseId);
+
+        res.status(200).json({
+            success: true,
+            completedLessons: courseProgress?.completedLessons || [],
+            completionPercentage: enrollment.completionPercentage || 0,
+        });
+    } catch (error) {
+        next(error);
+    }
+});
+
 // @route   GET /api/enrollment/verify/:courseId
 // @desc    Verify if user is enrolled in a course
 // @access  Private

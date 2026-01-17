@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Download, UserX, UserCheck, Eye, BookOpen, Users, GraduationCap, X } from 'lucide-react';
+import { Search, Download, UserX, UserCheck, Eye, BookOpen, Users, GraduationCap, X, UserPlus } from 'lucide-react';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
 import Modal from '../../components/ui/Modal';
-import { adminAPI } from '../../services/api';
+import { adminAPI, courseAPI } from '../../services/api';
 import { useToastStore } from '../../store/useToastStore';
 
 interface Student {
@@ -24,10 +24,15 @@ const StudentManagement: React.FC = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
     const [isEnrollmentModalOpen, setIsEnrollmentModalOpen] = useState(false);
+    const [isAddEnrollmentModalOpen, setIsAddEnrollmentModalOpen] = useState(false);
+    const [courses, setCourses] = useState<any[]>([]);
+    const [selectedCourseId, setSelectedCourseId] = useState('');
+    const [enrolling, setEnrolling] = useState(false);
     const { addToast } = useToastStore();
 
     useEffect(() => {
         fetchStudents();
+        fetchCourses();
     }, [searchTerm]);
 
     const fetchStudents = async () => {
@@ -66,9 +71,44 @@ const StudentManagement: React.FC = () => {
         }
     };
 
+    const fetchCourses = async () => {
+        try {
+            const response: any = await courseAPI.getAll();
+            setCourses(response.data || []);
+        } catch (error: any) {
+            console.error('Error fetching courses:', error);
+        }
+    };
+
     const handleViewEnrollments = (student: Student) => {
         setSelectedStudent(student);
         setIsEnrollmentModalOpen(true);
+    };
+
+    const handleAddEnrollment = (student: Student) => {
+        setSelectedStudent(student);
+        setSelectedCourseId('');
+        setIsAddEnrollmentModalOpen(true);
+    };
+
+    const handleEnrollStudent = async () => {
+        if (!selectedStudent || !selectedCourseId) {
+            addToast({ type: 'error', message: 'Please select a course' });
+            return;
+        }
+
+        try {
+            setEnrolling(true);
+            await adminAPI.enrollStudent(selectedStudent.email, selectedCourseId);
+            addToast({ type: 'success', message: 'Student enrolled successfully!' });
+            setIsAddEnrollmentModalOpen(false);
+            fetchStudents(); // Refresh student list
+        } catch (error: any) {
+            console.error('Error enrolling student:', error);
+            addToast({ type: 'error', message: error.message || 'Failed to enroll student' });
+        } finally {
+            setEnrolling(false);
+        }
     };
 
     const handleDownloadList = () => {
@@ -291,6 +331,13 @@ const StudentManagement: React.FC = () => {
                                                     <Eye className="w-4 h-4" />
                                                 </button>
                                                 <button
+                                                    onClick={() => handleAddEnrollment(student)}
+                                                    className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300"
+                                                    title="Enroll in Course"
+                                                >
+                                                    <UserPlus className="w-4 h-4" />
+                                                </button>
+                                                <button
                                                     onClick={() => handleBlockUnblock(student)}
                                                     className={`${student.isBlocked
                                                         ? 'text-green-600 hover:text-green-900 dark:text-green-400'
@@ -350,6 +397,53 @@ const StudentManagement: React.FC = () => {
                             <p className="text-gray-500 dark:text-gray-400">No enrollments yet</p>
                         </div>
                     )}
+                </div>
+            </Modal>
+
+            {/* Add Enrollment Modal */}
+            <Modal
+                isOpen={isAddEnrollmentModalOpen}
+                onClose={() => setIsAddEnrollmentModalOpen(false)}
+                title={`Enroll ${selectedStudent?.name} in Course`}
+                size="md"
+            >
+                <div className="p-6">
+                    <div className="space-y-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                Select Course
+                            </label>
+                            <select
+                                value={selectedCourseId}
+                                onChange={(e) => setSelectedCourseId(e.target.value)}
+                                className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+                            >
+                                <option value="">-- Select a course --</option>
+                                {courses.map((course) => (
+                                    <option key={course._id} value={course._id}>
+                                        {course.title}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <div className="flex gap-3 justify-end pt-4">
+                            <Button
+                                variant="outline"
+                                onClick={() => setIsAddEnrollmentModalOpen(false)}
+                            >
+                                Cancel
+                            </Button>
+                            <Button
+                                variant="primary"
+                                onClick={handleEnrollStudent}
+                                disabled={!selectedCourseId || enrolling}
+                                leftIcon={<UserPlus className="w-4 h-4" />}
+                            >
+                                {enrolling ? 'Enrolling...' : 'Enroll Student'}
+                            </Button>
+                        </div>
+                    </div>
                 </div>
             </Modal>
         </div>

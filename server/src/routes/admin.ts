@@ -29,7 +29,7 @@ router.get('/users', async (req: AuthRequest, res: Response, next) => {
                 { email: { $regex: search, $options: 'i' } },
             ];
         }
-        
+
         // Support multiple roles separated by comma (e.g., "teacher,admin")
         if (role) {
             const roles = (role as string).split(',').map(r => r.trim());
@@ -370,6 +370,75 @@ router.delete('/products/:id', async (req: AuthRequest, res: Response, next) => 
         res.status(200).json({
             success: true,
             message: 'Product deleted successfully',
+        });
+    } catch (error) {
+        next(error);
+    }
+});
+
+// ==================== ENROLLMENT MANAGEMENT ====================
+
+// @route   POST /api/admin/enroll-student
+// @desc    Manually enroll a student in a course
+// @access  Private (Admin)
+router.post('/enroll-student', async (req: AuthRequest, res: Response, next) => {
+    try {
+        const { studentEmail, courseId } = req.body;
+
+        if (!studentEmail || !courseId) {
+            throw new AppError('Student email and course ID are required', 400);
+        }
+
+        // Find student by email
+        const student = await User.findOne({ email: studentEmail });
+        if (!student) {
+            throw new AppError('Student not found with this email', 404);
+        }
+
+        // Find course
+        const course = await Course.findById(courseId);
+        if (!course) {
+            throw new AppError('Course not found', 404);
+        }
+
+        // Check if already enrolled
+        const existingEnrollment = await Enrollment.findOne({
+            userId: student._id,
+            courseId: courseId,
+        });
+
+        if (existingEnrollment) {
+            return res.status(200).json({
+                success: true,
+                message: 'Student is already enrolled in this course',
+                data: existingEnrollment,
+            });
+        }
+
+        // Create enrollment
+        const enrollment = await Enrollment.create({
+            userId: student._id,
+            courseId: courseId,
+            status: 'paid', // Free access granted by admin
+            completionPercentage: 0,
+            purchaseDate: new Date(),
+        });
+
+        // Add course to user's enrolled courses
+        if (!student.enrolledCourses) {
+            student.enrolledCourses = [];
+        }
+        if (!student.enrolledCourses.includes(courseId as any)) {
+            student.enrolledCourses.push(courseId as any);
+            await student.save();
+        }
+
+        console.log(`✅ Admin enrolled student ${student.email} in course ${course.title}`);
+
+        res.status(201).json({
+            success: true,
+            message: `Successfully enrolled ${student.name} in ${course.title}`,
+            data: enrollment,
         });
     } catch (error) {
         next(error);

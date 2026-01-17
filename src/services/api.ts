@@ -167,6 +167,8 @@ export const adminAPI = {
   analytics: {
     overview: () => api.get("/admin/analytics/overview"),
   },
+  enrollStudent: (studentEmail: string, courseId: string) =>
+    api.post("/admin/enroll-student", { studentEmail, courseId }),
 };
 
 export default api;

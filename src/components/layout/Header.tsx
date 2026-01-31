@@ -7,7 +7,6 @@ import {
     Sun,
     Menu,
     BookOpen,
-    ShoppingBag,
     LayoutDashboard,
     LogOut,
     ChevronDown,
@@ -99,14 +98,6 @@ const Header: React.FC = () => {
                                 >
                                     <BookOpen className="w-4 h-4" />
                                     <span>Courses</span>
-                                </Link>
-
-                                <Link
-                                    to="/shop"
-                                    className="flex items-center space-x-1 text-gray-700 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
-                                >
-                                    <ShoppingBag className="w-4 h-4" />
-                                    <span>Shop</span>
                                 </Link>
                             </>
                         )}
@@ -263,15 +254,6 @@ const Header: React.FC = () => {
                                         >
                                             <BookOpen className="w-4 h-4" />
                                             <span>Courses</span>
-                                        </Link>
-
-                                        <Link
-                                            to="/shop"
-                                            onClick={() => setShowMobileMenu(false)}
-                                            className="flex items-center space-x-2 px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
-                                        >
-                                            <ShoppingBag className="w-4 h-4" />
-                                            <span>Shop</span>
                                         </Link>
                                     </>
                                 )}

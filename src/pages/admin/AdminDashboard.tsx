@@ -3,8 +3,6 @@ import { motion } from 'framer-motion';
 import {
     Users,
     BookOpen,
-    ShoppingCart,
-    DollarSign,
     TrendingUp,
     FileText,
     Settings,
@@ -35,11 +33,9 @@ import Button from '../../components/ui/Button';
 import { staggerContainer, staggerItem } from '../../utils/animations';
 import { formatPrice } from '../../utils/helpers';
 import UserManagement from './UserManagement';
-import OrderManagement from './OrderManagement';
 import NotesManagement from './NotesManagement';
 import CourseManagement from './CourseManagement';
 import StudentManagement from './StudentManagement';
-import ProductManagement from './ProductManagement';
 import NotificationManagement from './NotificationManagement';
 import DoubtManagement from './DoubtManagement';
 import AdminHeader from '../../components/admin/AdminHeader';
@@ -289,20 +285,6 @@ const AdminDashboard: React.FC = () => {
             change: '+5%',
             color: 'bg-green-500'
         },
-        {
-            icon: ShoppingCart,
-            label: 'Total Orders',
-            value: dashboardStats?.stats?.totalOrders || 0,
-            change: '+18%',
-            color: 'bg-purple-500'
-        },
-        {
-            icon: DollarSign,
-            label: 'Revenue',
-            value: `₹${(dashboardStats?.stats?.totalRevenue || 0).toLocaleString()}`,
-            change: '+23%',
-            color: 'bg-yellow-500'
-        },
     ];
 
     // Real data from API
@@ -319,8 +301,6 @@ const AdminDashboard: React.FC = () => {
         { id: 'students', label: 'Students', icon: Users },
         { id: 'users', label: 'All Users', icon: Users },
         { id: 'courses', label: 'Courses', icon: BookOpen },
-        { id: 'products', label: 'Products', icon: ShoppingCart },
-        { id: 'orders', label: 'Orders', icon: ShoppingCart },
         { id: 'notes', label: 'Notes', icon: FileText },
         { id: 'quizzes', label: 'Quizzes', icon: FileQuestion },
         { id: 'doubts', label: 'Student Doubts', icon: MessageSquare },
@@ -436,32 +416,7 @@ const AdminDashboard: React.FC = () => {
                                     ))}
                                 </motion.div>
 
-                                <div className="grid lg:grid-cols-2 gap-6 mb-6">
-                                    {/* Revenue Chart */}
-                                    <Card className="p-6">
-                                        <h3 className="text-xl font-bold mb-4">Revenue Overview</h3>
-                                        {revenueData.length > 0 ? (
-                                            <ResponsiveContainer width="100%" height={300}>
-                                                <AreaChart data={revenueData}>
-                                                    <defs>
-                                                        <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                                                            <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.8} />
-                                                            <stop offset="95%" stopColor="#4f46e5" stopOpacity={0} />
-                                                        </linearGradient>
-                                                    </defs>
-                                                    <CartesianGrid strokeDasharray="3 3" />
-                                                    <XAxis dataKey="month" />
-                                                    <YAxis />
-                                                    <Tooltip />
-                                                    <Area type="monotone" dataKey="revenue" stroke="#4f46e5" fillOpacity={1} fill="url(#colorRevenue)" />
-                                                </AreaChart>
-                                            </ResponsiveContainer>
-                                        ) : (
-                                            <div className="h-[300px] flex items-center justify-center text-gray-500 dark:text-gray-400">
-                                                No revenue data available
-                                            </div>
-                                        )}
-                                    </Card>
+                                <div className="grid lg:grid-cols-1 gap-6 mb-6">
 
                                     {/* Course Popularity */}
                                     <Card className="p-6">
@@ -484,10 +439,10 @@ const AdminDashboard: React.FC = () => {
                                     </Card>
                                 </div>
 
-                                <div className="grid lg:grid-cols-3 gap-6">
+                                <div className="grid lg:grid-cols-1 gap-6">
                                     {/* Category Distribution */}
                                     <Card className="p-6">
-                                        <h3 className="text-xl font-bold mb-4">Categories</h3>
+                                        <h3 className="text-xl font-bold mb-4">Course Categories</h3>
                                         {categoryData.length > 0 ? (
                                             <ResponsiveContainer width="100%" height={250}>
                                                 <PieChart>
@@ -514,44 +469,14 @@ const AdminDashboard: React.FC = () => {
                                             </div>
                                         )}
                                     </Card>
-
-                                    {/* Recent Orders */}
-                                    <Card className="p-6 lg:col-span-2">
-                                        <div className="flex items-center justify-between mb-4">
-                                            <h3 className="text-xl font-bold">Recent Orders</h3>
-                                            <Button variant="outline" size="sm" onClick={() => setSelectedTab('orders')}>View All</Button>
-                                        </div>
-                                        <div className="space-y-3">
-                                            {recentOrders.slice(0, 3).map((order: any) => (
-                                                <div
-                                                    key={order._id}
-                                                    className="flex items-center justify-between p-4 rounded-lg border border-gray-200 dark:border-gray-700"
-                                                >
-                                                    <div>
-                                                        <p className="font-semibold">{order.orderId}</p>
-                                                        <p className="text-sm text-gray-500">{order.userId?.name}</p>
-                                                    </div>
-                                                    <div className="text-right">
-                                                        <p className="font-bold">{formatPrice(order.totalAmount)}</p>
-                                                        <Badge variant={order.status === 'completed' ? 'success' : 'warning'}>
-                                                            {order.status}
-                                                        </Badge>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </Card>
                                 </div>
                             </>
                         )}
 
                         {selectedTab === 'students' && <StudentManagement />}
                         {selectedTab === 'users' && <UserManagement />}
-                        {selectedTab === 'orders' && <OrderManagement />}
 
                         {selectedTab === 'courses' && <CourseManagement />}
-
-                        {selectedTab === 'products' && <ProductManagement />}
 
                         {selectedTab === 'notes' && <NotesManagement />}
 

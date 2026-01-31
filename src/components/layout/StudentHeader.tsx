@@ -2,14 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
     Bell,
-    ShoppingCart,
     User,
     Menu,
 } from 'lucide-react';
 import Badge from '../ui/Badge';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useToastStore } from '../../store/useToastStore';
-import { useCartStore } from '../../store/useCartStore';
 import { notificationAPI } from '../../services/api';
 
 interface Notification {
@@ -32,9 +30,6 @@ const StudentHeader: React.FC<StudentHeaderProps> = ({ onMenuClick }) => {
     const [unreadCount, setUnreadCount] = useState(0);
     const { user } = useAuthStore();
     const { addToast } = useToastStore();
-    const { items } = useCartStore();
-
-    const cartItemCount = items.reduce((total, item) => total + item.quantity, 0);
 
     useEffect(() => {
         fetchNotifications();
@@ -119,19 +114,8 @@ const StudentHeader: React.FC<StudentHeaderProps> = ({ onMenuClick }) => {
                     </Link>
                 </div>
 
-                {/* Right - Cart, Notifications & Profile */}
+                {/* Right - Notifications & Profile */}
                 <div className="flex items-center gap-4">
-                    {/* Shopping Cart */}
-                    <Link to="/cart" className="relative">
-                        <button className="relative p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
-                            <ShoppingCart className="w-5 h-5 text-gray-700 dark:text-gray-300" />
-                            {cartItemCount > 0 && (
-                                <span className="absolute -top-1 -right-1 w-5 h-5 bg-primary-600 text-white text-xs rounded-full flex items-center justify-center">
-                                    {cartItemCount}
-                                </span>
-                            )}
-                        </button>
-                    </Link>
 
                     {/* Notifications */}
                     <div className="relative">

@@ -6,14 +6,12 @@ import {
     Clock,
     Users,
     CheckCircle,
-    ShoppingCart,
     BookOpen,
 } from 'lucide-react';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import { pageTransition } from '../../utils/animations';
 import { courseAPI } from '../../services/api';
-import { formatPrice } from '../../utils/helpers';
 import { useToastStore } from '../../store/useToastStore';
 import { useAuthStore } from '../../store/useAuthStore';
 
@@ -41,9 +39,7 @@ const CourseDetails: React.FC = () => {
     const navigate = useNavigate();
     const [course, setCourse] = useState<Course | null>(null);
     const [loading, setLoading] = useState(true);
-    const [enrolling, setEnrolling] = useState(false);
     const { addToast } = useToastStore();
-    const { isAuthenticated } = useAuthStore();
 
     useEffect(() => {
         if (id) {
@@ -64,48 +60,7 @@ const CourseDetails: React.FC = () => {
         }
     };
 
-    const handleEnroll = async () => {
-        if (!isAuthenticated) {
-            // Save course ID for redirect after login
-            if (course) {
-                localStorage.setItem('pendingCourseId', course._id);
-            }
-            addToast({
-                type: 'warning',
-                message: 'Please login to enroll in this course'
-            });
-            navigate('/login');
-            return;
-        }
 
-        if (course) {
-            // Check if course is free or paid
-            if (course.price === 0) {
-                // Free course - direct enrollment
-                try {
-                    setEnrolling(true);
-                    await courseAPI.enroll(course._id);
-                    addToast({
-                        type: 'success',
-                        message: 'Successfully enrolled in the course!'
-                    });
-                    setTimeout(() => navigate('/dashboard', { replace: true }), 1000);
-                } catch (error: any) {
-                    console.error('Error enrolling in course:', error);
-                    const errorMessage = error.message || error.error || 'Failed to enroll in course';
-                    addToast({
-                        type: 'error',
-                        message: errorMessage
-                    });
-                } finally {
-                    setEnrolling(false);
-                }
-            } else {
-                // Paid course - redirect to purchase page
-                navigate(`/courses/${course._id}/purchase`);
-            }
-        }
-    };
 
     if (loading) {
         return (
@@ -161,7 +116,7 @@ const CourseDetails: React.FC = () => {
                             </div>
                         </div>
 
-                        {/* Price Card */}
+                        {/* Enrollment Info Card */}
                         <Card className="p-6 h-fit">
                             <div className="aspect-video bg-gray-200 dark:bg-gray-700 rounded-xl mb-4 overflow-hidden">
                                 <img
@@ -170,31 +125,16 @@ const CourseDetails: React.FC = () => {
                                     className="w-full h-full object-cover"
                                 />
                             </div>
-                            <div className="mb-4">
-                                <div className="flex items-baseline gap-2">
-                                    <span className="text-3xl font-bold text-primary-600">
-                                        {formatPrice(course.price)}
-                                    </span>
-                                    {course.originalPrice && (
-                                        <span className="text-lg text-gray-500 line-through">
-                                            {formatPrice(course.originalPrice)}
-                                        </span>
-                                    )}
-                                </div>
+
+                            {/* Info Message */}
+                            <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                                <p className="text-sm font-semibold text-blue-900 dark:text-blue-200 mb-2">
+                                    📚 Want to access this course?
+                                </p>
+                                <p className="text-sm text-blue-700 dark:text-blue-300">
+                                    Contact your administrator to get enrolled in this course.
+                                </p>
                             </div>
-                            <Button
-                                variant="primary"
-                                size="lg"
-                                className="w-full mb-3 bg-black dark:bg-white text-white dark:text-black hover:bg-gray-800 dark:hover:bg-gray-200"
-                                leftIcon={<ShoppingCart className="w-5 h-5" />}
-                                onClick={handleEnroll}
-                                disabled={enrolling}
-                            >
-                                {enrolling ? 'Enrolling...' : 'Enroll Now'}
-                            </Button>
-                            <p className="text-sm text-gray-600 dark:text-gray-400 text-center">
-                                30-Day Money-Back Guarantee
-                            </p>
                         </Card>
                     </div>
                 </div>

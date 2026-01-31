@@ -18,23 +18,12 @@ import GoogleCallback from './pages/auth/GoogleCallback';
 import CoursesList from './pages/courses/CoursesList';
 import CourseDetails from './pages/courses/CourseDetails';
 import MyCourses from './pages/courses/MyCourses';
-import CoursePurchase from './pages/courses/CoursePurchase';
-import CoursePaymentSuccess from './pages/courses/CoursePaymentSuccess';
-import CoursePaymentFailed from './pages/courses/CoursePaymentFailed';
-import ProductsList from './pages/shop/ProductsList';
-import Cart from './pages/shop/Cart';
 import VideoPlayer from './pages/video/VideoPlayer';
 import NotesLibrary from './pages/notes/NotesLibrary';
 import CourseEditor from './pages/admin/CourseEditor';
 import ProductEditor from './pages/admin/ProductEditor';
 import NotificationEditor from './pages/admin/NotificationEditor';
 import NoteEditor from './pages/admin/NoteEditor';
-import ProductDetails from './pages/shop/ProductDetails';
-import Checkout from './pages/shop/Checkout';
-import PaymentPage from './pages/payment/PaymentPage';
-import PaymentSuccess from './pages/payment/PaymentSuccess';
-import PaymentFailed from './pages/payment/PaymentFailed';
-import OrderTracker from './pages/shop/OrderTracker';
 import AboutUs from './pages/AboutUs';
 import Contact from './pages/Contact';
 import DashboardRouter from './pages/DashboardRouter';
@@ -225,27 +214,6 @@ function App() {
             </ProtectedRoute>
           } />
 
-          {/* Cart, Checkout, Payment & Order Routes - No Header/Footer */}
-          <Route path="/cart" element={
-            <ProtectedRoute>
-              <Cart />
-            </ProtectedRoute>
-          } />
-          <Route path="/checkout" element={
-            <ProtectedRoute>
-              <Checkout />
-            </ProtectedRoute>
-          } />
-          <Route path="/payment" element={
-            <ProtectedRoute>
-              <PaymentPage />
-            </ProtectedRoute>
-          } />
-          <Route path="/orders/:orderId" element={
-            <ProtectedRoute>
-              <OrderTracker />
-            </ProtectedRoute>
-          } />
 
           {/* Regular Routes - With Header/Footer */}
           <Route path="/" element={<MainLayout><Home /></MainLayout>} />
@@ -256,14 +224,6 @@ function App() {
           <Route path="/auth/google/callback" element={<GoogleCallback />} />
           <Route path="/courses" element={<MainLayout><CoursesList /></MainLayout>} />
           <Route path="/courses/:id" element={<MainLayout><CourseDetails /></MainLayout>} />
-          <Route path="/courses/:id/purchase" element={<MainLayout><CoursePurchase /></MainLayout>} />
-          <Route path="/courses/payment/success" element={<MainLayout><CoursePaymentSuccess /></MainLayout>} />
-          <Route path="/courses/payment/failed" element={<MainLayout><CoursePaymentFailed /></MainLayout>} />
-          <Route path="/my-courses" element={<StudentLayout><MyCourses /></StudentLayout>} />
-          <Route path="/shop" element={<MainLayout><ProductsList /></MainLayout>} />
-          <Route path="/shop/:id" element={<MainLayout><ProductDetails /></MainLayout>} />
-          <Route path="/payment/success" element={<MainLayout><PaymentSuccess /></MainLayout>} />
-          <Route path="/payment/failed" element={<MainLayout><PaymentFailed /></MainLayout>} />
           <Route path="/video/:courseId/:lessonId" element={<StudentLayout><VideoPlayer /></StudentLayout>} />
           <Route path="/notes" element={<StudentLayout><NotesLibrary /></StudentLayout>} />
           <Route path="/doubts" element={

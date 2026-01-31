@@ -130,10 +130,7 @@ export const notificationAPI = {
 
 /* ================= PAYMENT ================= */
 export const paymentAPI = {
-  createOrder: (data: any) => api.post("/payment/create-order", data),
-  verifyPayment: (data: any) => api.post("/payment/verify", data),
   checkEnrollment: (courseId: string) => api.get(`/payment/check-enrollment/${courseId}`),
-  freeEnroll: (courseId: string) => api.post("/payment/free-enroll", { courseId }),
 };
 
 /* ================= ADMIN ================= */

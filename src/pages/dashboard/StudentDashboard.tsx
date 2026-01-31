@@ -3,7 +3,6 @@ import { useNavigate, Link } from 'react-router-dom';
 import {
     BookOpen,
     Award,
-    ShoppingCart,
     User,
     LogOut,
     Bell,
@@ -18,10 +17,8 @@ import Badge from '../../components/ui/Badge';
 import StudentHeader from '../../components/layout/StudentHeader';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useToastStore } from '../../store/useToastStore';
-import { useCartStore } from '../../store/useCartStore';
 import { notificationAPI } from '../../services/api';
 import MyCourses from '../courses/MyCourses';
-import MyPurchases from '../purchases/MyPurchases';
 import MyProfile from '../profile/MyProfile';
 import MyCertificates from '../certificates/MyCertificates';
 import MyDoubts from '../doubts/MyDoubts';
@@ -46,10 +43,7 @@ const StudentDashboard: React.FC = () => {
     const [unreadCount, setUnreadCount] = useState(0);
     const { logout, user } = useAuthStore();
     const { addToast } = useToastStore();
-    const { items } = useCartStore();
     const navigate = useNavigate();
-
-    const cartItemCount = items.reduce((total, item) => total + item.quantity, 0);
 
     useEffect(() => {
         fetchNotifications();
@@ -79,7 +73,6 @@ const StudentDashboard: React.FC = () => {
     const tabs = [
         { id: 'courses', label: 'My Courses', icon: BookOpen },
         { id: 'quizzes', label: 'My Quizzes', icon: Brain },
-        { id: 'purchases', label: 'My Purchases', icon: ShoppingCart },
         { id: 'doubts', label: 'My Doubts', icon: MessageSquare },
         { id: 'profile', label: 'My Profile', icon: User },
         { id: 'certificates', label: 'Certificates', icon: Award },
@@ -176,8 +169,6 @@ const StudentDashboard: React.FC = () => {
                     {selectedTab === 'courses' && <MyCourses />}
 
                     {selectedTab === 'quizzes' && <MyQuizzes />}
-
-                    {selectedTab === 'purchases' && <MyPurchases />}
 
                     {selectedTab === 'doubts' && <MyDoubts />}
 

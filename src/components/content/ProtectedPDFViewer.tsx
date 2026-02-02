@@ -76,23 +76,6 @@ const ProtectedPDFViewer: React.FC<ProtectedPDFViewerProps> = ({
 
     return (
         <div className={`relative ${className}`}>
-            {/* Watermark Overlay */}
-            <div className="absolute top-0 left-0 right-0 z-10 bg-yellow-50 dark:bg-yellow-950 border-b-2 border-yellow-500 p-4">
-                <div className="flex items-center justify-between">
-                    <div>
-                        <p className="text-sm font-semibold text-yellow-800 dark:text-yellow-200">
-                            🔒 Protected Content
-                        </p>
-                        <p className="text-xs text-yellow-700 dark:text-yellow-300">
-                            Viewing as: <strong>{user?.name || 'Student'}</strong> ({user?.email})
-                        </p>
-                    </div>
-                    <div className="text-xs text-yellow-700 dark:text-yellow-300">
-                        ⚠️ Printing and downloading disabled
-                    </div>
-                </div>
-            </div>
-
             {/* PDF Controls */}
             <div className="sticky top-20 z-10 bg-gray-100 dark:bg-gray-800 border-b border-gray-300 dark:border-gray-700 p-3 flex items-center justify-between gap-4">
                 {/* Page Navigation */}
@@ -211,12 +194,6 @@ const ProtectedPDFViewer: React.FC<ProtectedPDFViewerProps> = ({
                 </div>
             </div>
 
-            {/* Bottom Watermark */}
-            <div className="bg-gray-100 dark:bg-gray-800 border-t border-gray-300 dark:border-gray-700 p-2 text-center">
-                <p className="text-xs text-gray-600 dark:text-gray-400">
-                    This content is protected and can only be viewed while logged in. Unauthorized distribution is prohibited.
-                </p>
-            </div>
         </div>
     );
 };

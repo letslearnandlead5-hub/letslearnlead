@@ -77,7 +77,7 @@ const ProtectedPDFViewer: React.FC<ProtectedPDFViewerProps> = ({
     return (
         <div className={`relative ${className}`}>
             {/* PDF Controls */}
-            <div className="sticky top-20 z-10 bg-gray-100 dark:bg-gray-800 border-b border-gray-300 dark:border-gray-700 p-3 flex items-center justify-between gap-4">
+            <div className="sticky top-0 z-10 bg-gray-100 dark:bg-gray-800 border-b border-gray-300 dark:border-gray-700 p-3 flex items-center justify-between gap-4">
                 {/* Page Navigation */}
                 <div className="flex items-center gap-2">
                     <Button

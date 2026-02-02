@@ -2,8 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import { Toaster } from 'react-hot-toast';
-import StudentHeader from './components/layout/StudentHeader';
-import StudentFooter from './components/layout/StudentFooter';
 import Header from './components/layout/Header';
 import Footer from './components/layout/Footer';
 import ErrorBoundary from './components/ui/ErrorBoundary';
@@ -67,18 +65,7 @@ const MainLayout = ({ children }: { children: React.ReactNode }) => {
   );
 };
 
-// Layout wrapper for student-specific pages with StudentHeader/StudentFooter
-const StudentLayout = ({ children }: { children: React.ReactNode }) => {
-  return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 transition-colors">
-      <StudentHeader />
-      <AnimatePresence mode="wait">
-        {children}
-      </AnimatePresence>
-      <StudentFooter />
-    </div>
-  );
-};
+
 
 function App() {
   const { setTheme } = useThemeStore();
@@ -213,36 +200,36 @@ function App() {
           <Route path="/auth/google/callback" element={<GoogleCallback />} />
           <Route path="/courses" element={<MainLayout><CoursesList /></MainLayout>} />
           <Route path="/courses/:id" element={<MainLayout><CourseDetails /></MainLayout>} />
-          <Route path="/video/:courseId/:lessonId" element={<StudentLayout><VideoPlayer /></StudentLayout>} />
-          <Route path="/notes" element={<StudentLayout><NotesLibrary /></StudentLayout>} />
+          <Route path="/video/:courseId/:lessonId" element={<MainLayout><VideoPlayer /></MainLayout>} />
+          <Route path="/notes" element={<MainLayout><NotesLibrary /></MainLayout>} />
           <Route path="/doubts" element={
             <ProtectedRoute>
-              <StudentLayout><MyDoubts /></StudentLayout>
+              <MainLayout><MyDoubts /></MainLayout>
             </ProtectedRoute>
           } />
           <Route path="/doubts/submit" element={
             <ProtectedRoute>
-              <StudentLayout><SubmitDoubt /></StudentLayout>
+              <MainLayout><SubmitDoubt /></MainLayout>
             </ProtectedRoute>
           } />
           <Route path="/my-quizzes" element={
             <ProtectedRoute>
-              <StudentLayout><MyQuizzes /></StudentLayout>
+              <MainLayout><MyQuizzes /></MainLayout>
             </ProtectedRoute>
           } />
           <Route path="/quizzes/:id/attempt" element={
             <ProtectedRoute>
-              <StudentLayout><QuizAttempt /></StudentLayout>
+              <MainLayout><QuizAttempt /></MainLayout>
             </ProtectedRoute>
           } />
           <Route path="/quizzes/:id/result/:attemptId" element={
             <ProtectedRoute>
-              <StudentLayout><QuizResultView /></StudentLayout>
+              <MainLayout><QuizResultView /></MainLayout>
             </ProtectedRoute>
           } />
           <Route path="/quizzes/:id/leaderboard" element={
             <ProtectedRoute>
-              <StudentLayout><QuizLeaderboard /></StudentLayout>
+              <MainLayout><QuizLeaderboard /></MainLayout>
             </ProtectedRoute>
           } />
           <Route path="/about" element={<MainLayout><AboutUs /></MainLayout>} />

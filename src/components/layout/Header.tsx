@@ -14,6 +14,9 @@ import {
     Info,
     Mail,
     FileText,
+    GraduationCap,
+    HelpCircle,
+    FileQuestion,
 } from 'lucide-react';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useThemeStore } from '../../store/useThemeStore';
@@ -25,6 +28,7 @@ const Header: React.FC = () => {
     const navigate = useNavigate();
     const [showUserMenu, setShowUserMenu] = useState(false);
     const [showMobileMenu, setShowMobileMenu] = useState(false);
+    const [showMyLearning, setShowMyLearning] = useState(false);
 
     const handleLogout = () => {
         setShowUserMenu(false);
@@ -102,17 +106,63 @@ const Header: React.FC = () => {
                             </>
                         )}
 
-
-
-                        {/* Notes Link - For Students to View */}
+                        {/* My Learning Dropdown - For Students */}
                         {isAuthenticated && user?.role !== 'admin' && (
-                            <Link
-                                to="/notes"
-                                className="flex items-center space-x-1 text-gray-700 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
-                            >
-                                <FileText className="w-4 h-4" />
-                                <span>Notes</span>
-                            </Link>
+                            <div className="relative">
+                                <button
+                                    onClick={() => setShowMyLearning(!showMyLearning)}
+                                    onBlur={() => setTimeout(() => setShowMyLearning(false), 200)}
+                                    className="flex items-center space-x-1 text-gray-700 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
+                                >
+                                    <GraduationCap className="w-4 h-4" />
+                                    <span>My Learning</span>
+                                    <ChevronDown className={`w-4 h-4 transition-transform ${showMyLearning ? 'rotate-180' : ''}`} />
+                                </button>
+
+                                <AnimatePresence>
+                                    {showMyLearning && (
+                                        <motion.div
+                                            initial={{ opacity: 0, y: -10 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            exit={{ opacity: 0, y: -10 }}
+                                            className="absolute left-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 py-2 z-50"
+                                        >
+                                            <Link
+                                                to="/dashboard"
+                                                onClick={() => setShowMyLearning(false)}
+                                                className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center space-x-2"
+                                            >
+                                                <BookOpen className="w-4 h-4" />
+                                                <span>My Courses</span>
+                                            </Link>
+                                            <Link
+                                                to="/my-quizzes"
+                                                onClick={() => setShowMyLearning(false)}
+                                                className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center space-x-2"
+                                            >
+                                                <FileQuestion className="w-4 h-4" />
+                                                <span>My Quizzes</span>
+                                            </Link>
+                                            <Link
+                                                to="/notes"
+                                                onClick={() => setShowMyLearning(false)}
+                                                className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center space-x-2"
+                                            >
+                                                <FileText className="w-4 h-4" />
+                                                <span>Notes Library</span>
+                                            </Link>
+                                            <Link
+                                                to="/doubts"
+                                                onClick={() => setShowMyLearning(false)}
+                                                className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center space-x-2"
+                                            >
+                                                <HelpCircle className="w-4 h-4" />
+                                                <span>My Doubts</span>
+                                            </Link>
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
+                            </div>
                         )}
 
                         {/* Common Links for All Users */}
@@ -258,15 +308,45 @@ const Header: React.FC = () => {
                                     </>
                                 )}
 
+                                {/* My Learning Section - Mobile */}
                                 {isAuthenticated && user?.role !== 'admin' && (
-                                    <Link
-                                        to="/notes"
-                                        onClick={() => setShowMobileMenu(false)}
-                                        className="flex items-center space-x-2 px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
-                                    >
-                                        <FileText className="w-4 h-4" />
-                                        <span>Notes</span>
-                                    </Link>
+                                    <>
+                                        <div className="px-4 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                            My Learning
+                                        </div>
+                                        <Link
+                                            to="/dashboard"
+                                            onClick={() => setShowMobileMenu(false)}
+                                            className="flex items-center space-x-2 px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
+                                        >
+                                            <BookOpen className="w-4 h-4" />
+                                            <span>My Courses</span>
+                                        </Link>
+                                        <Link
+                                            to="/my-quizzes"
+                                            onClick={() => setShowMobileMenu(false)}
+                                            className="flex items-center space-x-2 px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
+                                        >
+                                            <FileQuestion className="w-4 h-4" />
+                                            <span>My Quizzes</span>
+                                        </Link>
+                                        <Link
+                                            to="/notes"
+                                            onClick={() => setShowMobileMenu(false)}
+                                            className="flex items-center space-x-2 px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
+                                        >
+                                            <FileText className="w-4 h-4" />
+                                            <span>Notes Library</span>
+                                        </Link>
+                                        <Link
+                                            to="/doubts"
+                                            onClick={() => setShowMobileMenu(false)}
+                                            className="flex items-center space-x-2 px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
+                                        >
+                                            <HelpCircle className="w-4 h-4" />
+                                            <span>My Doubts</span>
+                                        </Link>
+                                    </>
                                 )}
 
                                 <Link

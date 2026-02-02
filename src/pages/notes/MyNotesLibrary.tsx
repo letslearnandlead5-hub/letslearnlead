@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import {
     BookOpen,
     Search,
@@ -53,8 +54,7 @@ const MyNotesLibrary: React.FC = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedCategory, setSelectedCategory] = useState<string>('all');
     const [selectedCourse, setSelectedCourse] = useState<string>('all');
-    const [selectedNote, setSelectedNote] = useState<SavedNote | null>(null);
-    const [isViewerOpen, setIsViewerOpen] = useState(false);
+    const navigate = useNavigate();
     const [showCategoryFilter, setShowCategoryFilter] = useState(false);
     const { addToast } = useToastStore();
 
@@ -120,9 +120,6 @@ const MyNotesLibrary: React.FC = () => {
     };
 
     const handleViewNote = async (note: SavedNote) => {
-        setSelectedNote(note);
-        setIsViewerOpen(true);
-
         // Update view count
         try {
             await userNoteAPI.markViewed(note._id);
@@ -141,6 +138,9 @@ const MyNotesLibrary: React.FC = () => {
         } catch (error) {
             console.error('Error updating view count:', error);
         }
+
+        // Navigate to full-page viewer
+        navigate(`/notes/view/${note.noteId._id}`);
     };
 
     const getUniqueCategories = () => {
@@ -382,47 +382,7 @@ const MyNotesLibrary: React.FC = () => {
                 )}
             </div>
 
-            {/* Note Viewer Modal */}
-            <Modal
-                isOpen={isViewerOpen}
-                onClose={() => setIsViewerOpen(false)}
-                title={selectedNote?.noteId.title || 'Note'}
-                size="full"
-            >
-                {selectedNote && (
-                    <div className="p-6">
-                        {/* Watermark */}
-                        <div className="mb-4 p-4 bg-yellow-50 dark:bg-yellow-950 border-l-4 border-yellow-500 rounded">
-                            <p className="text-sm text-yellow-800 dark:text-yellow-200">
-                                <strong>Protected Content:</strong> This note is saved to your personal library
-                                and can only be viewed while logged in.
-                            </p>
-                        </div>
 
-                        {/* Content */}
-                        {selectedNote.noteId.fileType === 'html' &&
-                            selectedNote.noteId.markdownContent ? (
-                            <MarkdownViewer content={selectedNote.noteId.markdownContent} />
-                        ) : selectedNote.noteId.fileUrl ? (
-                            selectedNote.noteId.fileType === 'pdf' || selectedNote.noteId.fileUrl.endsWith('.pdf') ? (
-                                <ProtectedPDFViewer
-                                    fileUrl={`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}${selectedNote.noteId.fileUrl}`}
-                                    fileName={selectedNote.noteId.title}
-                                />
-                            ) : (
-                                <iframe
-                                    src={`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}${selectedNote.noteId.fileUrl
-                                        }`}
-                                    className="w-full h-[600px] border-0"
-                                    title={selectedNote.noteId.title}
-                                />
-                            )
-                        ) : (
-                            <p className="text-gray-600 dark:text-gray-400">Content not available</p>
-                        )}
-                    </div>
-                )}
-            </Modal>
         </div>
     );
 };

@@ -37,6 +37,7 @@ import QuizLeaderboard from './pages/quizzes/QuizLeaderboard';
 import QuizList from './pages/admin/QuizList';
 import QuizEditor from './pages/admin/QuizEditor';
 import QuizResults from './pages/admin/QuizResults';
+import NoteViewer from './pages/notes/NoteViewer';
 
 const ProtectedRoute = ({ children, requiredRole }: { children: React.ReactNode; requiredRole?: string }) => {
   const { isAuthenticated, user } = useAuthStore();
@@ -202,6 +203,11 @@ function App() {
           <Route path="/courses/:id" element={<MainLayout><CourseDetails /></MainLayout>} />
           <Route path="/video/:courseId/:lessonId" element={<MainLayout><VideoPlayer /></MainLayout>} />
           <Route path="/notes" element={<MainLayout><NotesLibrary /></MainLayout>} />
+          <Route path="/notes/view/:noteId" element={
+            <ProtectedRoute>
+              <NoteViewer />
+            </ProtectedRoute>
+          } />
           <Route path="/doubts" element={
             <ProtectedRoute>
               <MainLayout><MyDoubts /></MainLayout>

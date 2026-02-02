@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
     BookOpen,
@@ -54,8 +54,7 @@ const MyCourses: React.FC = () => {
     const [selectedCourse, setSelectedCourse] = useState<EnrolledCourse | null>(null);
     const [isDetailsOpen, setIsDetailsOpen] = useState(false);
     const [courseMaterials, setCourseMaterials] = useState<any[]>([]);
-    const [selectedNote, setSelectedNote] = useState<any>(null);
-    const [isNoteViewerOpen, setIsNoteViewerOpen] = useState(false);
+    const navigate = useNavigate();
     const [savedNotes, setSavedNotes] = useState<Set<string>>(new Set());
     const { addToast } = useToastStore();
     const { token } = useAuthStore();
@@ -518,10 +517,7 @@ const MyCourses: React.FC = () => {
                                                 <Button
                                                     variant="ghost"
                                                     size="sm"
-                                                    onClick={() => {
-                                                        setSelectedNote(material);
-                                                        setIsNoteViewerOpen(true);
-                                                    }}
+                                                    onClick={() => navigate(`/notes/view/${material._id}`)}
                                                 >
                                                     <Eye className="w-4 h-4" />
                                                 </Button>
@@ -602,40 +598,7 @@ const MyCourses: React.FC = () => {
                 )}
             </Modal>
 
-            {/* Note Viewer Modal for HTML Notes */}
-            <Modal
-                isOpen={isNoteViewerOpen}
-                onClose={() => setIsNoteViewerOpen(false)}
-                title={selectedNote?.title || 'Note'}
-                size="full"
-            >
-                {selectedNote && (
-                    <div>
-                        {selectedNote.fileType === 'html' && selectedNote.markdownContent ? (
-                            <div className="p-6">
-                                <MarkdownViewer content={selectedNote.markdownContent} />
-                            </div>
-                        ) : selectedNote.fileUrl ? (
-                            selectedNote.fileType === 'pdf' || selectedNote.fileUrl.endsWith('.pdf') ? (
-                                <ProtectedPDFViewer
-                                    fileUrl={`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}${selectedNote.fileUrl}`}
-                                    fileName={selectedNote.title}
-                                />
-                            ) : (
-                                <iframe
-                                    src={`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}${selectedNote.fileUrl}`}
-                                    className="w-full h-[600px] border-0"
-                                    title={selectedNote.title}
-                                />
-                            )
-                        ) : (
-                            <div className="p-6 text-center">
-                                <p className="text-gray-600 dark:text-gray-400">Content not available</p>
-                            </div>
-                        )}
-                    </div>
-                )}
-            </Modal>
+
         </div>
     );
 };

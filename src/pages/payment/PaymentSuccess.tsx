@@ -5,19 +5,15 @@ import Confetti from 'react-confetti';
 import { CheckCircle, Home, Package } from 'lucide-react';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
-import { useCartStore } from '../../store/useCartStore';
 
 const PaymentSuccess: React.FC = () => {
     const navigate = useNavigate();
-    const { clearCart } = useCartStore();
     const [showConfetti, setShowConfetti] = React.useState(true);
 
     useEffect(() => {
-        // Clear cart on successful payment
-        clearCart();
         // Stop confetti after 5 seconds
         setTimeout(() => setShowConfetti(false), 5000);
-    }, [clearCart]);
+    }, []);
 
     const orderNumber = `ORD-${Math.random().toString(36).substring(7).toUpperCase()}`;
 

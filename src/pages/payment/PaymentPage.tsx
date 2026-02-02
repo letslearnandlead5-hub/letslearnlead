@@ -7,14 +7,12 @@ import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import StudentHeader from '../../components/layout/StudentHeader';
 import StudentFooter from '../../components/layout/StudentFooter';
-import { useCartStore } from '../../store/useCartStore';
 import { formatPrice } from '../../utils/helpers';
 
 const PaymentPage: React.FC = () => {
     const navigate = useNavigate();
     const location = useLocation();
-    const { getTotalPrice, clearCart } = useCartStore();
-    const total = getTotalPrice();
+    const total = location.state?.total || 0;
     const [processing, setProcessing] = useState(false);
     
     const shippingAddress = location.state?.shippingAddress;
@@ -30,8 +28,6 @@ const PaymentPage: React.FC = () => {
                 // Generate order ID
                 const orderId = 'ORD-' + Math.random().toString(36).substring(2, 10).toUpperCase();
                 console.log('Passing shipping address to order tracker:', shippingAddress);
-                // Clear cart on successful payment
-                clearCart();
                 // Navigate to order tracker with shipping address
                 navigate(`/orders/${orderId}`, { state: { shippingAddress } });
             } else {

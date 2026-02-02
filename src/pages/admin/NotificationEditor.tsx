@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, X, BookOpen, Users, ShoppingCart, FileText, MessageSquare, Brain, Settings, LogOut, TrendingUp, Send } from 'lucide-react';
+import { Send } from 'lucide-react';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import { notificationAPI } from '../../services/api';

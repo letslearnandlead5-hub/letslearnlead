@@ -5,8 +5,6 @@ import Button from '../ui/Button';
 import { useContentProtection } from '../../hooks/useContentProtection';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useToastStore } from '../../store/useToastStore';
-// import 'react-pdf/dist/esm/Page/AnnotationLayer.css';
-// import 'react-pdf/dist/esm/Page/TextLayer.css';
 
 // Set up the worker for PDF.js - use unpkg CDN (more reliable than cdnjs)
 pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;

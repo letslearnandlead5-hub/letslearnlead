@@ -4,8 +4,6 @@ export interface INewsletter extends Document {
     email: string;
     isActive: boolean;
     subscribedAt: Date;
-    createdAt: Date;
-    updatedAt: Date;
 }
 
 const NewsletterSchema = new Schema<INewsletter>(
@@ -17,7 +15,7 @@ const NewsletterSchema = new Schema<INewsletter>(
             lowercase: true,
             trim: true,
             match: [
-                /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+                /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/,
                 'Please provide a valid email address',
             ],
         },
@@ -35,7 +33,4 @@ const NewsletterSchema = new Schema<INewsletter>(
     }
 );
 
-// Index for faster email lookups
-NewsletterSchema.index({ email: 1 });
-
-export const Newsletter = mongoose.model<INewsletter>('Newsletter', NewsletterSchema);
+export const Newsletter = mongoose.models.Newsletter || mongoose.model<INewsletter>('Newsletter', NewsletterSchema);

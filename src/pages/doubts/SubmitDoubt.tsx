@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Send, BookOpen, ShoppingCart, User, Award, LogOut, MessageSquare, Menu, X } from 'lucide-react';
+import { Send, BookOpen, User, MessageSquare, Menu, X } from 'lucide-react';
 import axios from 'axios';
 import { useToastStore } from '../../store/useToastStore';
 import { useAuthStore } from '../../store/useAuthStore';

@@ -198,10 +198,10 @@ const Home: React.FC = () => {
                                 <Button
                                     variant="outline"
                                     size="lg"
-                                    onClick={() => navigate('/notes')}
+                                    onClick={() => navigate('/courses')}
                                     className="border-2 border-white/80 text-white hover:bg-white hover:text-purple-700 transition-all transform hover:scale-105"
                                 >
-                                    Try Free Notes
+                                    Start Learning
                                 </Button>
                             </motion.div>
 

@@ -74,6 +74,35 @@ const CourseEditor: React.FC = () => {
         setFormData(prev => ({ ...prev, [name]: value }));
     };
 
+    const handleThumbnailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            // Validate file type
+            if (!file.type.match(/^image\/(jpeg|jpg|png)$/)) {
+                addToast({ type: 'error', message: 'Please upload a JPEG or PNG image' });
+                e.target.value = '';
+                return;
+            }
+
+            // Validate file size (max 5MB)
+            if (file.size > 5 * 1024 * 1024) {
+                addToast({ type: 'error', message: 'Image size should be less than 5MB' });
+                e.target.value = '';
+                return;
+            }
+
+            // Convert to base64
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setFormData(prev => ({ ...prev, thumbnail: reader.result as string }));
+            };
+            reader.onerror = () => {
+                addToast({ type: 'error', message: 'Failed to read image file' });
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+
     const handleFormSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setFormSubmitting(true);
@@ -146,12 +175,11 @@ const CourseEditor: React.FC = () => {
         <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
             {/* Header - Full Width */}
             <AdminHeader onMenuClick={() => setShowMobileSidebar(true)} />
-            
+
             <div className="flex">
                 {/* Sidebar - Responsive and Sticky */}
-                <div className={`fixed lg:sticky top-20 inset-y-0 left-0 z-50 w-64 bg-white dark:bg-gray-900 h-[calc(100vh-5rem)] border-r border-gray-200 dark:border-gray-800 flex flex-col transition-transform duration-300 ${
-                    showMobileSidebar ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
-                }`}>
+                <div className={`fixed lg:sticky top-20 inset-y-0 left-0 z-50 w-64 bg-white dark:bg-gray-900 h-[calc(100vh-5rem)] border-r border-gray-200 dark:border-gray-800 flex flex-col transition-transform duration-300 ${showMobileSidebar ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+                    }`}>
                     <div className="p-6 flex-shrink-0 border-b border-gray-200 dark:border-gray-800 lg:hidden">
                         <div className="flex items-center justify-end">
                             <button
@@ -225,9 +253,9 @@ const CourseEditor: React.FC = () => {
                                 >
                                     Back to Courses
                                 </Button>
-                <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
-                    {id ? 'Edit Course' : 'Create New Course'}
-                </h2>
+                                <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+                                    {id ? 'Edit Course' : 'Create New Course'}
+                                </h2>
                                 <p className="text-gray-600 dark:text-gray-400 mt-1">
                                     {id ? 'Update course information and content' : 'Add a new course to your platform'}
                                 </p>
@@ -237,189 +265,200 @@ const CourseEditor: React.FC = () => {
                             <form onSubmit={handleFormSubmit}>
                                 <Card className="p-6 mb-6">
                                     <div className="space-y-6">
-                        {/* Title */}
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                Course Title *
-                            </label>
-                            <input
-                                type="text"
-                                name="title"
-                                value={formData.title}
-                                onChange={handleFormChange}
-                                required
-                                className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                                placeholder="e.g., Complete Web Development Course"
-                            />
-                        </div>
+                                        {/* Title */}
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                                Course Title *
+                                            </label>
+                                            <input
+                                                type="text"
+                                                name="title"
+                                                value={formData.title}
+                                                onChange={handleFormChange}
+                                                required
+                                                className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                                placeholder="e.g., Complete Web Development Course"
+                                            />
+                                        </div>
 
-                        {/* Description */}
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                Description *
-                            </label>
-                            <textarea
-                                name="description"
-                                value={formData.description}
-                                onChange={handleFormChange}
-                                required
-                                rows={4}
-                                className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                                placeholder="Describe what students will learn in this course..."
-                            />
-                        </div>
+                                        {/* Description */}
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                                Description *
+                                            </label>
+                                            <textarea
+                                                name="description"
+                                                value={formData.description}
+                                                onChange={handleFormChange}
+                                                required
+                                                rows={4}
+                                                className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                                placeholder="Describe what students will learn in this course..."
+                                            />
+                                        </div>
 
-                        {/* Instructor */}
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                Instructor Name *
-                            </label>
-                            <input
-                                type="text"
-                                name="instructor"
-                                value={formData.instructor}
-                                onChange={handleFormChange}
-                                required
-                                className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                                placeholder="e.g., John Doe"
-                            />
-                        </div>
+                                        {/* Instructor */}
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                                Instructor Name *
+                                            </label>
+                                            <input
+                                                type="text"
+                                                name="instructor"
+                                                value={formData.instructor}
+                                                onChange={handleFormChange}
+                                                required
+                                                className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                                placeholder="e.g., John Doe"
+                                            />
+                                        </div>
 
-                        {/* Thumbnail URL */}
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                Thumbnail URL *
-                            </label>
-                            <input
-                                type="url"
-                                name="thumbnail"
-                                value={formData.thumbnail}
-                                onChange={handleFormChange}
-                                required
-                                className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                                placeholder="https://example.com/image.jpg"
-                            />
-                        </div>
+                                        {/* Thumbnail Image */}
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                                Thumbnail Image *
+                                            </label>
+                                            <input
+                                                type="file"
+                                                name="thumbnail"
+                                                onChange={handleThumbnailChange}
+                                                accept="image/jpeg,image/jpg,image/png"
+                                                required={!formData.thumbnail}
+                                                className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-primary-50 file:text-primary-700 hover:file:bg-primary-100 dark:file:bg-primary-900 dark:file:text-primary-300"
+                                            />
+                                            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                                                Upload a JPEG or PNG image (max 5MB)
+                                            </p>
+                                            {formData.thumbnail && (
+                                                <div className="mt-3">
+                                                    <img
+                                                        src={formData.thumbnail}
+                                                        alt="Thumbnail preview"
+                                                        className="w-48 h-32 object-cover rounded-lg border border-gray-300 dark:border-gray-700"
+                                                    />
+                                                </div>
+                                            )}
+                                        </div>
 
-                        {/* Price and Original Price */}
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                    Price (₹) *
-                                </label>
-                                <input
-                                    type="number"
-                                    name="price"
-                                    value={formData.price}
-                                    onChange={handleFormChange}
-                                    required
-                                    min="0"
-                                    step="0.01"
-                                    className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                                    placeholder="999"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                    Original Price (₹)
-                                </label>
-                                <input
-                                    type="number"
-                                    name="originalPrice"
-                                    value={formData.originalPrice}
-                                    onChange={handleFormChange}
-                                    min="0"
-                                    step="0.01"
-                                    className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                                    placeholder="1999"
-                                />
-                            </div>
-                        </div>
+                                        {/* Price and Original Price */}
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                                    Price (₹) *
+                                                </label>
+                                                <input
+                                                    type="number"
+                                                    name="price"
+                                                    value={formData.price}
+                                                    onChange={handleFormChange}
+                                                    required
+                                                    min="0"
+                                                    step="0.01"
+                                                    className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                                    placeholder="999"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                                    Original Price (₹)
+                                                </label>
+                                                <input
+                                                    type="number"
+                                                    name="originalPrice"
+                                                    value={formData.originalPrice}
+                                                    onChange={handleFormChange}
+                                                    min="0"
+                                                    step="0.01"
+                                                    className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                                    placeholder="1999"
+                                                />
+                                            </div>
+                                        </div>
 
-                        {/* Duration and Category */}
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                    Duration *
-                                </label>
-                                <input
-                                    type="text"
-                                    name="duration"
-                                    value={formData.duration}
-                                    onChange={handleFormChange}
-                                    required
-                                    className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                                    placeholder="e.g., 40h or 6 weeks"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                    Category *
-                                </label>
-                                <input
-                                    type="text"
-                                    name="category"
-                                    value={formData.category}
-                                    onChange={handleFormChange}
-                                    required
-                                    className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                                    placeholder="e.g., Programming, Design"
-                                />
-                            </div>
-                        </div>
+                                        {/* Duration and Category */}
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                                    Duration *
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    name="duration"
+                                                    value={formData.duration}
+                                                    onChange={handleFormChange}
+                                                    required
+                                                    className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                                    placeholder="e.g., 40h or 6 weeks"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                                    Category *
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    name="category"
+                                                    value={formData.category}
+                                                    onChange={handleFormChange}
+                                                    required
+                                                    className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                                    placeholder="e.g., Programming, Design"
+                                                />
+                                            </div>
+                                        </div>
 
-                        {/* Level */}
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                Level *
-                            </label>
-                            <select
-                                name="level"
-                                value={formData.level}
-                                onChange={handleFormChange}
-                                required
-                                className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                            >
-                                <option value="beginner">Beginner</option>
-                                <option value="intermediate">Intermediate</option>
-                                <option value="advanced">Advanced</option>
-                            </select>
-                        </div>
-                    </div>
-                </Card>
+                                        {/* Level */}
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                                Level *
+                                            </label>
+                                            <select
+                                                name="level"
+                                                value={formData.level}
+                                                onChange={handleFormChange}
+                                                required
+                                                className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                            >
+                                                <option value="beginner">Beginner</option>
+                                                <option value="intermediate">Intermediate</option>
+                                                <option value="advanced">Advanced</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </Card>
 
-                {/* Course Content */}
-                <Card className="p-6 mb-6">
-                    <CourseContentBuilder
-                        sections={formData.sections}
-                        onChange={(sections) => setFormData(prev => ({ ...prev, sections }))}
-                    />
-                </Card>
+                                {/* Course Content */}
+                                <Card className="p-6 mb-6">
+                                    <CourseContentBuilder
+                                        sections={formData.sections}
+                                        onChange={(sections) => setFormData(prev => ({ ...prev, sections }))}
+                                    />
+                                </Card>
 
-                {/* Actions */}
-                <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-200 dark:border-gray-800">
-                    <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => {
-                            navigate('/dashboard');
-                            setTimeout(() => {
-                                window.dispatchEvent(new CustomEvent('selectAdminTab', { detail: 'courses' }));
-                            }, 100);
-                        }}
-                        disabled={formSubmitting}
-                    >
-                        Cancel
-                    </Button>
-                    <Button
-                        type="submit"
-                        variant="primary"
-                        disabled={formSubmitting}
-                    >
-                        {formSubmitting ? 'Saving...' : id ? 'Update Course' : 'Create Course'}
-                    </Button>
-                </div>
-            </form>
+                                {/* Actions */}
+                                <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-200 dark:border-gray-800">
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        onClick={() => {
+                                            navigate('/dashboard');
+                                            setTimeout(() => {
+                                                window.dispatchEvent(new CustomEvent('selectAdminTab', { detail: 'courses' }));
+                                            }, 100);
+                                        }}
+                                        disabled={formSubmitting}
+                                    >
+                                        Cancel
+                                    </Button>
+                                    <Button
+                                        type="submit"
+                                        variant="primary"
+                                        disabled={formSubmitting}
+                                    >
+                                        {formSubmitting ? 'Saving...' : id ? 'Update Course' : 'Create Course'}
+                                    </Button>
+                                </div>
+                            </form>
                         </div>
                     </div>
                 </div>

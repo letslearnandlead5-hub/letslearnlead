@@ -22,6 +22,7 @@ import { userNoteAPI } from '../../services/api';
 import { useToastStore } from '../../store/useToastStore';
 import { staggerContainer, staggerItem } from '../../utils/animations';
 import MarkdownViewer from '../../components/notes/MarkdownViewer';
+import ProtectedPDFViewer from '../../components/content/ProtectedPDFViewer';
 
 interface SavedNote {
     _id: string;
@@ -403,12 +404,19 @@ const MyNotesLibrary: React.FC = () => {
                             selectedNote.noteId.markdownContent ? (
                             <MarkdownViewer content={selectedNote.noteId.markdownContent} />
                         ) : selectedNote.noteId.fileUrl ? (
-                            <iframe
-                                src={`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}${selectedNote.noteId.fileUrl
-                                    }`}
-                                className="w-full h-[600px] border-0"
-                                title={selectedNote.noteId.title}
-                            />
+                            selectedNote.noteId.fileType === 'pdf' || selectedNote.noteId.fileUrl.endsWith('.pdf') ? (
+                                <ProtectedPDFViewer
+                                    fileUrl={`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}${selectedNote.noteId.fileUrl}`}
+                                    fileName={selectedNote.noteId.title}
+                                />
+                            ) : (
+                                <iframe
+                                    src={`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}${selectedNote.noteId.fileUrl
+                                        }`}
+                                    className="w-full h-[600px] border-0"
+                                    title={selectedNote.noteId.title}
+                                />
+                            )
                         ) : (
                             <p className="text-gray-600 dark:text-gray-400">Content not available</p>
                         )}

@@ -25,6 +25,7 @@ import { courseAPI, noteAPI, userNoteAPI } from '../../services/api';
 import { useToastStore } from '../../store/useToastStore';
 import { useAuthStore } from '../../store/useAuthStore';
 import MarkdownViewer from '../../components/notes/MarkdownViewer';
+import ProtectedPDFViewer from '../../components/content/ProtectedPDFViewer';
 
 interface EnrolledCourse {
     _id: string;
@@ -518,16 +519,8 @@ const MyCourses: React.FC = () => {
                                                     variant="ghost"
                                                     size="sm"
                                                     onClick={() => {
-                                                        // Check if HTML note or file-based note
-                                                        if (material.fileType === 'html' && material.markdownContent) {
-                                                            // Open HTML note in modal
-                                                            setSelectedNote(material);
-                                                            setIsNoteViewerOpen(true);
-                                                        } else if (material.fileUrl) {
-                                                            // Open file in new tab
-                                                            const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-                                                            window.open(`${baseUrl}${material.fileUrl}`, '_blank');
-                                                        }
+                                                        setSelectedNote(material);
+                                                        setIsNoteViewerOpen(true);
                                                     }}
                                                 >
                                                     <Eye className="w-4 h-4" />
@@ -616,9 +609,30 @@ const MyCourses: React.FC = () => {
                 title={selectedNote?.title || 'Note'}
                 size="full"
             >
-                {selectedNote?.markdownContent && (
-                    <div className="p-6">
-                        <MarkdownViewer content={selectedNote.markdownContent} />
+                {selectedNote && (
+                    <div>
+                        {selectedNote.fileType === 'html' && selectedNote.markdownContent ? (
+                            <div className="p-6">
+                                <MarkdownViewer content={selectedNote.markdownContent} />
+                            </div>
+                        ) : selectedNote.fileUrl ? (
+                            selectedNote.fileType === 'pdf' || selectedNote.fileUrl.endsWith('.pdf') ? (
+                                <ProtectedPDFViewer
+                                    fileUrl={`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}${selectedNote.fileUrl}`}
+                                    fileName={selectedNote.title}
+                                />
+                            ) : (
+                                <iframe
+                                    src={`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}${selectedNote.fileUrl}`}
+                                    className="w-full h-[600px] border-0"
+                                    title={selectedNote.title}
+                                />
+                            )
+                        ) : (
+                            <div className="p-6 text-center">
+                                <p className="text-gray-600 dark:text-gray-400">Content not available</p>
+                            </div>
+                        )}
                     </div>
                 )}
             </Modal>

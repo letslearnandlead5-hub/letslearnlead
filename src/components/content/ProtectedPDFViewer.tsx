@@ -8,10 +8,8 @@ import { useToastStore } from '../../store/useToastStore';
 // import 'react-pdf/dist/esm/Page/AnnotationLayer.css';
 // import 'react-pdf/dist/esm/Page/TextLayer.css';
 
-// Set up the worker for PDF.js using CDN
-if (typeof window !== 'undefined') {
-    pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
-}
+// Set up the worker for PDF.js - use unpkg CDN (more reliable than cdnjs)
+pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
 interface ProtectedPDFViewerProps {
     fileUrl: string;

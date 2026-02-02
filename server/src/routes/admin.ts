@@ -1,7 +1,6 @@
 import { Router, Response } from 'express';
 import { User } from '../models/User';
 import { Course } from '../models/Course';
-import { Product } from '../models/Product';
 import { Order } from '../models/Order';
 import { Enrollment } from '../models/Enrollment';
 import { AppError } from '../middleware/error';
@@ -398,68 +397,6 @@ router.put('/orders/:id/status', async (req: AuthRequest, res: Response, next) =
 });
 
 // ==================== PRODUCT MANAGEMENT ====================
-
-// @route   POST /api/admin/products
-// @desc    Create new product
-// @access  Private (Admin)
-router.post('/products', async (req: AuthRequest, res: Response, next) => {
-    try {
-        const product = await Product.create(req.body);
-
-        res.status(201).json({
-            success: true,
-            data: product,
-        });
-    } catch (error) {
-        next(error);
-    }
-});
-
-// @route   PUT /api/admin/products/:id
-// @desc    Update product
-// @access  Private (Admin)
-router.put('/products/:id', async (req: AuthRequest, res: Response, next) => {
-    try {
-        const product = await Product.findByIdAndUpdate(
-            req.params.id,
-            req.body,
-            { new: true, runValidators: true }
-        );
-
-        if (!product) {
-            throw new AppError('Product not found', 404);
-        }
-
-        res.status(200).json({
-            success: true,
-            data: product,
-        });
-    } catch (error) {
-        next(error);
-    }
-});
-
-// @route   DELETE /api/admin/products/:id
-// @desc    Delete product
-// @access  Private (Admin)
-router.delete('/products/:id', async (req: AuthRequest, res: Response, next) => {
-    try {
-        const product = await Product.findById(req.params.id);
-
-        if (!product) {
-            throw new AppError('Product not found', 404);
-        }
-
-        await product.deleteOne();
-
-        res.status(200).json({
-            success: true,
-            message: 'Product deleted successfully',
-        });
-    } catch (error) {
-        next(error);
-    }
-});
 
 // ==================== ENROLLMENT MANAGEMENT ====================
 

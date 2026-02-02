@@ -165,8 +165,6 @@ const CourseEditor: React.FC = () => {
         { id: 'students', label: 'Students', icon: Users, path: '/dashboard' },
         { id: 'users', label: 'All Users', icon: Users, path: '/dashboard' },
         { id: 'courses', label: 'Courses', icon: BookOpen, path: '/dashboard' },
-        { id: 'products', label: 'Products', icon: ShoppingCart, path: '/dashboard' },
-        { id: 'orders', label: 'Orders', icon: ShoppingCart, path: '/dashboard' },
         { id: 'notes', label: 'Notes', icon: FileText, path: '/dashboard' },
         { id: 'doubts', label: 'Student Doubts', icon: MessageSquare, path: '/dashboard' },
         { id: 'notifications', label: 'Notifications', icon: Brain, path: '/dashboard' },

@@ -92,20 +92,7 @@ export const noteAPI = {
 };
 
 /* ================= SHOP ================= */
-export const shopAPI = {
-  products: {
-    getAll: (params?: any) => api.get("/shop/products", { params }),
-    getById: (id: string) => api.get(`/shop/products/${id}`),
-  },
-  orders: {
-    getAll: () => api.get("/shop/orders"),
-    create: (data: any) => api.post("/shop/orders", data),
-  },
-  payment: {
-    createOrder: (data: any) => api.post("/shop/payment/create-order", data),
-    verifyPayment: (data: any) => api.post("/shop/payment/verify", data),
-  },
-};
+// Shop functionality removed - no longer needed
 
 /* ================= SETTINGS ================= */
 export const settingsAPI = {
@@ -129,9 +116,7 @@ export const notificationAPI = {
 };
 
 /* ================= PAYMENT ================= */
-export const paymentAPI = {
-  checkEnrollment: (courseId: string) => api.get(`/payment/check-enrollment/${courseId}`),
-};
+// Payment functionality removed - enrollment is now admin-only
 
 /* ================= ADMIN ================= */
 export const adminAPI = {
@@ -149,17 +134,7 @@ export const adminAPI = {
     update: (id: string, data: any) => api.put(`/admin/students/${id}`, data),
     delete: (id: string) => api.delete(`/admin/students/${id}`),
   },
-  orders: {
-    getAll: (params?: any) => api.get("/admin/orders", { params }),
-    getById: (id: string) => api.get(`/admin/orders/${id}`),
-    update: (id: string, data: any) => api.put(`/admin/orders/${id}`, data),
-    updateStatus: (id: string, status: string) => api.put(`/admin/orders/${id}/status`, { status }),
-  },
-  products: {
-    create: (data: any) => api.post("/admin/products", data),
-    update: (id: string, data: any) => api.put(`/admin/products/${id}`, data),
-    delete: (id: string) => api.delete(`/admin/products/${id}`),
-  },
+  // Product and order management removed - no longer needed
   dashboard: {
     getStats: () => api.get("/admin/dashboard/stats"),
   },

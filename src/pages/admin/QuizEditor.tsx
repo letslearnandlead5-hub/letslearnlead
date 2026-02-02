@@ -303,8 +303,6 @@ const QuizEditor: React.FC = () => {
         { id: 'users', label: 'Users', icon: Users },
         { id: 'students', label: 'Students', icon: Users },
         { id: 'courses', label: 'Courses', icon: BookOpen },
-        { id: 'products', label: 'Products', icon: ShoppingCart },
-        { id: 'orders', label: 'Orders', icon: ShoppingCart },
         { id: 'notes', label: 'Notes', icon: FileText },
         { id: 'quizzes', label: 'Quizzes', icon: FileQuestion },
         { id: 'doubts', label: 'Student Doubts', icon: MessageSquare },

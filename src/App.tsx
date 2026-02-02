@@ -21,7 +21,6 @@ import MyCourses from './pages/courses/MyCourses';
 import VideoPlayer from './pages/video/VideoPlayer';
 import NotesLibrary from './pages/notes/NotesLibrary';
 import CourseEditor from './pages/admin/CourseEditor';
-import ProductEditor from './pages/admin/ProductEditor';
 import NotificationEditor from './pages/admin/NotificationEditor';
 import NoteEditor from './pages/admin/NoteEditor';
 import AboutUs from './pages/AboutUs';
@@ -183,17 +182,7 @@ function App() {
             </ProtectedRoute>
           } />
 
-          {/* Admin Product Editor Routes */}
-          <Route path="/products/create" element={
-            <ProtectedRoute requiredRole="admin">
-              <ProductEditor />
-            </ProtectedRoute>
-          } />
-          <Route path="/products/edit/:id" element={
-            <ProtectedRoute requiredRole="admin">
-              <ProductEditor />
-            </ProtectedRoute>
-          } />
+
 
           {/* Admin Notification Editor Route */}
           <Route path="/notifications/create" element={

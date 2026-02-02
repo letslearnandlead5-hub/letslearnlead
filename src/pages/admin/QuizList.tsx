@@ -39,8 +39,6 @@ const QuizList: React.FC = () => {
         { id: 'users', label: 'Users', icon: Users },
         { id: 'students', label: 'Students', icon: Users },
         { id: 'courses', label: 'Courses', icon: BookOpen },
-        { id: 'products', label: 'Products', icon: ShoppingCart },
-        { id: 'orders', label: 'Orders', icon: ShoppingCart },
         { id: 'notes', label: 'Notes', icon: FileText },
         { id: 'quizzes', label: 'Quizzes', icon: FileQuestion },
         { id: 'doubts', label: 'Student Doubts', icon: MessageSquare },
@@ -71,7 +69,7 @@ const QuizList: React.FC = () => {
         } catch (error: any) {
             console.error('Quiz fetch error:', error);
             const errorMessage = error.response?.data?.message || error.message || 'Failed to load quizzes';
-            
+
             if (error.response?.status === 401) {
                 toast.error('Session expired. Please login again.');
                 navigate('/login');
@@ -127,7 +125,7 @@ const QuizList: React.FC = () => {
     return (
         <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
             <AdminHeader onMenuClick={() => setShowMobileSidebar(true)} />
-            
+
             <div className="flex">
                 <div className={`fixed lg:sticky top-20 inset-y-0 left-0 z-50 w-64 bg-white dark:bg-gray-900 h-[calc(100vh-5rem)] border-r border-gray-200 dark:border-gray-800 flex flex-col transition-transform duration-300 ${showMobileSidebar ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
                     <div className="p-6 flex-shrink-0 border-b border-gray-200 dark:border-gray-800 lg:hidden">
@@ -157,10 +155,10 @@ const QuizList: React.FC = () => {
                                 <span className="font-medium">{tab.label}</span>
                             </button>
                         ))}
-                        <button onClick={() => { 
+                        <button onClick={() => {
                             window.dispatchEvent(new CustomEvent('selectAdminTab', { detail: 'settings' }));
-                            navigate('/dashboard'); 
-                            setShowMobileSidebar(false); 
+                            navigate('/dashboard');
+                            setShowMobileSidebar(false);
                         }} className="w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors mt-6 hover:bg-gray-100 dark:hover:bg-gray-800">
                             <Settings className="w-5 h-5" />
                             <span className="font-medium">Settings</span>

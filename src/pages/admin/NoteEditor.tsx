@@ -110,8 +110,6 @@ const NoteEditor: React.FC = () => {
         { id: 'students', label: 'Students', icon: Users, path: '/dashboard' },
         { id: 'users', label: 'All Users', icon: Users, path: '/dashboard' },
         { id: 'courses', label: 'Courses', icon: BookOpen, path: '/dashboard' },
-        { id: 'products', label: 'Products', icon: ShoppingCart, path: '/dashboard' },
-        { id: 'orders', label: 'Orders', icon: ShoppingCart, path: '/dashboard' },
         { id: 'notes', label: 'Notes', icon: FileText, path: '/dashboard' },
         { id: 'doubts', label: 'Student Doubts', icon: MessageSquare, path: '/dashboard' },
         { id: 'notifications', label: 'Notifications', icon: Brain, path: '/dashboard' },
@@ -129,12 +127,11 @@ const NoteEditor: React.FC = () => {
         <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
             {/* Header - Full Width */}
             <AdminHeader onMenuClick={() => setShowMobileSidebar(true)} />
-            
+
             <div className="flex">
                 {/* Sidebar - Responsive and Sticky */}
-                <div className={`fixed lg:sticky top-20 inset-y-0 left-0 z-50 w-64 bg-white dark:bg-gray-900 h-[calc(100vh-5rem)] border-r border-gray-200 dark:border-gray-800 flex flex-col transition-transform duration-300 ${
-                    showMobileSidebar ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
-                }`}>
+                <div className={`fixed lg:sticky top-20 inset-y-0 left-0 z-50 w-64 bg-white dark:bg-gray-900 h-[calc(100vh-5rem)] border-r border-gray-200 dark:border-gray-800 flex flex-col transition-transform duration-300 ${showMobileSidebar ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+                    }`}>
                     <div className="p-6 flex-shrink-0 border-b border-gray-200 dark:border-gray-800 lg:hidden">
                         <div className="flex items-center justify-end">
                             <button

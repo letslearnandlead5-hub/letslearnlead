@@ -103,6 +103,15 @@ const CourseEditor: React.FC = () => {
         }
     };
 
+    const handleDeleteThumbnail = () => {
+        setFormData(prev => ({ ...prev, thumbnail: '' }));
+        // Reset file input
+        const fileInput = document.querySelector('input[name="thumbnail"]') as HTMLInputElement;
+        if (fileInput) {
+            fileInput.value = '';
+        }
+    };
+
     const handleFormSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setFormSubmitting(true);
@@ -330,12 +339,32 @@ const CourseEditor: React.FC = () => {
                                                 Upload a JPEG or PNG image (max 5MB)
                                             </p>
                                             {formData.thumbnail && (
-                                                <div className="mt-3">
+                                                <div className="mt-3 flex items-start gap-4">
                                                     <img
                                                         src={formData.thumbnail}
                                                         alt="Thumbnail preview"
                                                         className="w-48 h-32 object-cover rounded-lg border border-gray-300 dark:border-gray-700"
                                                     />
+                                                    <div className="flex flex-col gap-2">
+                                                        <label className="cursor-pointer">
+                                                            <input
+                                                                type="file"
+                                                                onChange={handleThumbnailChange}
+                                                                accept="image/jpeg,image/jpg,image/png"
+                                                                className="hidden"
+                                                            />
+                                                            <span className="inline-flex items-center px-4 py-2 rounded-lg border border-primary-600 text-primary-600 dark:text-primary-400 dark:border-primary-400 hover:bg-primary-50 dark:hover:bg-primary-950 transition-colors text-sm font-medium">
+                                                                Change
+                                                            </span>
+                                                        </label>
+                                                        <button
+                                                            type="button"
+                                                            onClick={handleDeleteThumbnail}
+                                                            className="px-4 py-2 rounded-lg border border-red-600 text-red-600 dark:text-red-400 dark:border-red-400 hover:bg-red-50 dark:hover:bg-red-950 transition-colors text-sm font-medium"
+                                                        >
+                                                            Delete
+                                                        </button>
+                                                    </div>
                                                 </div>
                                             )}
                                         </div>

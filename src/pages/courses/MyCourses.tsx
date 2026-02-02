@@ -11,16 +11,17 @@ import {
     FileText,
     Brain,
     Video,
-    Download,
     CheckCircle,
-    Eye
+    Eye,
+    BookmarkPlus,
+    BookmarkCheck,
 } from 'lucide-react';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
 import Modal from '../../components/ui/Modal';
 import { staggerContainer, staggerItem } from '../../utils/animations';
-import { courseAPI, noteAPI } from '../../services/api';
+import { courseAPI, noteAPI, userNoteAPI } from '../../services/api';
 import { useToastStore } from '../../store/useToastStore';
 import { useAuthStore } from '../../store/useAuthStore';
 import MarkdownViewer from '../../components/notes/MarkdownViewer';
@@ -54,6 +55,7 @@ const MyCourses: React.FC = () => {
     const [courseMaterials, setCourseMaterials] = useState<any[]>([]);
     const [selectedNote, setSelectedNote] = useState<any>(null);
     const [isNoteViewerOpen, setIsNoteViewerOpen] = useState(false);
+    const [savedNotes, setSavedNotes] = useState<Set<string>>(new Set());
     const { addToast } = useToastStore();
     const { token } = useAuthStore();
 
@@ -135,10 +137,43 @@ const MyCourses: React.FC = () => {
         try {
             const response = await noteAPI.getByCourse(courseId);
             setCourseMaterials(response.data || []);
+
+            // Check which notes are already saved
+            await checkSavedNotes(response.data || []);
         } catch (error) {
             console.error('Error fetching materials:', error);
         }
     };
+
+    const checkSavedNotes = async (notes: any[]) => {
+        try {
+            const savedSet = new Set<string>();
+            for (const note of notes) {
+                const response: any = await userNoteAPI.checkSaved(note._id);
+                if (response.isSaved) {
+                    savedSet.add(note._id);
+                }
+            }
+            setSavedNotes(savedSet);
+        } catch (error) {
+            console.error('Error checking saved notes:', error);
+        }
+    };
+
+    const handleSaveToLibrary = async (noteId: string) => {
+        try {
+            await userNoteAPI.save(noteId);
+            setSavedNotes(new Set(savedNotes).add(noteId));
+            addToast({ type: 'success', message: 'Note saved to your library!' });
+        } catch (error: any) {
+            console.error('Error saving note:', error);
+            addToast({
+                type: 'error',
+                message: error.message || 'Failed to save note'
+            });
+        }
+    };
+
 
     const handleViewDetails = (course: EnrolledCourse) => {
         setSelectedCourse(course);
@@ -360,7 +395,7 @@ const MyCourses: React.FC = () => {
                                                 </div>
                                             )}
                                             <div className="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400">
-                                                <Download className="w-4 h-4 text-purple-600" />
+                                                <BookmarkCheck className="w-4 h-4 text-purple-600" />
                                                 <span>Materials</span>
                                             </div>
                                         </div>
@@ -453,7 +488,7 @@ const MyCourses: React.FC = () => {
                         {/* Study Materials */}
                         <div className="mb-6">
                             <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
-                                <Download className="w-5 h-5" />
+                                <FileText className="w-5 h-5" />
                                 Study Materials
                             </h4>
                             {courseMaterials.length === 0 ? (
@@ -497,181 +532,16 @@ const MyCourses: React.FC = () => {
                                                 >
                                                     <Eye className="w-4 h-4" />
                                                 </Button>
-                                                {material.fileUrl ? (
-                                                    <a
-                                                        href={`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}${material.fileUrl}`}
-                                                        download
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                    >
-                                                        <Button variant="outline" size="sm">
-                                                            <Download className="w-4 h-4" />
-                                                        </Button>
-                                                    </a>
-                                                ) : material.fileType === 'html' && material.markdownContent ? (
-                                                    <Button
-                                                        variant="outline"
-                                                        size="sm"
-                                                        onClick={() => {
-                                                            // Parse markdown content to HTML (same as MarkdownViewer)
-                                                            const parseMarkdown = (text: string) => {
-                                                                if (!text) return '';
-                                                                let html = text;
-
-                                                                // Headers
-                                                                html = html.replace(/^### (.*$)/gim, '<h3>$1</h3>');
-                                                                html = html.replace(/^## (.*$)/gim, '<h2>$1</h2>');
-                                                                html = html.replace(/^# (.*$)/gim, '<h1>$1</h1>');
-
-                                                                // Bold
-                                                                html = html.replace(/\*\*(.*?)\*\*/gim, '<strong>$1</strong>');
-
-                                                                // Italic
-                                                                html = html.replace(/\*(.*?)\*/gim, '<em>$1</em>');
-
-                                                                // Links
-                                                                html = html.replace(/\[(.*?)\]\((.*?)\)/gim, '<a href="$2">$1</a>');
-
-                                                                // Code blocks
-                                                                html = html.replace(/```(.*?)```/gis, '<pre><code>$1</code></pre>');
-
-                                                                // Inline code
-                                                                html = html.replace(/`(.*?)`/gim, '<code>$1</code>');
-
-                                                                // Lists - wrap consecutive li items in ul
-                                                                html = html.replace(/^\* (.*$)/gim, '<li>$1</li>');
-                                                                html = html.replace(/^- (.*$)/gim, '<li>$1</li>');
-
-                                                                // Wrap consecutive <li> in <ul>
-                                                                html = html.replace(/(<li>.*?<\/li>\s*)+/gis, '<ul>$&</ul>');
-
-                                                                // Line breaks
-                                                                html = html.replace(/\n/gim, '<br />');
-
-                                                                return html;
-                                                            };
-
-                                                            const parsedContent = parseMarkdown(material.markdownContent);
-
-                                                            // Create HTML file from parsed content
-                                                            const htmlContent = `
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${material.title}</title>
-    <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            line-height: 1.6;
-            max-width: 900px;
-            margin: 0 auto;
-            padding: 40px 20px;
-            color: #333;
-            background: #fff;
-        }
-        h1, h2, h3, h4, h5, h6 { 
-            margin-top: 24px; 
-            margin-bottom: 16px; 
-            font-weight: 600; 
-            line-height: 1.25;
-        }
-        h1 { font-size: 2em; border-bottom: 1px solid #eee; padding-bottom: 0.3em; }
-        h2 { font-size: 1.5em; border-bottom: 1px solid #eee; padding-bottom: 0.3em; }
-        h3 { font-size: 1.25em; }
-        h4 { font-size: 1em; }
-        p { margin: 16px 0; }
-        ul, ol { 
-            margin: 16px 0; 
-            padding-left: 32px;
-        }
-        li { 
-            margin: 8px 0;
-            line-height: 1.6;
-        }
-        li > p {
-            margin: 4px 0;
-        }
-        code { 
-            background: #f6f8fa; 
-            padding: 2px 6px; 
-            border-radius: 3px; 
-            font-family: 'Courier New', Courier, monospace;
-            font-size: 0.9em;
-        }
-        pre { 
-            background: #f6f8fa; 
-            padding: 16px; 
-            border-radius: 6px; 
-            overflow-x: auto;
-            margin: 16px 0;
-        }
-        pre code { 
-            background: none; 
-            padding: 0; 
-        }
-        table { 
-            border-collapse: collapse; 
-            width: 100%; 
-            margin: 16px 0; 
-        }
-        th, td { 
-            border: 1px solid #ddd; 
-            padding: 8px 12px; 
-            text-align: left; 
-        }
-        th { 
-            background: #f6f8fa; 
-            font-weight: 600; 
-        }
-        blockquote { 
-            border-left: 4px solid #ddd; 
-            padding-left: 16px; 
-            color: #666; 
-            margin: 16px 0;
-            font-style: italic;
-        }
-        img { 
-            max-width: 100%; 
-            height: auto; 
-            margin: 16px 0;
-        }
-        strong { font-weight: 600; }
-        em { font-style: italic; }
-        hr { 
-            border: none; 
-            border-top: 2px solid #eee; 
-            margin: 24px 0; 
-        }
-        a { 
-            color: #0366d6; 
-            text-decoration: none; 
-        }
-        a:hover { 
-            text-decoration: underline; 
-        }
-    </style>
-</head>
-<body>
-    <h1>${material.title}</h1>
-    <div class="content">${parsedContent}</div>
-</body>
-</html>`;
-                                                            const blob = new Blob([htmlContent], { type: 'text/html' });
-                                                            const url = URL.createObjectURL(blob);
-                                                            const a = document.createElement('a');
-                                                            a.href = url;
-                                                            a.download = `${material.title.replace(/[^a-z0-9]/gi, '_')}.html`;
-                                                            document.body.appendChild(a);
-                                                            a.click();
-                                                            document.body.removeChild(a);
-                                                            URL.revokeObjectURL(url);
-                                                        }}
-                                                    >
-                                                        <Download className="w-4 h-4" />
-                                                    </Button>
-                                                ) : null}
+                                                {/* Save to Library Button */}
+                                                <Button
+                                                    variant={savedNotes.has(material._id) ? "secondary" : "outline"}
+                                                    size="sm"
+                                                    onClick={() => handleSaveToLibrary(material._id)}
+                                                    disabled={savedNotes.has(material._id)}
+                                                    leftIcon={savedNotes.has(material._id) ? <BookmarkCheck className="w-4 h-4" /> : <BookmarkPlus className="w-4 h-4" />}
+                                                >
+                                                    {savedNotes.has(material._id) ? 'Saved' : 'Save'}
+                                                </Button>
                                             </div>
                                         </div>
                                     ))}

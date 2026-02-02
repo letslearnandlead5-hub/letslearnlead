@@ -145,4 +145,18 @@ export const adminAPI = {
     api.post("/admin/enroll-student", { studentEmail, courseId }),
 };
 
+/* ================= USER NOTES (PERSONAL LIBRARY) ================= */
+export const userNoteAPI = {
+  save: (noteId: string, category?: string) =>
+    api.post("/user-notes/save", { noteId, category }),
+  getAll: (params?: { category?: string; courseId?: string }) =>
+    api.get("/user-notes", { params }),
+  checkSaved: (noteId: string) => api.get(`/user-notes/check/${noteId}`),
+  remove: (id: string) => api.delete(`/user-notes/${id}`),
+  updateCategory: (id: string, category: string) =>
+    api.put(`/user-notes/${id}/category`, { category }),
+  markViewed: (id: string) => api.put(`/user-notes/${id}/view`),
+};
+
 export default api;
+

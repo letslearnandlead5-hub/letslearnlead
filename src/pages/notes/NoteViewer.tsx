@@ -153,37 +153,37 @@ const NoteViewer: React.FC = () => {
                 </div>
             </div>
 
-            {/* Content Area */}
-            <div className="container mx-auto px-4 py-6">
-                {/* Note Content */}
-                <div className="bg-white dark:bg-gray-900 rounded-lg shadow-lg overflow-hidden">
-                    {note.fileType === 'html' && note.markdownContent ? (
-                        <div className="p-8">
-                            <MarkdownViewer content={note.markdownContent} />
-                        </div>
-                    ) : note.fileUrl ? (
-                        note.fileType === 'pdf' || note.fileUrl.endsWith('.pdf') ? (
-                            <ProtectedPDFViewer
-                                fileUrl={`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}${note.fileUrl
-                                    }`}
-                                fileName={note.title}
-                                className="min-h-screen"
-                            />
-                        ) : (
+            {/* Content Area - Full Width for PDF */}
+            {note.fileType === 'html' && note.markdownContent ? (
+                <div className="container mx-auto px-4 py-6">
+                    <div className="bg-white dark:bg-gray-900 rounded-lg shadow-lg overflow-hidden p-8">
+                        <MarkdownViewer content={note.markdownContent} />
+                    </div>
+                </div>
+            ) : note.fileUrl ? (
+                note.fileType === 'pdf' || note.fileUrl.endsWith('.pdf') ? (
+                    <ProtectedPDFViewer
+                        fileUrl={`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}${note.fileUrl}`}
+                        fileName={note.title}
+                    />
+                ) : (
+                    <div className="container mx-auto px-4 py-6">
+                        <div className="bg-white dark:bg-gray-900 rounded-lg shadow-lg overflow-hidden">
                             <iframe
-                                src={`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}${note.fileUrl
-                                    }`}
+                                src={`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}${note.fileUrl}`}
                                 className="w-full min-h-screen border-0"
                                 title={note.title}
                             />
-                        )
-                    ) : (
-                        <div className="p-12 text-center">
-                            <p className="text-gray-600 dark:text-gray-400">Content not available</p>
                         </div>
-                    )}
+                    </div>
+                )
+            ) : (
+                <div className="container mx-auto px-4 py-6">
+                    <div className="bg-white dark:bg-gray-900 rounded-lg shadow-lg overflow-hidden p-12 text-center">
+                        <p className="text-gray-600 dark:text-gray-400">Content not available</p>
+                    </div>
                 </div>
-            </div>
+            )}
         </div>
     );
 };

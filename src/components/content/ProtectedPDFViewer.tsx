@@ -61,9 +61,9 @@ const ProtectedPDFViewer: React.FC<ProtectedPDFViewerProps> = ({
     };
 
     return (
-        <div className={`relative ${isFullscreen ? 'fixed inset-0 z-50 bg-gray-200 dark:bg-gray-900' : className}`}>
+        <div className={`${isFullscreen ? 'fixed inset-0 z-50 bg-gray-200 dark:bg-gray-900' : 'w-full'}`}>
             {/* PDF Controls */}
-            <div className="sticky top-0 z-20 bg-gray-100 dark:bg-gray-800 border-b border-gray-300 dark:border-gray-700 p-3 flex items-center justify-between gap-4 shadow-md">
+            <div className={`${isFullscreen ? 'sticky top-0' : 'sticky top-[73px]'} z-20 bg-gray-100 dark:bg-gray-800 border-b border-gray-300 dark:border-gray-700 p-3 flex items-center justify-between gap-4 shadow-md`}>
                 {/* Page Info */}
                 <div className="flex items-center gap-2">
                     <span className="text-sm text-gray-700 dark:text-gray-300 px-3 font-medium">
@@ -135,7 +135,7 @@ const ProtectedPDFViewer: React.FC<ProtectedPDFViewerProps> = ({
             <div
                 className="protected-content overflow-auto bg-gray-200 dark:bg-gray-900"
                 style={{
-                    height: isFullscreen ? 'calc(100vh - 60px)' : 'calc(100vh - 200px)',
+                    height: isFullscreen ? 'calc(100vh - 60px)' : 'calc(100vh - 133px)',
                     userSelect: 'none',
                 }}
             >

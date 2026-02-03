@@ -79,15 +79,11 @@ const ContentItemSchema = new Schema<IContentItem>({
     },
     videoUrl: {
         type: String,
-        required: function (this: IContentItem) {
-            return this.type === 'video';
-        },
+        default: '',
     },
     articleContent: {
         type: String,
-        required: function (this: IContentItem) {
-            return this.type === 'article';
-        },
+        default: '',
     },
     duration: {
         type: String,

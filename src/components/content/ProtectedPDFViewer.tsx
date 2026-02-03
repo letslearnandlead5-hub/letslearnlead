@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
-import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
+import { ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
 import Button from '../ui/Button';
 import { useContentProtection } from '../../hooks/useContentProtection';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -21,7 +21,6 @@ const ProtectedPDFViewer: React.FC<ProtectedPDFViewerProps> = ({
     className = '',
 }) => {
     const [numPages, setNumPages] = useState<number>(0);
-    const [pageNumber, setPageNumber] = useState<number>(1);
     const [scale, setScale] = useState<number>(1.0);
     const [isFullscreen, setIsFullscreen] = useState(false);
     const { user } = useAuthStore();
@@ -52,18 +51,7 @@ const ProtectedPDFViewer: React.FC<ProtectedPDFViewerProps> = ({
 
     const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
         setNumPages(numPages);
-        setPageNumber(1);
     };
-
-    const changePage = (offset: number) => {
-        setPageNumber((prevPageNumber) => {
-            const newPage = prevPageNumber + offset;
-            return Math.min(Math.max(1, newPage), numPages);
-        });
-    };
-
-    const previousPage = () => changePage(-1);
-    const nextPage = () => changePage(1);
 
     const zoomIn = () => setScale((prev) => Math.min(prev + 0.2, 3.0));
     const zoomOut = () => setScale((prev) => Math.max(prev - 0.2, 0.5));
@@ -76,29 +64,11 @@ const ProtectedPDFViewer: React.FC<ProtectedPDFViewerProps> = ({
         <div className={`relative ${className}`}>
             {/* PDF Controls */}
             <div className="sticky top-0 z-10 bg-gray-100 dark:bg-gray-800 border-b border-gray-300 dark:border-gray-700 p-3 flex items-center justify-between gap-4">
-                {/* Page Navigation */}
+                {/* Page Info */}
                 <div className="flex items-center gap-2">
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={previousPage}
-                        disabled={pageNumber <= 1}
-                        leftIcon={<ChevronLeft className="w-4 h-4" />}
-                    >
-                        Previous
-                    </Button>
                     <span className="text-sm text-gray-700 dark:text-gray-300 px-3">
-                        Page {pageNumber} of {numPages}
+                        Total Pages: {numPages}
                     </span>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={nextPage}
-                        disabled={pageNumber >= numPages}
-                        rightIcon={<ChevronRight className="w-4 h-4" />}
-                    >
-                        Next
-                    </Button>
                 </div>
 
                 {/* Zoom Controls */}
@@ -132,66 +102,74 @@ const ProtectedPDFViewer: React.FC<ProtectedPDFViewerProps> = ({
                 </div>
             </div>
 
-            {/* PDF Document Viewer */}
+            {/* PDF Document Viewer - Continuous Scroll */}
             <div
-                className={`protected-content overflow-auto bg-gray-200 dark:bg-gray-900 ${isFullscreen ? 'fixed inset-0 z-50 pt-32' : 'mt-0'
-                    }`}
+                className={`protected-content overflow-auto bg-gray-200 dark:bg-gray-900 ${
+                    isFullscreen ? 'fixed inset-0 z-50 pt-16' : 'mt-0'
+                }`}
                 style={{
-                    height: isFullscreen ? '100vh' : '600px',
+                    height: isFullscreen ? '100vh' : 'calc(100vh - 200px)',
                     userSelect: 'none',
                 }}
             >
-                <div className="flex justify-center p-8">
-                    <div className="relative">
-                        {/* Visible Watermark on PDF */}
-                        <div
-                            className="absolute inset-0 flex items-center justify-center pointer-events-none"
-                            style={{
-                                opacity: 0.15,
-                                transform: 'rotate(-45deg)',
-                                zIndex: 5,
-                            }}
-                        >
-                            <div className="text-6xl font-bold text-gray-900 dark:text-white whitespace-nowrap">
-                                {user?.name || 'PROTECTED'}
-                                <br />
-                                {user?.email}
+                <div className="flex flex-col items-center p-8 space-y-4">
+                    <Document
+                        file={fileUrl}
+                        onLoadSuccess={onDocumentLoadSuccess}
+                        loading={
+                            <div className="flex items-center justify-center h-96">
+                                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
                             </div>
-                        </div>
-
-                        <Document
-                            file={fileUrl}
-                            onLoadSuccess={onDocumentLoadSuccess}
-                            loading={
-                                <div className="flex items-center justify-center h-96">
-                                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+                        }
+                        error={
+                            <div className="flex items-center justify-center h-96">
+                                <div className="text-center">
+                                    <p className="text-red-600 font-semibold mb-2">
+                                        Failed to load PDF
+                                    </p>
+                                    <p className="text-sm text-gray-600">
+                                        Please try refreshing the page
+                                    </p>
                                 </div>
-                            }
-                            error={
-                                <div className="flex items-center justify-center h-96">
-                                    <div className="text-center">
-                                        <p className="text-red-600 font-semibold mb-2">
-                                            Failed to load PDF
-                                        </p>
-                                        <p className="text-sm text-gray-600">
-                                            Please try refreshing the page
-                                        </p>
+                            </div>
+                        }
+                    >
+                        {/* Render all pages in continuous scroll */}
+                        {Array.from(new Array(numPages), (el, index) => (
+                            <div key={`page_${index + 1}`} className="relative mb-4">
+                                {/* Page Number Label */}
+                                <div className="absolute top-2 right-2 bg-black/70 text-white px-3 py-1 rounded-full text-xs font-medium z-10">
+                                    Page {index + 1}
+                                </div>
+
+                                {/* Watermark for each page */}
+                                <div
+                                    className="absolute inset-0 flex items-center justify-center pointer-events-none"
+                                    style={{
+                                        opacity: 0.1,
+                                        transform: 'rotate(-45deg)',
+                                        zIndex: 5,
+                                    }}
+                                >
+                                    <div className="text-4xl font-bold text-gray-900 dark:text-white whitespace-nowrap">
+                                        {user?.name || 'PROTECTED'}
+                                        <br />
+                                        {user?.email}
                                     </div>
                                 </div>
-                            }
-                        >
-                            <Page
-                                pageNumber={pageNumber}
-                                scale={scale}
-                                renderTextLayer={false}
-                                renderAnnotationLayer={false}
-                                className="shadow-2xl"
-                            />
-                        </Document>
-                    </div>
+
+                                <Page
+                                    pageNumber={index + 1}
+                                    scale={scale}
+                                    renderTextLayer={false}
+                                    renderAnnotationLayer={false}
+                                    className="shadow-2xl"
+                                />
+                            </div>
+                        ))}
+                    </Document>
                 </div>
             </div>
-
         </div>
     );
 };

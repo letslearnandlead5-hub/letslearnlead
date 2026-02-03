@@ -109,25 +109,26 @@ const NoteViewer: React.FC = () => {
 
     return (
         <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
-            {/* Fixed Header */}
+            {/* Fixed Header - Mobile Responsive */}
             <div className="sticky top-0 z-50 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 shadow-sm">
-                <div className="container mx-auto px-4 py-4">
-                    <div className="flex items-center justify-between gap-4">
+                <div className="px-2 sm:px-4 py-2 sm:py-4">
+                    <div className="flex items-center justify-between gap-2">
                         {/* Left: Back Button & Title */}
-                        <div className="flex items-center gap-4 flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
                             <Button
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => navigate(-1)}
                                 leftIcon={<ArrowLeft className="w-4 h-4" />}
+                                className="flex-shrink-0"
                             >
-                                Back
+                                <span className="hidden sm:inline">Back</span>
                             </Button>
                             <div className="min-w-0 flex-1">
-                                <h1 className="text-xl font-bold text-gray-900 dark:text-white truncate">
+                                <h1 className="text-base sm:text-xl font-bold text-gray-900 dark:text-white truncate">
                                     {note.title}
                                 </h1>
-                                <p className="text-sm text-gray-600 dark:text-gray-400 truncate">
+                                <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 truncate hidden sm:block">
                                     {note.courseId.title}
                                 </p>
                             </div>
@@ -146,8 +147,11 @@ const NoteViewer: React.FC = () => {
                                     <BookmarkPlus className="w-4 h-4" />
                                 )
                             }
+                            className="flex-shrink-0"
                         >
-                            {saving ? 'Saving...' : isSaved ? 'Saved' : 'Save to Library'}
+                            <span className="hidden sm:inline">
+                                {saving ? 'Saving...' : isSaved ? 'Saved' : 'Save to Library'}
+                            </span>
                         </Button>
                     </div>
                 </div>

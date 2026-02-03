@@ -115,9 +115,9 @@ app.use(helmet({
 
 console.log('✅ Security headers configured');
 
-// 🔹 Required middleware
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// 🔹 Required middleware - Increase body size limit for image uploads
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(cookieParser());
 app.use(passport.initialize());
 

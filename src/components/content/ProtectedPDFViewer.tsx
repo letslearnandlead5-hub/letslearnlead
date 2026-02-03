@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
-import { ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
+import { ZoomIn, ZoomOut, Maximize2, Minimize2, X } from 'lucide-react';
 import Button from '../ui/Button';
 import { useContentProtection } from '../../hooks/useContentProtection';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -61,12 +61,12 @@ const ProtectedPDFViewer: React.FC<ProtectedPDFViewerProps> = ({
     };
 
     return (
-        <div className={`relative ${className}`}>
+        <div className={`relative ${isFullscreen ? 'fixed inset-0 z-50 bg-gray-200 dark:bg-gray-900' : className}`}>
             {/* PDF Controls */}
-            <div className="sticky top-0 z-10 bg-gray-100 dark:bg-gray-800 border-b border-gray-300 dark:border-gray-700 p-3 flex items-center justify-between gap-4">
+            <div className="sticky top-0 z-20 bg-gray-100 dark:bg-gray-800 border-b border-gray-300 dark:border-gray-700 p-3 flex items-center justify-between gap-4 shadow-md">
                 {/* Page Info */}
                 <div className="flex items-center gap-2">
-                    <span className="text-sm text-gray-700 dark:text-gray-300 px-3">
+                    <span className="text-sm text-gray-700 dark:text-gray-300 px-3 font-medium">
                         Total Pages: {numPages}
                     </span>
                 </div>
@@ -78,10 +78,11 @@ const ProtectedPDFViewer: React.FC<ProtectedPDFViewerProps> = ({
                         size="sm"
                         onClick={zoomOut}
                         disabled={scale <= 0.5}
+                        title="Zoom Out"
                     >
                         <ZoomOut className="w-4 h-4" />
                     </Button>
-                    <span className="text-sm text-gray-700 dark:text-gray-300 px-2">
+                    <span className="text-sm text-gray-700 dark:text-gray-300 px-2 font-medium min-w-[60px] text-center">
                         {Math.round(scale * 100)}%
                     </span>
                     <Button
@@ -89,30 +90,56 @@ const ProtectedPDFViewer: React.FC<ProtectedPDFViewerProps> = ({
                         size="sm"
                         onClick={zoomIn}
                         disabled={scale >= 3.0}
+                        title="Zoom In"
                     >
                         <ZoomIn className="w-4 h-4" />
                     </Button>
+                    
+                    {/* Fullscreen Toggle Button */}
                     <Button
-                        variant="outline"
+                        variant={isFullscreen ? "primary" : "outline"}
                         size="sm"
                         onClick={toggleFullscreen}
+                        title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
+                        className="ml-2"
                     >
-                        <Maximize2 className="w-4 h-4" />
+                        {isFullscreen ? (
+                            <>
+                                <Minimize2 className="w-4 h-4 mr-2" />
+                                <span className="hidden sm:inline">Exit Fullscreen</span>
+                            </>
+                        ) : (
+                            <>
+                                <Maximize2 className="w-4 h-4 mr-2" />
+                                <span className="hidden sm:inline">Fullscreen</span>
+                            </>
+                        )}
                     </Button>
+
+                    {/* Close button (only in fullscreen) */}
+                    {isFullscreen && (
+                        <Button
+                            variant="danger"
+                            size="sm"
+                            onClick={toggleFullscreen}
+                            title="Close Fullscreen"
+                            className="ml-2"
+                        >
+                            <X className="w-4 h-4" />
+                        </Button>
+                    )}
                 </div>
             </div>
 
             {/* PDF Document Viewer - Continuous Scroll */}
             <div
-                className={`protected-content overflow-auto bg-gray-200 dark:bg-gray-900 ${
-                    isFullscreen ? 'fixed inset-0 z-50 pt-16' : 'mt-0'
-                }`}
+                className="protected-content overflow-auto bg-gray-200 dark:bg-gray-900"
                 style={{
-                    height: isFullscreen ? '100vh' : 'calc(100vh - 200px)',
+                    height: isFullscreen ? 'calc(100vh - 60px)' : 'calc(100vh - 200px)',
                     userSelect: 'none',
                 }}
             >
-                <div className="flex flex-col items-center p-8 space-y-4">
+                <div className="flex flex-col items-center py-4 px-2 space-y-2">
                     <Document
                         file={fileUrl}
                         onLoadSuccess={onDocumentLoadSuccess}
@@ -136,7 +163,7 @@ const ProtectedPDFViewer: React.FC<ProtectedPDFViewerProps> = ({
                     >
                         {/* Render all pages in continuous scroll */}
                         {Array.from(new Array(numPages), (el, index) => (
-                            <div key={`page_${index + 1}`} className="relative mb-4">
+                            <div key={`page_${index + 1}`} className="relative mb-2">
                                 {/* Page Number Label */}
                                 <div className="absolute top-2 right-2 bg-black/70 text-white px-3 py-1 rounded-full text-xs font-medium z-10">
                                     Page {index + 1}
@@ -163,7 +190,7 @@ const ProtectedPDFViewer: React.FC<ProtectedPDFViewerProps> = ({
                                     scale={scale}
                                     renderTextLayer={false}
                                     renderAnnotationLayer={false}
-                                    className="shadow-2xl"
+                                    className="shadow-lg"
                                 />
                             </div>
                         ))}

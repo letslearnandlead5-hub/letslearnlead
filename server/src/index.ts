@@ -1,5 +1,6 @@
 import express from "express";
 import cors from "cors";
+import compression from "compression";
 import cookieParser from "cookie-parser";
 import dotenv from "dotenv";
 import path from "path";
@@ -55,6 +56,9 @@ console.log('✅ Environment variables validated');
 // 🔹 Create app
 const app = express();
 app.set('trust proxy', 1);
+
+// 🔹 Gzip compression — reduces JSON response size by ~70-80%
+app.use(compression());
 
 // 🔹 Connect to database
 connectDB();

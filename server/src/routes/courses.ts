@@ -3,6 +3,7 @@ import { Course } from '../models/Course';
 import { User } from '../models/User';
 import { protect, authorize, AuthRequest } from '../middleware/auth';
 import { AppError } from '../middleware/error';
+import { cache, TTL } from '../utils/cache';
 
 const router = Router();
 
@@ -13,38 +14,40 @@ router.get('/', async (req: Request, res: Response, next) => {
     try {
         const { category, level, search } = req.query;
 
+        // Build a stable cache key from query params
+        const cacheKey = `courses:${category || ''}:${level || ''}:${search || ''}`;
+
+        // Return cached result if still fresh (avoids DB hit on every page load)
+        const cached = cache.get<any[]>(cacheKey);
+        if (cached) {
+            return res.status(200).json({
+                success: true,
+                count: cached.length,
+                data: cached,
+                cached: true,
+            });
+        }
+
         const filter: any = {};
         if (category) filter.category = category;
         if (level) filter.level = level;
         if (search) filter.title = { $regex: search, $options: 'i' };
 
-        // Use lean() for better performance and select only needed fields
+        // Use lean() for better performance and select only needed fields.
+        // studentsEnrolled is already maintained as a counter on the Course document
+        // — no need for a separate expensive User.aggregate() on every request.
         const courses = await Course.find(filter)
             .select('title description instructor thumbnail price originalPrice rating studentsEnrolled duration category level')
             .lean()
             .exec();
 
-        // Optimize: Get all enrollment counts in a single aggregation query
-        const enrollmentCounts = await User.aggregate([
-            { $unwind: '$enrolledCourses' },
-            { $group: { _id: '$enrolledCourses', count: { $sum: 1 } } }
-        ]);
-
-        // Create a map for quick lookup
-        const enrollmentMap = new Map(
-            enrollmentCounts.map(item => [item._id.toString(), item.count])
-        );
-
-        // Merge enrollment counts with courses
-        const coursesWithEnrollments = courses.map((course: any) => ({
-            ...course,
-            studentsEnrolled: enrollmentMap.get(course._id.toString()) || 0
-        }));
+        // Cache results for TTL seconds
+        cache.set(cacheKey, courses, TTL.COURSES_LIST);
 
         res.status(200).json({
             success: true,
-            count: coursesWithEnrollments.length,
-            data: coursesWithEnrollments,
+            count: courses.length,
+            data: courses,
         });
     } catch (error) {
         next(error);
@@ -98,6 +101,9 @@ router.post('/', protect, authorize('admin', 'teacher'), async (req: Request, re
     try {
         const course = await Course.create(req.body);
 
+        // Invalidate all course list caches so new course appears immediately
+        cache.invalidatePrefix('courses:');
+
         res.status(201).json({
             success: true,
             data: course,
@@ -121,6 +127,10 @@ router.put('/:id', protect, authorize('admin', 'teacher'), async (req: Request, 
             throw new AppError('Course not found', 404);
         }
 
+        // Invalidate course caches on update
+        cache.invalidatePrefix('courses:');
+        cache.invalidate(`course:${req.params.id}`);
+
         res.status(200).json({
             success: true,
             data: course,
@@ -140,6 +150,10 @@ router.delete('/:id', protect, authorize('admin'), async (req: Request, res: Res
         if (!course) {
             throw new AppError('Course not found', 404);
         }
+
+        // Invalidate caches on delete
+        cache.invalidatePrefix('courses:');
+        cache.invalidate(`course:${req.params.id}`);
 
         res.status(200).json({
             success: true,

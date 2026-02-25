@@ -189,11 +189,13 @@ const CourseSchema = new Schema<ICourse>(
         category: {
             type: String,
             required: true,
+            index: true, // Add index for faster filtering
         },
         level: {
             type: String,
             enum: ['beginner', 'intermediate', 'advanced'],
             default: 'beginner',
+            index: true, // Add index for faster filtering
         },
         sections: {
             type: [SectionSchema],
@@ -215,5 +217,9 @@ const CourseSchema = new Schema<ICourse>(
         timestamps: true,
     }
 );
+
+// Add compound index for common query patterns
+CourseSchema.index({ category: 1, level: 1 });
+CourseSchema.index({ title: 'text', description: 'text' }); // Text search index
 
 export const Course = mongoose.models.Course || mongoose.model<ICourse>('Course', CourseSchema);

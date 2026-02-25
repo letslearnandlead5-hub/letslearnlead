@@ -18,7 +18,11 @@ router.get('/', async (req: Request, res: Response, next) => {
         if (level) filter.level = level;
         if (search) filter.title = { $regex: search, $options: 'i' };
 
-        const courses = await Course.find(filter).lean();
+        // Use lean() for better performance and select only needed fields
+        const courses = await Course.find(filter)
+            .select('title description instructor thumbnail price originalPrice rating studentsEnrolled duration category level')
+            .lean()
+            .exec();
 
         // Optimize: Get all enrollment counts in a single aggregation query
         const enrollmentCounts = await User.aggregate([

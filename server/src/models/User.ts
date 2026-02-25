@@ -93,4 +93,7 @@ const UserSchema = new Schema<IUser>(
     }
 );
 
+// Add index for enrolledCourses to speed up aggregation queries
+UserSchema.index({ enrolledCourses: 1 });
+
 export const User = mongoose.models.User || mongoose.model<IUser>('User', UserSchema);

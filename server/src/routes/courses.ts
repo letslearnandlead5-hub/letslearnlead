@@ -32,7 +32,7 @@ router.get('/', async (req: Request, res: Response, next) => {
         );
 
         // Merge enrollment counts with courses
-        const coursesWithEnrollments = courses.map(course => ({
+        const coursesWithEnrollments = courses.map((course: any) => ({
             ...course,
             studentsEnrolled: enrollmentMap.get(course._id.toString()) || 0
         }));

@@ -29,6 +29,7 @@ const CourseEditor: React.FC = () => {
         duration: '',
         category: '',
         level: 'beginner',
+        medium: 'both',
         sections: [] as ISection[],
     });
 
@@ -55,6 +56,7 @@ const CourseEditor: React.FC = () => {
                 duration: course.duration,
                 category: course.category,
                 level: course.level,
+                medium: course.medium || 'both',
                 sections: course.sections || [],
             });
         } catch (error) {
@@ -127,6 +129,7 @@ const CourseEditor: React.FC = () => {
                 duration: formData.duration,
                 category: formData.category,
                 level: formData.level,
+                medium: formData.medium,
                 sections: formData.sections,
             };
 
@@ -444,22 +447,40 @@ const CourseEditor: React.FC = () => {
                                             </div>
                                         </div>
 
-                                        {/* Level */}
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                                Level *
-                                            </label>
-                                            <select
-                                                name="level"
-                                                value={formData.level}
-                                                onChange={handleFormChange}
-                                                required
-                                                className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                                            >
-                                                <option value="beginner">Beginner</option>
-                                                <option value="intermediate">Intermediate</option>
-                                                <option value="advanced">Advanced</option>
-                                            </select>
+                                        {/* Level + Medium */}
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                                    Level *
+                                                </label>
+                                                <select
+                                                    name="level"
+                                                    value={formData.level}
+                                                    onChange={handleFormChange}
+                                                    required
+                                                    className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                                >
+                                                    <option value="beginner">Beginner</option>
+                                                    <option value="intermediate">Intermediate</option>
+                                                    <option value="advanced">Advanced</option>
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                                    Medium *
+                                                </label>
+                                                <select
+                                                    name="medium"
+                                                    value={formData.medium}
+                                                    onChange={handleFormChange}
+                                                    required
+                                                    className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                                >
+                                                    <option value="both">Both (Kannada & English)</option>
+                                                    <option value="kannada">🔵 Kannada Medium</option>
+                                                    <option value="english">🟢 English Medium</option>
+                                                </select>
+                                            </div>
                                         </div>
                                     </div>
                                 </Card>

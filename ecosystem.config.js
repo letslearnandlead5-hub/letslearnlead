@@ -13,7 +13,11 @@ module.exports = {
         instances: 1,
         exec_mode: 'fork',
 
-        // Environment variables
+        // Environment variables (always production)
+        env: {
+            NODE_ENV: 'production',
+            PORT: 5000,
+        },
         env_production: {
             NODE_ENV: 'production',
             PORT: 5000,

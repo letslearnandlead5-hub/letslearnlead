@@ -18,23 +18,24 @@ router.get('/', async (req: Request, res: Response, next) => {
         if (level) filter.level = level;
         if (search) filter.title = { $regex: search, $options: 'i' };
 
-        const courses = await Course.find(filter);
+        const courses = await Course.find(filter).lean();
 
-        // Calculate real enrollment counts for each course
-        const coursesWithEnrollments = await Promise.all(
-            courses.map(async (course) => {
-                // Count users who have this course in their enrolledCourses array
-                const enrollmentCount = await User.countDocuments({
-                    enrolledCourses: course._id
-                });
+        // Optimize: Get all enrollment counts in a single aggregation query
+        const enrollmentCounts = await User.aggregate([
+            { $unwind: '$enrolledCourses' },
+            { $group: { _id: '$enrolledCourses', count: { $sum: 1 } } }
+        ]);
 
-                // Return course with updated studentsEnrolled count
-                return {
-                    ...course.toObject(),
-                    studentsEnrolled: enrollmentCount
-                };
-            })
+        // Create a map for quick lookup
+        const enrollmentMap = new Map(
+            enrollmentCounts.map(item => [item._id.toString(), item.count])
         );
+
+        // Merge enrollment counts with courses
+        const coursesWithEnrollments = courses.map(course => ({
+            ...course,
+            studentsEnrolled: enrollmentMap.get(course._id.toString()) || 0
+        }));
 
         res.status(200).json({
             success: true,

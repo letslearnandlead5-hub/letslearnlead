@@ -30,7 +30,7 @@ const CoursesList: React.FC = () => {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
 
-    const categories = ['All', 'School Education', 'PUC', 'Language'];
+    const categories = ['All', '6th Standard', '7th Standard', '8th Standard', '9th Standard', '10th Standard', 'PUC', 'NEET', 'Language', 'Foundation Course'];
 
     useEffect(() => {
         window.scrollTo(0, 0);

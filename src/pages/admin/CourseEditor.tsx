@@ -422,15 +422,25 @@ const CourseEditor: React.FC = () => {
                                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                                                     Category *
                                                 </label>
-                                                <input
-                                                    type="text"
+                                                <select
                                                     name="category"
                                                     value={formData.category}
                                                     onChange={handleFormChange}
                                                     required
                                                     className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                                                    placeholder="e.g., Programming, Design"
-                                                />
+                                                >
+                                                    <option value="">Select Category</option>
+                                                    <option value="6th Standard">6th Standard</option>
+                                                    <option value="7th Standard">7th Standard</option>
+                                                    <option value="8th Standard">8th Standard</option>
+                                                    <option value="9th Standard">9th Standard</option>
+                                                    <option value="10th Standard">10th Standard</option>
+                                                    <option value="PUC">PUC (11th & 12th)</option>
+                                                    <option value="NEET">NEET Preparation</option>
+                                                    <option value="Language">Language</option>
+                                                    <option value="Foundation Course">Foundation Course</option>
+                                                    <option value="Other">Other</option>
+                                                </select>
                                             </div>
                                         </div>
 

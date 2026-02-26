@@ -58,7 +58,7 @@ const Home: React.FC = () => {
 
     const fetchCourses = async () => {
         try {
-            const response: any = await courseAPI.getAll();
+            const response: any = await courseAPI.getAll({ featured: 'true' });
             setCourses(response.data || []);
         } catch (error) {
             console.error('Error fetching courses:', error);
@@ -447,6 +447,11 @@ const Home: React.FC = () => {
                         <div className="text-center py-12">
                             <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-gray-300 border-t-blue-600"></div>
                             <p className="mt-4 text-gray-600 dark:text-gray-400">Loading courses...</p>
+                        </div>
+                    ) : courses.length === 0 ? (
+                        <div className="text-center py-16 text-gray-500 dark:text-gray-400">
+                            <p className="text-lg font-medium">No featured courses yet.</p>
+                            <p className="text-sm mt-1">Admins can mark courses as "Show on Homepage" in the course editor.</p>
                         </div>
                     ) : (
                         <motion.div

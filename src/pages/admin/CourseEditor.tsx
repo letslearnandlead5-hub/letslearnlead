@@ -30,6 +30,7 @@ const CourseEditor: React.FC = () => {
         category: '',
         level: 'beginner',
         medium: 'both',
+        featuredOnHome: false,
         sections: [] as ISection[],
     });
 
@@ -57,6 +58,7 @@ const CourseEditor: React.FC = () => {
                 category: course.category,
                 level: course.level,
                 medium: course.medium || 'both',
+                featuredOnHome: course.featuredOnHome || false,
                 sections: course.sections || [],
             });
         } catch (error) {
@@ -130,6 +132,7 @@ const CourseEditor: React.FC = () => {
                 category: formData.category,
                 level: formData.level,
                 medium: formData.medium,
+                featuredOnHome: formData.featuredOnHome,
                 sections: formData.sections,
             };
 
@@ -481,6 +484,31 @@ const CourseEditor: React.FC = () => {
                                                     <option value="english">🟢 English Medium</option>
                                                 </select>
                                             </div>
+                                        </div>
+
+                                        {/* Show on Homepage Toggle */}
+                                        <div className="flex items-center justify-between p-4 rounded-xl border-2 border-dashed border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+                                            <div>
+                                                <p className="font-semibold text-gray-900 dark:text-white">🏠 Show on Homepage</p>
+                                                <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+                                                    {formData.featuredOnHome
+                                                        ? 'This course is visible on the homepage'
+                                                        : 'This course is hidden from the homepage'}
+                                                </p>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => setFormData(prev => ({ ...prev, featuredOnHome: !prev.featuredOnHome }))}
+                                                className={`relative inline-flex h-7 w-14 flex-shrink-0 items-center rounded-full transition-colors duration-300 focus:outline-none ${formData.featuredOnHome
+                                                        ? 'bg-primary-600'
+                                                        : 'bg-gray-300 dark:bg-gray-600'
+                                                    }`}
+                                            >
+                                                <span
+                                                    className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-md transition-transform duration-300 ${formData.featuredOnHome ? 'translate-x-8' : 'translate-x-1'
+                                                        }`}
+                                                />
+                                            </button>
                                         </div>
                                     </div>
                                 </Card>

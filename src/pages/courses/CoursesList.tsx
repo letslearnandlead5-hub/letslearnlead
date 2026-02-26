@@ -31,11 +31,7 @@ const MEDIUM_OPTIONS = [
     { value: 'english', label: '🟢 English Medium', color: 'bg-green-50 dark:bg-green-950 text-green-700 dark:text-green-300 border-green-400' },
 ];
 
-const MEDIUM_BADGE: Record<string, { label: string; cls: string }> = {
-    kannada: { label: '🔵 Kannada', cls: 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300' },
-    english: { label: '🟢 English', cls: 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300' },
-    both: { label: '🌐 Both Medium', cls: 'bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300' },
-};
+
 
 const CoursesList: React.FC = () => {
     const [courses, setCourses] = useState<Course[]>([]);
@@ -46,24 +42,12 @@ const CoursesList: React.FC = () => {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
 
-    useEffect(() => {
-        window.scrollTo(0, 0);
-        const searchQuery = searchParams.get('search');
-        if (searchQuery) setSearchTerm(searchQuery);
-        fetchCourses();
-    }, [searchParams]);
-
-    // Re-fetch from server whenever class or medium changes (server-side filtering)
-    useEffect(() => {
-        fetchCourses();
-    }, [selectedClass, selectedMedium]);
-
-    const fetchCourses = async () => {
+    const fetchCourses = async (cls: string, med: string) => {
         try {
             setLoading(true);
             const params: any = {};
-            if (selectedClass !== 'All') params.category = selectedClass;
-            if (selectedMedium !== 'all') params.medium = selectedMedium;
+            if (cls !== 'All') params.category = cls;
+            if (med !== 'all') params.medium = med;
             const response: any = await courseAPI.getAll(params);
             setCourses(response.data || []);
         } catch (error) {
@@ -73,6 +57,18 @@ const CoursesList: React.FC = () => {
         }
     };
 
+    useEffect(() => {
+        window.scrollTo(0, 0);
+        const searchQuery = searchParams.get('search');
+        if (searchQuery) setSearchTerm(searchQuery);
+        fetchCourses(selectedClass, selectedMedium);
+    }, [searchParams]);
+
+    // Re-fetch whenever class or medium changes — pass values directly to avoid stale closure
+    useEffect(() => {
+        fetchCourses(selectedClass, selectedMedium);
+    }, [selectedClass, selectedMedium]);
+
     // Client-side search filter only (class + medium already filtered server-side)
     const filteredCourses = courses.filter((course) =>
         course.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -81,7 +77,9 @@ const CoursesList: React.FC = () => {
 
     const handleClassChange = (cls: string) => {
         setSelectedClass(cls);
-        setSelectedMedium('all'); // reset medium when class changes
+        setSelectedMedium('all');
+        // Fetch immediately with new cls + reset medium so no stale state
+        fetchCourses(cls, 'all');
     };
 
     return (
@@ -122,8 +120,8 @@ const CoursesList: React.FC = () => {
                                 key={cls}
                                 onClick={() => handleClassChange(cls)}
                                 className={`px-4 py-2 rounded-xl text-sm font-medium transition-all border-2 ${selectedClass === cls
-                                        ? 'bg-black dark:bg-white text-white dark:text-black border-black dark:border-white'
-                                        : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:border-black dark:hover:border-white'
+                                    ? 'bg-black dark:bg-white text-white dark:text-black border-black dark:border-white'
+                                    : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:border-black dark:hover:border-white'
                                     }`}
                             >
                                 {cls}
@@ -141,14 +139,17 @@ const CoursesList: React.FC = () => {
                         {MEDIUM_OPTIONS.map((opt) => (
                             <button
                                 key={opt.value}
-                                onClick={() => setSelectedMedium(opt.value)}
+                                onClick={() => {
+                                    setSelectedMedium(opt.value);
+                                    fetchCourses(selectedClass, opt.value);
+                                }}
                                 className={`px-5 py-2 rounded-xl text-sm font-semibold border-2 transition-all ${selectedMedium === opt.value
-                                        ? opt.value === 'kannada'
-                                            ? 'bg-blue-600 text-white border-blue-600'
-                                            : opt.value === 'english'
-                                                ? 'bg-green-600 text-white border-green-600'
-                                                : 'bg-black dark:bg-white text-white dark:text-black border-black dark:border-white'
-                                        : `${opt.color} border-2`
+                                    ? opt.value === 'kannada'
+                                        ? 'bg-blue-600 text-white border-blue-600'
+                                        : opt.value === 'english'
+                                            ? 'bg-green-600 text-white border-green-600'
+                                            : 'bg-black dark:bg-white text-white dark:text-black border-black dark:border-white'
+                                    : `${opt.color} border-2`
                                     }`}
                             >
                                 {opt.label}
@@ -179,69 +180,63 @@ const CoursesList: React.FC = () => {
                         initial="initial"
                         animate="animate"
                     >
-                        {filteredCourses.map((course) => {
-                            const badge = MEDIUM_BADGE[course.medium] || MEDIUM_BADGE['both'];
-                            return (
-                                <motion.div key={course._id} variants={staggerItem}>
-                                    <Card
-                                        className="cursor-pointer group h-full flex flex-col hover:shadow-2xl transition-all"
-                                        onClick={() => navigate(`/courses/${course._id}`)}
-                                    >
-                                        <div className="relative overflow-hidden rounded-xl mb-4">
-                                            <img
-                                                src={course.thumbnail}
-                                                alt={course.title}
-                                                className="w-full h-48 object-cover transform group-hover:scale-110 transition-transform duration-300"
-                                            />
-                                            {/* Rating badge */}
-                                            <div className="absolute top-3 right-3 bg-white dark:bg-gray-900 px-2 py-1 rounded-lg flex items-center gap-1">
-                                                <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
-                                                <span className="text-sm font-semibold">{course.rating}</span>
-                                            </div>
-                                            {/* Medium badge */}
-                                            <div className={`absolute top-3 left-3 px-2 py-1 rounded-lg text-xs font-semibold ${badge.cls}`}>
-                                                {badge.label}
-                                            </div>
+                        {filteredCourses.map((course) => (
+                            <motion.div key={course._id} variants={staggerItem}>
+                                <Card
+                                    className="cursor-pointer group h-full flex flex-col hover:shadow-2xl transition-all"
+                                    onClick={() => navigate(`/courses/${course._id}`)}
+                                >
+                                    <div className="relative overflow-hidden rounded-xl mb-4">
+                                        <img
+                                            src={course.thumbnail}
+                                            alt={course.title}
+                                            className="w-full h-48 object-cover transform group-hover:scale-110 transition-transform duration-300"
+                                        />
+                                        {/* Rating badge */}
+                                        <div className="absolute top-3 right-3 bg-white dark:bg-gray-900 px-2 py-1 rounded-lg flex items-center gap-1">
+                                            <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
+                                            <span className="text-sm font-semibold">{course.rating}</span>
                                         </div>
 
-                                        <div className="flex-1 flex flex-col">
-                                            <h3 className="font-bold text-lg mb-2 line-clamp-2 text-gray-900 dark:text-white group-hover:text-primary-600 transition-colors">
-                                                {course.title}
-                                            </h3>
-                                            <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                                                {course.instructor}
-                                            </p>
-                                            <p className="text-sm text-gray-500 dark:text-gray-500 mb-4 line-clamp-2">
-                                                {course.description}
-                                            </p>
+                                    </div>
 
-                                            <div className="mt-auto space-y-4">
-                                                <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
-                                                    <Clock className="w-4 h-4 mr-1" />
-                                                    <span>{course.duration}</span>
-                                                    <span className="mx-2">•</span>
-                                                    <BookOpen className="w-4 h-4 mr-1" />
-                                                    <span>{course.studentsEnrolled.toLocaleString()} students</span>
-                                                </div>
+                                    <div className="flex-1 flex flex-col">
+                                        <h3 className="font-bold text-lg mb-2 line-clamp-2 text-gray-900 dark:text-white group-hover:text-primary-600 transition-colors">
+                                            {course.title}
+                                        </h3>
+                                        <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                                            {course.instructor}
+                                        </p>
+                                        <p className="text-sm text-gray-500 dark:text-gray-500 mb-4 line-clamp-2">
+                                            {course.description}
+                                        </p>
 
-                                                <div className="flex items-center justify-between">
-                                                    <div>
-                                                        <span className="text-2xl font-bold text-primary-600">
-                                                            {formatPrice(course.price)}
+                                        <div className="mt-auto space-y-4">
+                                            <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
+                                                <Clock className="w-4 h-4 mr-1" />
+                                                <span>{course.duration}</span>
+                                                <span className="mx-2">•</span>
+                                                <BookOpen className="w-4 h-4 mr-1" />
+                                                <span>{course.studentsEnrolled.toLocaleString()} students</span>
+                                            </div>
+
+                                            <div className="flex items-center justify-between">
+                                                <div>
+                                                    <span className="text-2xl font-bold text-primary-600">
+                                                        {formatPrice(course.price)}
+                                                    </span>
+                                                    {course.originalPrice && (
+                                                        <span className="text-sm text-gray-500 dark:text-gray-400 line-through ml-2">
+                                                            {formatPrice(course.originalPrice)}
                                                         </span>
-                                                        {course.originalPrice && (
-                                                            <span className="text-sm text-gray-500 dark:text-gray-400 line-through ml-2">
-                                                                {formatPrice(course.originalPrice)}
-                                                            </span>
-                                                        )}
-                                                    </div>
+                                                    )}
                                                 </div>
                                             </div>
                                         </div>
-                                    </Card>
-                                </motion.div>
-                            );
-                        })}
+                                    </div>
+                                </Card>
+                            </motion.div>
+                        ))}
                     </motion.div>
                 ) : (
                     <div className="text-center py-20">

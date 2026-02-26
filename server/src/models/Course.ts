@@ -53,6 +53,7 @@ export interface ICourse extends Document {
     category: string;
     level: 'beginner' | 'intermediate' | 'advanced';
     medium: 'kannada' | 'english' | 'both';
+    featuredOnHome: boolean;
     sections: ISection[]; // New hierarchical structure
     lessons: ILesson[]; // Legacy field for backward compatibility
     quizId?: mongoose.Types.ObjectId;
@@ -203,6 +204,11 @@ const CourseSchema = new Schema<ICourse>(
             enum: ['kannada', 'english', 'both'],
             default: 'both',
             index: true, // Index for fast medium filtering
+        },
+        featuredOnHome: {
+            type: Boolean,
+            default: false,
+            index: true, // Index for fast homepage queries
         },
         sections: {
             type: [SectionSchema],

@@ -12,10 +12,10 @@ const router = Router();
 // @access  Public
 router.get('/', async (req: Request, res: Response, next) => {
     try {
-        const { category, level, search, medium } = req.query;
+        const { category, level, search, medium, featured } = req.query;
 
         // Build a stable cache key from query params
-        const cacheKey = `courses:${category || ''}:${level || ''}:${search || ''}:${medium || ''}`;
+        const cacheKey = `courses:${category || ''}:${level || ''}:${search || ''}:${medium || ''}:${featured || ''}`;
 
         // Return cached result if still fresh (avoids DB hit on every page load)
         const cached = cache.get<any[]>(cacheKey);
@@ -32,16 +32,20 @@ router.get('/', async (req: Request, res: Response, next) => {
         if (category) filter.category = category;
         if (level) filter.level = level;
         if (search) filter.title = { $regex: search, $options: 'i' };
-        // medium filter: match exact medium OR 'both' (available for all)
+        // medium filter: exact match only
         if (medium && medium !== 'all') {
-            filter.medium = { $in: [medium, 'both'] };
+            filter.medium = medium;
+        }
+        // homepage featured filter
+        if (featured === 'true') {
+            filter.featuredOnHome = true;
         }
 
         // Use lean() for better performance and select only needed fields.
         // studentsEnrolled is already maintained as a counter on the Course document
         // — no need for a separate expensive User.aggregate() on every request.
         const courses = await Course.find(filter)
-            .select('title description instructor thumbnail price originalPrice rating studentsEnrolled duration category level')
+            .select('title description instructor thumbnail price originalPrice rating studentsEnrolled duration category level medium featuredOnHome')
             .lean()
             .exec();
 

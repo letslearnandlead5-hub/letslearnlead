@@ -36,9 +36,11 @@ router.get('/', async (req: Request, res: Response, next) => {
         if (medium && medium !== 'all') {
             filter.medium = medium;
         }
-        // homepage featured filter
+        // homepage featured filter - explicitly check for true/false
         if (featured === 'true') {
             filter.featuredOnHome = true;
+        } else if (featured === 'false') {
+            filter.featuredOnHome = false;
         }
 
         // Use lean() for better performance and select only needed fields.

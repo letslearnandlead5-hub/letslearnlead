@@ -58,7 +58,7 @@ const CourseEditor: React.FC = () => {
                 category: course.category,
                 level: course.level,
                 medium: course.medium || 'both',
-                featuredOnHome: course.featuredOnHome || false,
+                featuredOnHome: course.featuredOnHome === true,
                 sections: course.sections || [],
             });
         } catch (error) {

@@ -6,7 +6,11 @@
     "scripts": {
         "dev": "tsx watch src/index.ts",
         "build": "tsc",
-        "start": "node dist/index.js"
+        "start": "node dist/index.js",
+        "check-featured": "tsx src/scripts/checkFeaturedCourses.ts",
+        "fix-featured": "tsx src/scripts/fixFeaturedCourses.ts",
+        "list-courses": "tsx src/scripts/listAllCourses.ts",
+        "hide-course": "tsx src/scripts/hideCourseFromHomepage.ts"
     },
     "keywords": [
         "education",

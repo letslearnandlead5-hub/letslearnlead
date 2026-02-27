@@ -26,9 +26,9 @@ interface Course {
 const CLASSES = ['All', '6th Standard', '7th Standard', '8th Standard', '9th Standard', '10th Standard', 'PUC', 'NEET', 'Language', 'Foundation Course'];
 
 const MEDIUM_OPTIONS = [
-    { value: 'all', label: 'All Medium', color: 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600' },
     { value: 'kannada', label: '🔵 Kannada Medium', color: 'bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border-blue-400' },
     { value: 'english', label: '🟢 English Medium', color: 'bg-green-50 dark:bg-green-950 text-green-700 dark:text-green-300 border-green-400' },
+    { value: 'both', label: '🟣 Both Medium', color: 'bg-purple-50 dark:bg-purple-950 text-purple-700 dark:text-purple-300 border-purple-400' },
 ];
 
 
@@ -38,7 +38,7 @@ const CoursesList: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedClass, setSelectedClass] = useState('All');
-    const [selectedMedium, setSelectedMedium] = useState('all');
+    const [selectedMedium, setSelectedMedium] = useState('kannada');
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
 
@@ -47,7 +47,7 @@ const CoursesList: React.FC = () => {
             setLoading(true);
             const params: any = {};
             if (cls !== 'All') params.category = cls;
-            if (med !== 'all') params.medium = med;
+            params.medium = med;
             const response: any = await courseAPI.getAll(params);
             setCourses(response.data || []);
         } catch (error) {
@@ -61,10 +61,9 @@ const CoursesList: React.FC = () => {
         window.scrollTo(0, 0);
         const searchQuery = searchParams.get('search');
         if (searchQuery) setSearchTerm(searchQuery);
-        fetchCourses(selectedClass, selectedMedium);
-    }, [searchParams]);
+    }, []);
 
-    // Re-fetch whenever class or medium changes — pass values directly to avoid stale closure
+    // Fetch courses only when class or medium changes
     useEffect(() => {
         fetchCourses(selectedClass, selectedMedium);
     }, [selectedClass, selectedMedium]);
@@ -77,9 +76,7 @@ const CoursesList: React.FC = () => {
 
     const handleClassChange = (cls: string) => {
         setSelectedClass(cls);
-        setSelectedMedium('all');
-        // Fetch immediately with new cls + reset medium so no stale state
-        fetchCourses(cls, 'all');
+        // Don't reset medium - keep user's selection
     };
 
     return (
@@ -139,16 +136,15 @@ const CoursesList: React.FC = () => {
                         {MEDIUM_OPTIONS.map((opt) => (
                             <button
                                 key={opt.value}
-                                onClick={() => {
-                                    setSelectedMedium(opt.value);
-                                    fetchCourses(selectedClass, opt.value);
-                                }}
+                                onClick={() => setSelectedMedium(opt.value)}
                                 className={`px-5 py-2 rounded-xl text-sm font-semibold border-2 transition-all ${selectedMedium === opt.value
                                     ? opt.value === 'kannada'
                                         ? 'bg-blue-600 text-white border-blue-600'
                                         : opt.value === 'english'
                                             ? 'bg-green-600 text-white border-green-600'
-                                            : 'bg-black dark:bg-white text-white dark:text-black border-black dark:border-white'
+                                            : opt.value === 'both'
+                                                ? 'bg-purple-600 text-white border-purple-600'
+                                                : 'bg-black dark:bg-white text-white dark:text-black border-black dark:border-white'
                                     : `${opt.color} border-2`
                                     }`}
                             >
@@ -163,7 +159,7 @@ const CoursesList: React.FC = () => {
                     <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
                         {filteredCourses.length} course{filteredCourses.length !== 1 ? 's' : ''} found
                         {selectedClass !== 'All' ? ` for ${selectedClass}` : ''}
-                        {selectedMedium !== 'all' ? ` · ${selectedMedium === 'kannada' ? 'Kannada' : 'English'} Medium` : ''}
+                        {` · ${selectedMedium === 'kannada' ? 'Kannada' : selectedMedium === 'english' ? 'English' : 'Both'} Medium`}
                     </p>
                 )}
 
@@ -244,7 +240,7 @@ const CoursesList: React.FC = () => {
                             No courses found matching your criteria
                         </p>
                         <button
-                            onClick={() => { setSelectedClass('All'); setSelectedMedium('all'); setSearchTerm(''); }}
+                            onClick={() => { setSelectedClass('All'); setSelectedMedium('kannada'); setSearchTerm(''); }}
                             className="mt-4 text-primary-600 underline text-sm"
                         >
                             Clear filters

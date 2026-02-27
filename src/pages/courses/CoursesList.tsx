@@ -50,11 +50,32 @@ const CoursesList: React.FC = () => {
             if (cls !== 'All') params.category = cls;
             params.medium = med;
             console.log('📤 API params:', params);
-            const response: any = await courseAPI.getAll(params);
-            console.log('📥 API response:', response);
-            setCourses(response.data || []);
-        } catch (error) {
+            
+            // Add timeout
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+            
+            try {
+                const response: any = await courseAPI.getAll(params);
+                clearTimeout(timeoutId);
+                console.log('📥 API response:', response);
+                setCourses(response.data || []);
+            } catch (apiError: any) {
+                clearTimeout(timeoutId);
+                if (apiError.name === 'AbortError') {
+                    console.error('❌ Request timeout after 10 seconds');
+                    throw new Error('Request timeout - please try again');
+                }
+                throw apiError;
+            }
+        } catch (error: any) {
             console.error('❌ Error fetching courses:', error);
+            console.error('Error details:', {
+                message: error.message,
+                response: error.response,
+                status: error.status
+            });
+            setCourses([]);
         } finally {
             setLoading(false);
         }
@@ -171,6 +192,10 @@ const CoursesList: React.FC = () => {
                     <div className="text-center py-20">
                         <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-gray-300 border-t-primary-600"></div>
                         <p className="mt-4 text-gray-600 dark:text-gray-400">Loading courses...</p>
+                        <p className="mt-2 text-sm text-gray-500 dark:text-gray-500">
+                            Fetching {selectedMedium === 'kannada' ? 'Kannada' : selectedMedium === 'english' ? 'English' : 'Both'} medium courses
+                            {selectedClass !== 'All' && ` for ${selectedClass}`}
+                        </p>
                     </div>
                 ) : filteredCourses.length > 0 ? (
                     <motion.div

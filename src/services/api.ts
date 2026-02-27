@@ -23,6 +23,7 @@ if (import.meta.env.DEV) {
 const api = axios.create({
   baseURL: `${API_BASE_URL}/api`,
   withCredentials: true, // ✅ REQUIRED for cookies
+  timeout: 30000, // 30 second timeout
   // NOTE: Don't set Content-Type here! 
   // Axios automatically sets it based on request data:
   // - FormData → multipart/form-data (for file uploads)

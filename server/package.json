@@ -10,7 +10,8 @@
         "check-featured": "tsx src/scripts/checkFeaturedCourses.ts",
         "fix-featured": "tsx src/scripts/fixFeaturedCourses.ts",
         "list-courses": "tsx src/scripts/listAllCourses.ts",
-        "hide-course": "tsx src/scripts/hideCourseFromHomepage.ts"
+        "hide-course": "tsx src/scripts/hideCourseFromHomepage.ts",
+        "add-indexes": "tsx src/scripts/addIndexes.ts"
     },
     "keywords": [
         "education",

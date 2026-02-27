@@ -12,14 +12,16 @@ const router = Router();
 // @access  Public
 router.get('/', async (req: Request, res: Response, next) => {
     try {
-        const { category, level, search, medium, featured } = req.query;
+        const startTime = Date.now();
+        const { category, level, search, medium, featured, page = '1', limit = '100' } = req.query;
 
         // Build a stable cache key from query params
-        const cacheKey = `courses:${category || ''}:${level || ''}:${search || ''}:${medium || ''}:${featured || ''}`;
+        const cacheKey = `courses:${category || ''}:${level || ''}:${search || ''}:${medium || ''}:${featured || ''}:${page}:${limit}`;
 
         // Return cached result if still fresh (avoids DB hit on every page load)
         const cached = cache.get<any[]>(cacheKey);
         if (cached) {
+            console.log(`✅ Cache HIT for ${cacheKey} - ${Date.now() - startTime}ms`);
             return res.status(200).json({
                 success: true,
                 count: cached.length,
@@ -27,6 +29,8 @@ router.get('/', async (req: Request, res: Response, next) => {
                 cached: true,
             });
         }
+
+        console.log(`⏳ Cache MISS for ${cacheKey} - Fetching from DB...`);
 
         const filter: any = {};
         if (category) filter.category = category;
@@ -43,23 +47,40 @@ router.get('/', async (req: Request, res: Response, next) => {
             filter.featuredOnHome = false;
         }
 
+        const dbStartTime = Date.now();
+        const pageNum = parseInt(page as string);
+        const limitNum = parseInt(limit as string);
+        const skip = (pageNum - 1) * limitNum;
+
         // Use lean() for better performance and select only needed fields.
         // studentsEnrolled is already maintained as a counter on the Course document
         // — no need for a separate expensive User.aggregate() on every request.
         const courses = await Course.find(filter)
             .select('title description instructor thumbnail price originalPrice rating studentsEnrolled duration category level medium featuredOnHome')
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limitNum)
             .lean()
             .exec();
 
+        const dbTime = Date.now() - dbStartTime;
+        console.log(`📊 DB Query took ${dbTime}ms - Found ${courses.length} courses`);
+
         // Cache results for TTL seconds
         cache.set(cacheKey, courses, TTL.COURSES_LIST);
+
+        const totalTime = Date.now() - startTime;
+        console.log(`✅ Total request time: ${totalTime}ms`);
 
         res.status(200).json({
             success: true,
             count: courses.length,
             data: courses,
+            page: pageNum,
+            limit: limitNum,
         });
     } catch (error) {
+        console.error('❌ Error in GET /courses:', error);
         next(error);
     }
 });

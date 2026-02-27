@@ -47,6 +47,6 @@ export const cache = new MemoryCache();
 
 // Cache TTL constants (in seconds)
 export const TTL = {
-    COURSES_LIST: 60,   // Public course list – refresh every 60 s
-    SINGLE_COURSE: 120, // Single course detail – refresh every 2 min
+    COURSES_LIST: 300,   // Public course list – refresh every 5 min (was 60s)
+    SINGLE_COURSE: 300, // Single course detail – refresh every 5 min (was 120s)
 };

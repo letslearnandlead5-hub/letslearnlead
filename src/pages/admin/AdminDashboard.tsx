@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { motion } from 'framer-motion';
 import {
     Users,
@@ -32,12 +32,6 @@ import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
 import { staggerContainer, staggerItem } from '../../utils/animations';
 import { formatPrice } from '../../utils/helpers';
-import UserManagement from './UserManagement';
-import NotesManagement from './NotesManagement';
-import CourseManagement from './CourseManagement';
-import StudentManagement from './StudentManagement';
-import NotificationManagement from './NotificationManagement';
-import DoubtManagement from './DoubtManagement';
 import AdminHeader from '../../components/admin/AdminHeader';
 import { adminAPI, settingsAPI } from '../../services/api';
 import api from '../../services/api';
@@ -46,6 +40,14 @@ import { useThemeStore } from '../../store/useThemeStore';
 import { useToastStore } from '../../store/useToastStore';
 import { useNavigate } from 'react-router-dom';
 import Modal from '../../components/ui/Modal';
+
+// Lazy load heavy components
+const UserManagement = lazy(() => import('./UserManagement'));
+const NotesManagement = lazy(() => import('./NotesManagement'));
+const CourseManagement = lazy(() => import('./CourseManagement'));
+const StudentManagement = lazy(() => import('./StudentManagement'));
+const NotificationManagement = lazy(() => import('./NotificationManagement'));
+const DoubtManagement = lazy(() => import('./DoubtManagement'));
 
 // TypeScript Interfaces
 interface StatItem {
@@ -473,12 +475,28 @@ const AdminDashboard: React.FC = () => {
                             </>
                         )}
 
-                        {selectedTab === 'students' && <StudentManagement />}
-                        {selectedTab === 'users' && <UserManagement />}
+                        {selectedTab === 'students' && (
+                            <Suspense fallback={<div className="flex items-center justify-center h-96"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div></div>}>
+                                <StudentManagement />
+                            </Suspense>
+                        )}
+                        {selectedTab === 'users' && (
+                            <Suspense fallback={<div className="flex items-center justify-center h-96"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div></div>}>
+                                <UserManagement />
+                            </Suspense>
+                        )}
 
-                        {selectedTab === 'courses' && <CourseManagement />}
+                        {selectedTab === 'courses' && (
+                            <Suspense fallback={<div className="flex items-center justify-center h-96"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div></div>}>
+                                <CourseManagement />
+                            </Suspense>
+                        )}
 
-                        {selectedTab === 'notes' && <NotesManagement />}
+                        {selectedTab === 'notes' && (
+                            <Suspense fallback={<div className="flex items-center justify-center h-96"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div></div>}>
+                                <NotesManagement />
+                            </Suspense>
+                        )}
 
                         {selectedTab === 'settings' && (
                             <div>
@@ -673,9 +691,17 @@ const AdminDashboard: React.FC = () => {
                             </div>
                         )}
 
-                        {selectedTab === 'doubts' && <DoubtManagement />}
+                        {selectedTab === 'doubts' && (
+                            <Suspense fallback={<div className="flex items-center justify-center h-96"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div></div>}>
+                                <DoubtManagement />
+                            </Suspense>
+                        )}
 
-                        {selectedTab === 'notifications' && <NotificationManagement />}
+                        {selectedTab === 'notifications' && (
+                            <Suspense fallback={<div className="flex items-center justify-center h-96"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div></div>}>
+                                <NotificationManagement />
+                            </Suspense>
+                        )}
                     </div>
                 </div>
             </div>

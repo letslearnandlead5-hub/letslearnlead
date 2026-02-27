@@ -40,10 +40,22 @@ const CourseManagement: React.FC = () => {
 
     useEffect(() => {
         fetchCourses();
+    }, []);
+
+    // Debounced search effect
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            if (searchTerm || selectedCategory !== 'all' || selectedLevel !== 'all') {
+                fetchCourses();
+            }
+        }, 500);
+
+        return () => clearTimeout(timer);
     }, [searchTerm, selectedCategory, selectedLevel]);
 
     const fetchCourses = async () => {
         try {
+            setLoading(true);
             const params: any = {};
             if (searchTerm) params.search = searchTerm;
             if (selectedCategory !== 'all') params.category = selectedCategory;
@@ -51,10 +63,10 @@ const CourseManagement: React.FC = () => {
 
             const response = await courseAPI.getAll(params);
             setCourses(response.data || []);
-            setLoading(false);
         } catch (error) {
             console.error('Error fetching courses:', error);
             addToast({ type: 'error', message: 'Failed to load courses' });
+        } finally {
             setLoading(false);
         }
     };

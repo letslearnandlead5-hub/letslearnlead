@@ -31,6 +31,7 @@ router.get('/', async (req: Request, res: Response, next) => {
         }
 
         console.log(`⏳ Cache MISS for ${cacheKey} - Fetching from DB...`);
+        console.log(`📋 Filter params:`, { category, level, search, medium, featured });
 
         const filter: any = {};
         if (category) filter.category = category;
@@ -46,6 +47,8 @@ router.get('/', async (req: Request, res: Response, next) => {
         } else if (featured === 'false') {
             filter.featuredOnHome = false;
         }
+
+        console.log(`🔍 MongoDB filter:`, JSON.stringify(filter));
 
         const dbStartTime = Date.now();
         const pageNum = parseInt(page as string);

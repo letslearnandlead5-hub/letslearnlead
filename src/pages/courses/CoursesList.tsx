@@ -45,13 +45,16 @@ const CoursesList: React.FC = () => {
     const fetchCourses = async (cls: string, med: string) => {
         try {
             setLoading(true);
+            console.log('🔄 Fetching courses with:', { class: cls, medium: med });
             const params: any = {};
             if (cls !== 'All') params.category = cls;
             params.medium = med;
+            console.log('📤 API params:', params);
             const response: any = await courseAPI.getAll(params);
+            console.log('📥 API response:', response);
             setCourses(response.data || []);
         } catch (error) {
-            console.error('Error fetching courses:', error);
+            console.error('❌ Error fetching courses:', error);
         } finally {
             setLoading(false);
         }

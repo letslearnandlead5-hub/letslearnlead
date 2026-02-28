@@ -95,6 +95,19 @@ router.get('/', protect, async (req: any, res: Response, next) => {
             })
             .sort({ savedAt: -1 });
 
+        // Filter out notes where noteId or courseId is null (deleted)
+        userNotes = userNotes.filter((un: any) => {
+            if (!un.noteId) {
+                console.warn(`UserNote ${un._id} has null noteId - note was deleted`);
+                return false;
+            }
+            if (!un.noteId.courseId) {
+                console.warn(`UserNote ${un._id} has null courseId - course was deleted`);
+                return false;
+            }
+            return true;
+        });
+
         // Filter by course if specified
         if (courseId) {
             userNotes = userNotes.filter(

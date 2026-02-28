@@ -69,11 +69,34 @@ const MyNotesLibrary: React.FC = () => {
     const fetchSavedNotes = async () => {
         try {
             setLoading(true);
+            console.log('🔄 Fetching saved notes...');
             const response: any = await userNoteAPI.getAll();
-            setSavedNotes(response.data || []);
+            console.log('📥 Saved notes response:', response);
+            
+            // Filter out any notes with missing data
+            const validNotes = (response.data || []).filter((note: SavedNote) => {
+                if (!note.noteId) {
+                    console.warn('Note missing noteId:', note);
+                    return false;
+                }
+                if (!note.noteId.courseId) {
+                    console.warn('Note missing courseId:', note);
+                    return false;
+                }
+                return true;
+            });
+            
+            setSavedNotes(validNotes);
+            console.log(`✅ Loaded ${validNotes.length} valid notes`);
         } catch (error: any) {
-            console.error('Error fetching saved notes:', error);
+            console.error('❌ Error fetching saved notes:', error);
+            console.error('Error details:', {
+                message: error.message,
+                response: error.response,
+                status: error.status
+            });
             addToast({ type: 'error', message: error.message || 'Failed to load saved notes' });
+            setSavedNotes([]);
         } finally {
             setLoading(false);
         }
@@ -86,8 +109,8 @@ const MyNotesLibrary: React.FC = () => {
         if (searchTerm) {
             filtered = filtered.filter(
                 (note) =>
-                    note.noteId.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                    note.noteId.courseId.title.toLowerCase().includes(searchTerm.toLowerCase())
+                    note.noteId?.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    note.noteId?.courseId?.title?.toLowerCase().includes(searchTerm.toLowerCase())
             );
         }
 
@@ -98,7 +121,7 @@ const MyNotesLibrary: React.FC = () => {
 
         // Filter by course
         if (selectedCourse !== 'all') {
-            filtered = filtered.filter((note) => note.noteId.courseId._id === selectedCourse);
+            filtered = filtered.filter((note) => note.noteId?.courseId?._id === selectedCourse);
         }
 
         setFilteredNotes(filtered);
@@ -314,24 +337,24 @@ const MyNotesLibrary: React.FC = () => {
                                     <div className="p-6">
                                         {/* Course Badge */}
                                         <Badge variant="primary" className="mb-3">
-                                            {note.noteId.courseId.title}
+                                            {note.noteId?.courseId?.title || 'Unknown Course'}
                                         </Badge>
 
                                         {/* Note Title */}
                                         <h3 className="text-lg font-bold mb-2 text-gray-900 dark:text-white line-clamp-2">
-                                            {note.noteId.title}
+                                            {note.noteId?.title || 'Untitled Note'}
                                         </h3>
 
                                         {/* Description */}
                                         <p className="text-sm text-gray-600 dark:text-gray-400 mb-4 line-clamp-2">
-                                            {note.noteId.description}
+                                            {note.noteId?.description || 'No description available'}
                                         </p>
 
                                         {/* Metadata */}
                                         <div className="space-y-2 mb-4">
                                             <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
                                                 <FileText className="w-3 h-3" />
-                                                <span>{note.noteId.fileType.toUpperCase()}</span>
+                                                <span>{note.noteId?.fileType?.toUpperCase() || 'FILE'}</span>
                                             </div>
                                             <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
                                                 <Calendar className="w-3 h-3" />
@@ -351,7 +374,7 @@ const MyNotesLibrary: React.FC = () => {
                                         {/* Category */}
                                         <Badge variant="secondary" className="mb-4">
                                             <FolderOpen className="w-3 h-3 mr-1" />
-                                            {note.category}
+                                            {note.category || 'Uncategorized'}
                                         </Badge>
 
                                         {/* Actions */}

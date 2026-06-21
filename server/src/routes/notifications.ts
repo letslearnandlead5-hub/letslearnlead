@@ -116,7 +116,7 @@ router.delete('/:id', protect, async (req: AuthRequest, res: Response, next) => 
 // @access  Private (Admin)
 router.post('/create', protect, async (req: AuthRequest, res: Response, next) => {
     try {
-        const { title, message, type, recipientType, userId } = req.body;
+        const { title, message, type, recipientType, userId, link } = req.body;
 
         if (recipientType === 'all') {
             // Get all users
@@ -131,6 +131,7 @@ router.post('/create', protect, async (req: AuthRequest, res: Response, next) =>
                         title,
                         message,
                         type: type || 'info',
+                        link: link || undefined,
                     })
                 )
             );
@@ -147,6 +148,7 @@ router.post('/create', protect, async (req: AuthRequest, res: Response, next) =>
                 title,
                 message,
                 type: type || 'info',
+                link: link || undefined,
             });
 
             res.status(201).json({

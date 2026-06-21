@@ -21,6 +21,7 @@ const NotificationEditor: React.FC = () => {
         type: 'info' as 'info' | 'success' | 'warning' | 'error',
         recipientType: 'all' as 'all' | 'specific',
         userId: '',
+        link: '',
     });
 
     const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -45,6 +46,7 @@ const NotificationEditor: React.FC = () => {
                 type: formData.type,
                 recipientType: formData.recipientType,
                 userId: formData.recipientType === 'specific' ? formData.userId : undefined,
+                link: formData.link || undefined,
             });
 
             addToast({ type: 'success', message: 'Notification sent successfully!' });
@@ -259,6 +261,24 @@ const NotificationEditor: React.FC = () => {
                                                 />
                                             </div>
                                         )}
+
+                                        {/* Link (optional) */}
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                                Link (Optional)
+                                            </label>
+                                            <input
+                                                type="text"
+                                                name="link"
+                                                value={formData.link}
+                                                onChange={handleFormChange}
+                                                className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                                placeholder="e.g., /courses/123 or /categories/science"
+                                            />
+                                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                                Examples: /courses/[courseId], /courses/[courseId]/video/[lessonId], /categories/[categoryId]
+                                            </p>
+                                        </div>
                                     </div>
                                 </Card>
 

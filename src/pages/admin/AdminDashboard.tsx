@@ -210,7 +210,7 @@ const AdminDashboard: React.FC = () => {
     const confirmLogout = () => {
         logout();
         addToast({ type: 'success', message: 'Logged out successfully!' });
-        navigate('/login');
+        navigate('/login/');
         setShowLogoutModal(false);
     };
 
@@ -335,9 +335,9 @@ const AdminDashboard: React.FC = () => {
                                 key={tab.id}
                                 onClick={() => {
                                     if (tab.id === 'quizzes') {
-                                        navigate('/admin/quizzes');
+                                        navigate('/admin/quizzes/');
                                     } else if (tab.id === 'banners') {
-                                        navigate('/admin/banners');
+                                        navigate('/admin/banners/');
                                     } else {
                                         setSelectedTab(tab.id);
                                         setShowMobileSidebar(false);

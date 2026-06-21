@@ -74,11 +74,11 @@ const MyQuizzes: React.FC = () => {
 
     const handleQuizAction = (quiz: QuizWithStatus) => {
         if (quiz.status === 'in-progress' && quiz.inProgressAttemptId) {
-            navigate(`/quizzes/${quiz._id}/attempt?attemptId=${quiz.inProgressAttemptId}`);
+            navigate(`/quizzes/${quiz._id}/attempt/?attemptId=${quiz.inProgressAttemptId}`);
         } else if (quiz.status === 'completed') {
-            navigate(`/quizzes/${quiz._id}/leaderboard`);
+            navigate(`/quizzes/${quiz._id}/leaderboard/`);
         } else {
-            navigate(`/quizzes/${quiz._id}/attempt`);
+            navigate(`/quizzes/${quiz._id}/attempt/`);
         }
     };
 

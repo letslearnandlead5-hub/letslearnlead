@@ -208,7 +208,7 @@ const Header: React.FC = () => {
                                             <button
                                                 onClick={() => {
                                                     setShowUserMenu(false);
-                                                    navigate('/dashboard');
+                                                    navigate('/dashboard/');
                                                 }}
                                                 className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center space-x-2"
                                             >
@@ -229,10 +229,10 @@ const Header: React.FC = () => {
                             </div>
                         ) : (
                             <div className="hidden sm:flex items-center space-x-2">
-                                <Button variant="ghost" size="sm" onClick={() => navigate('/login')}>
+                                <Button variant="ghost" size="sm" onClick={() => navigate('/login/')}>
                                     Login
                                 </Button>
-                                <Button variant="primary" size="sm" onClick={() => navigate('/signup')}>
+                                <Button variant="primary" size="sm" onClick={() => navigate('/signup/')}>
                                     Sign Up
                                 </Button>
                             </div>
@@ -386,7 +386,7 @@ const Header: React.FC = () => {
                                         <button
                                             onClick={() => {
                                                 setShowMobileMenu(false);
-                                                navigate('/login');
+                                                navigate('/login/');
                                             }}
                                             className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg w-full text-left"
                                         >
@@ -395,7 +395,7 @@ const Header: React.FC = () => {
                                         <button
                                             onClick={() => {
                                                 setShowMobileMenu(false);
-                                                navigate('/signup');
+                                                navigate('/signup/');
                                             }}
                                             className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg w-full text-left"
                                         >

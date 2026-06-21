@@ -163,7 +163,7 @@ const MyNotesLibrary: React.FC = () => {
         }
 
         // Navigate to full-page viewer
-        navigate(`/notes/view/${note.noteId._id}`);
+        navigate(`/notes/view/${note.noteId._id}/`);
     };
 
     const getUniqueCategories = () => {

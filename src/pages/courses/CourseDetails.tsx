@@ -80,7 +80,7 @@ const CourseDetails: React.FC = () => {
                     <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-4">
                         Course Not Found
                     </h1>
-                    <Button onClick={() => navigate('/courses')}>Back to Courses</Button>
+                    <Button onClick={() => navigate('/courses/')}>Back to Courses</Button>
                 </div>
             </div>
         );

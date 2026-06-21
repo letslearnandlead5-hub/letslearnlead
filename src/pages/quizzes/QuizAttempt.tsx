@@ -76,7 +76,7 @@ const QuizAttempt: React.FC = () => {
                 }
             } catch (error: any) {
                 toast.error(error.response?.data?.message || 'Failed to load quiz');
-                navigate('/my-quizzes');
+                navigate('/my-quizzes/');
             } finally {
                 setLoading(false);
             }
@@ -150,7 +150,7 @@ const QuizAttempt: React.FC = () => {
             toast.success('Quiz submitted successfully!');
             resetQuiz();
 
-            navigate(`/quizzes/${quizId}/result/${attemptId}`);
+            navigate(`/quizzes/${quizId}/result/${attemptId}/`);
         } catch (error: any) {
             toast.error(error.response?.data?.message || 'Failed to submit quiz');
             if (!autoSubmit) startTimer();
@@ -266,7 +266,7 @@ const QuizAttempt: React.FC = () => {
 
                         <div className="flex gap-4">
                             <button
-                                onClick={() => navigate('/my-quizzes')}
+                                onClick={() => navigate('/my-quizzes/')}
                                 className="flex-1 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 py-3 rounded-lg font-semibold hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
                             >
                                 Back to Quizzes

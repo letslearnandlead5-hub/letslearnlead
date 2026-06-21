@@ -97,7 +97,7 @@ const StudentHeader: React.FC<StudentHeaderProps> = ({ onMenuClick }) => {
                         </button>
                     )}
 
-                    <Link to="/dashboard" className="flex items-center gap-3">
+                    <Link to="/dashboard/" className="flex items-center gap-3">
                         <img
                             src="/logo.png?v=2"
                             alt="Let's L-earn and Lead"
@@ -209,7 +209,7 @@ const StudentHeader: React.FC<StudentHeaderProps> = ({ onMenuClick }) => {
                     </div>
 
                     {/* User Profile */}
-                    <Link to="/dashboard" className="flex items-center gap-3 pl-4 border-l border-gray-200 dark:border-gray-700">
+                    <Link to="/dashboard/" className="flex items-center gap-3 pl-4 border-l border-gray-200 dark:border-gray-700">
                         <div className="w-9 h-9 rounded-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center overflow-hidden">
                             {user?.profilePicture ? (
                                 <img

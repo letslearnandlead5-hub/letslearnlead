@@ -34,17 +34,17 @@ const StudentFooter: React.FC = () => {
                         <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Quick Links</h3>
                         <ul className="space-y-2 text-sm">
                             <li>
-                                <Link to="/dashboard" className="text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400">
+                                <Link to="/dashboard/" className="text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400">
                                     My Dashboard
                                 </Link>
                             </li>
                             <li>
-                                <Link to="/courses" className="text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400">
+                                <Link to="/courses/" className="text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400">
                                     Browse Courses
                                 </Link>
                             </li>
                             <li>
-                                <Link to="/notes" className="text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400">
+                                <Link to="/notes/" className="text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400">
                                     Study Notes
                                 </Link>
                             </li>
@@ -56,12 +56,12 @@ const StudentFooter: React.FC = () => {
                         <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Support</h3>
                         <ul className="space-y-2 text-sm">
                             <li>
-                                <Link to="/contact" className="text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400">
+                                <Link to="/contact/" className="text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400">
                                     Contact Us
                                 </Link>
                             </li>
                             <li>
-                                <Link to="/about" className="text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400">
+                                <Link to="/about/" className="text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400">
                                     About Us
                                 </Link>
                             </li>

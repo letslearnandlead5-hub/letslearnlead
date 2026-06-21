@@ -190,7 +190,7 @@ const Home: React.FC = () => {
                                 <Button
                                     variant="primary"
                                     size="lg"
-                                    onClick={() => navigate('/signup')}
+                                    onClick={() => navigate('/signup/')}
                                     className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white shadow-lg hover:shadow-xl transition-all transform hover:scale-105"
                                 >
                                     Join Now
@@ -198,7 +198,7 @@ const Home: React.FC = () => {
                                 <Button
                                     variant="outline"
                                     size="lg"
-                                    onClick={() => navigate('/courses')}
+                                    onClick={() => navigate('/courses/')}
                                     className="border-2 border-white/80 text-white hover:bg-white hover:text-purple-700 transition-all transform hover:scale-105"
                                 >
                                     Start Learning
@@ -497,7 +497,7 @@ const Home: React.FC = () => {
                                             <Button
                                                 variant="primary"
                                                 size="sm"
-                                                onClick={() => navigate(`/courses/${course._id}`)}
+                                                onClick={() => navigate(`/courses/${course._id}/`)}
                                                 className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-lg hover:shadow-xl transition-all transform group-hover:scale-105 mt-auto"
                                             >
                                                 View Course
@@ -523,7 +523,7 @@ const Home: React.FC = () => {
                         <Button
                             variant="outline"
                             size="lg"
-                            onClick={() => navigate('/courses')}
+                            onClick={() => navigate('/courses/')}
                             rightIcon={<ArrowRight className="w-5 h-5" />}
                             className="border-2 border-blue-600 dark:border-blue-400 text-blue-700 dark:text-blue-300 hover:bg-gradient-to-r hover:from-blue-600 hover:to-purple-600 dark:hover:from-blue-500 dark:hover:to-purple-500 hover:text-white dark:hover:text-white hover:border-transparent transition-all transform hover:scale-105 shadow-lg hover:shadow-xl"
                         >

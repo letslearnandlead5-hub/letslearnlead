@@ -37,7 +37,7 @@ const SubmitDoubt: React.FC = () => {
     const handleLogout = () => {
         logout();
         addToast({ type: 'success', message: 'Logged out successfully!' });
-        navigate('/login');
+        navigate('/login/');
     };
 
     useEffect(() => {
@@ -115,7 +115,7 @@ const SubmitDoubt: React.FC = () => {
             );
 
             addToast({ message: 'Doubt submitted successfully! Admin will respond soon.', type: 'success' });
-            navigate('/dashboard');
+            navigate('/dashboard/');
         } catch (error: any) {
             console.error('Error submitting doubt:', error);
             addToast({
@@ -294,7 +294,7 @@ const SubmitDoubt: React.FC = () => {
                         <div className="flex gap-4 pt-4">
                             <button
                                 type="button"
-                                onClick={() => navigate('/dashboard')}
+                                onClick={() => navigate('/dashboard/')}
                                 className="flex-1 px-6 py-3 rounded-xl border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                             >
                                 Cancel

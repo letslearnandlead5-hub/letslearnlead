@@ -40,7 +40,7 @@ const SignUp: React.FC = () => {
         try {
             await signup(name, email, password);
             addToast({ type: 'success', message: 'Account created successfully!' });
-            navigate('/dashboard');
+            navigate('/dashboard/');
         } catch (err: any) {
             setError(err.message || 'Signup failed. Please try again.');
             addToast({ type: 'error', message: err.message || 'Signup failed' });

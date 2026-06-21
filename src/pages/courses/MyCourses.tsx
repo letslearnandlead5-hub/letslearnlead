@@ -551,7 +551,7 @@ const MyCourses: React.FC = () => {
                                     <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
                                         Test your knowledge with course quizzes
                                     </p>
-                                    <Link to="/dashboard">
+                                    <Link to="/dashboard/">
                                         <Button variant="primary" size="sm" className="w-full">
                                             Take Quiz
                                         </Button>

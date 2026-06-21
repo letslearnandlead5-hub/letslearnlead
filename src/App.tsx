@@ -44,7 +44,7 @@ const ProtectedRoute = ({ children, requiredRole }: { children: React.ReactNode;
   const { isAuthenticated, user } = useAuthStore();
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" />;
+    return <Navigate to="/login/" />;
   }
 
   if (requiredRole && user?.role !== requiredRole) {
@@ -128,44 +128,44 @@ function App() {
       <Router>
         <Routes>
           {/* Admin Routes - No Header/Footer */}
-          <Route path="/dashboard" element={
+          <Route path="/dashboard/" element={
             <ProtectedRoute>
               <DashboardRouter />
             </ProtectedRoute>
           } />
 
           {/* Admin Course Editor Routes */}
-          <Route path="/admin/courses/new" element={
+          <Route path="/admin/courses/new/" element={
             <ProtectedRoute requiredRole="admin">
               <CourseEditor />
             </ProtectedRoute>
           } />
-          <Route path="/admin/courses/edit/:id" element={
+          <Route path="/admin/courses/edit/:id/" element={
             <ProtectedRoute requiredRole="admin">
               <CourseEditor />
             </ProtectedRoute>
           } />
-          <Route path="/admin/note-editor/:id?" element={
+          <Route path="/admin/note-editor/:id?/" element={
             <ProtectedRoute requiredRole="admin">
               <NoteEditor />
             </ProtectedRoute>
           } />
-          <Route path="/admin/quizzes" element={
+          <Route path="/admin/quizzes/" element={
             <ProtectedRoute requiredRole="admin">
               <QuizList />
             </ProtectedRoute>
           } />
-          <Route path="/admin/quizzes/new" element={
+          <Route path="/admin/quizzes/new/" element={
             <ProtectedRoute requiredRole="admin">
               <QuizEditor />
             </ProtectedRoute>
           } />
-          <Route path="/admin/quizzes/edit/:id" element={
+          <Route path="/admin/quizzes/edit/:id/" element={
             <ProtectedRoute requiredRole="admin">
               <QuizEditor />
             </ProtectedRoute>
           } />
-          <Route path="/admin/quizzes/:id/results" element={
+          <Route path="/admin/quizzes/:id/results/" element={
             <ProtectedRoute requiredRole="admin">
               <QuizResults />
             </ProtectedRoute>
@@ -174,26 +174,26 @@ function App() {
 
 
           {/* Admin Notification Editor Route */}
-          <Route path="/notifications/create" element={
+          <Route path="/notifications/create/" element={
             <ProtectedRoute requiredRole="admin">
               <NotificationEditor />
             </ProtectedRoute>
           } />
 
           {/* Admin Banner Management Route */}
-          <Route path="/admin/banners" element={
+          <Route path="/admin/banners/" element={
             <ProtectedRoute requiredRole="admin">
               <BannerManagement />
             </ProtectedRoute>
           } />
 
           {/* Admin Note Editor Routes */}
-          <Route path="/notes/create" element={
+          <Route path="/notes/create/" element={
             <ProtectedRoute requiredRole="admin">
               <NoteEditor />
             </ProtectedRoute>
           } />
-          <Route path="/notes/edit/:id" element={
+          <Route path="/notes/edit/:id/" element={
             <ProtectedRoute requiredRole="admin">
               <NoteEditor />
             </ProtectedRoute>
@@ -202,52 +202,52 @@ function App() {
 
           {/* Regular Routes - With Header/Footer */}
           <Route path="/" element={<MainLayout><Home /></MainLayout>} />
-          <Route path="/signup" element={<MainLayout><SignUp /></MainLayout>} />
-          <Route path="/login" element={<MainLayout><Login /></MainLayout>} />
-          <Route path="/auth/forgot-password" element={<MainLayout><ForgotPassword /></MainLayout>} />
-          <Route path="/auth/reset-password" element={<MainLayout><ResetPassword /></MainLayout>} />
-          <Route path="/auth/google/callback" element={<GoogleCallback />} />
-          <Route path="/courses" element={<MainLayout><CoursesList /></MainLayout>} />
-          <Route path="/courses/:id" element={<MainLayout><CourseDetails /></MainLayout>} />
-          <Route path="/video/:courseId/:lessonId" element={<MainLayout><VideoPlayer /></MainLayout>} />
-          <Route path="/notes" element={<MainLayout><NotesLibrary /></MainLayout>} />
-          <Route path="/notes/view/:noteId" element={
+          <Route path="/signup/" element={<MainLayout><SignUp /></MainLayout>} />
+          <Route path="/login/" element={<MainLayout><Login /></MainLayout>} />
+          <Route path="/auth/forgot-password/" element={<MainLayout><ForgotPassword /></MainLayout>} />
+          <Route path="/auth/reset-password/" element={<MainLayout><ResetPassword /></MainLayout>} />
+          <Route path="/auth/google/callback/" element={<GoogleCallback />} />
+          <Route path="/courses/" element={<MainLayout><CoursesList /></MainLayout>} />
+          <Route path="/courses/:id/" element={<MainLayout><CourseDetails /></MainLayout>} />
+          <Route path="/video/:courseId/:lessonId/" element={<MainLayout><VideoPlayer /></MainLayout>} />
+          <Route path="/notes/" element={<MainLayout><NotesLibrary /></MainLayout>} />
+          <Route path="/notes/view/:noteId/" element={
             <ProtectedRoute>
               <NoteViewer />
             </ProtectedRoute>
           } />
-          <Route path="/doubts" element={
+          <Route path="/doubts/" element={
             <ProtectedRoute>
               <MainLayout><MyDoubts /></MainLayout>
             </ProtectedRoute>
           } />
-          <Route path="/doubts/submit" element={
+          <Route path="/doubts/submit/" element={
             <ProtectedRoute>
               <MainLayout><SubmitDoubt /></MainLayout>
             </ProtectedRoute>
           } />
-          <Route path="/my-quizzes" element={
+          <Route path="/my-quizzes/" element={
             <ProtectedRoute>
               <MainLayout><MyQuizzes /></MainLayout>
             </ProtectedRoute>
           } />
-          <Route path="/quizzes/:id/attempt" element={
+          <Route path="/quizzes/:id/attempt/" element={
             <ProtectedRoute>
               <MainLayout><QuizAttempt /></MainLayout>
             </ProtectedRoute>
           } />
-          <Route path="/quizzes/:id/result/:attemptId" element={
+          <Route path="/quizzes/:id/result/:attemptId/" element={
             <ProtectedRoute>
               <MainLayout><QuizResultView /></MainLayout>
             </ProtectedRoute>
           } />
-          <Route path="/quizzes/:id/leaderboard" element={
+          <Route path="/quizzes/:id/leaderboard/" element={
             <ProtectedRoute>
               <MainLayout><QuizLeaderboard /></MainLayout>
             </ProtectedRoute>
           } />
-          <Route path="/about" element={<MainLayout><AboutUs /></MainLayout>} />
-          <Route path="/contact" element={<MainLayout><Contact /></MainLayout>} />
+          <Route path="/about/" element={<MainLayout><AboutUs /></MainLayout>} />
+          <Route path="/contact/" element={<MainLayout><Contact /></MainLayout>} />
         </Routes>
 
         {/* Toast Notifications */}

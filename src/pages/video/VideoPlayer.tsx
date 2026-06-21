@@ -67,7 +67,7 @@ const VideoPlayer: React.FC = () => {
             } catch (error) {
                 console.error('Error verifying enrollment:', error);
                 // On error, redirect to courses list for safety
-                navigate('/courses');
+                navigate('/courses/');
             }
         };
 
@@ -736,7 +736,7 @@ const VideoPlayer: React.FC = () => {
                                                                         key={item._id || itemIndex}
                                                                         onClick={() => {
                                                                             if (item._id) {
-                                                                                navigate(`/video/${courseId}/${item._id}`);
+                                                                                navigate(`/video/${courseId}/${item._id}/`);
                                                                             }
                                                                         }}
                                                                         className={`p-2 rounded cursor-pointer text-sm transition-all ${isCurrent

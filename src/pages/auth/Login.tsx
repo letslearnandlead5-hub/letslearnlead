@@ -32,9 +32,9 @@ const Login: React.FC = () => {
             const pendingCourseId = localStorage.getItem('pendingCourseId');
             if (pendingCourseId) {
                 localStorage.removeItem('pendingCourseId');
-                navigate(`/courses/${pendingCourseId}/purchase`);
+                navigate(`/courses/${pendingCourseId}/purchase/`);
             } else {
-                navigate('/dashboard');
+                navigate('/dashboard/');
             }
         } catch (err: any) {
             setError(err.message || 'Login failed. Please try again.');

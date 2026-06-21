@@ -66,7 +66,7 @@ const CourseEditor: React.FC = () => {
         } catch (error) {
             console.error('Error loading course:', error);
             addToast({ type: 'error', message: 'Failed to load course' });
-            navigate('/dashboard');
+            navigate('/dashboard/');
             setTimeout(() => {
                 window.dispatchEvent(new CustomEvent('selectAdminTab', { detail: 'courses' }));
             }, 100);
@@ -148,7 +148,7 @@ const CourseEditor: React.FC = () => {
             }
 
             // Navigate to dashboard and select courses tab
-            navigate('/dashboard');
+            navigate('/dashboard/');
             setTimeout(() => {
                 window.dispatchEvent(new CustomEvent('selectAdminTab', { detail: 'courses' }));
             }, 100);
@@ -166,7 +166,7 @@ const CourseEditor: React.FC = () => {
     const handleLogout = () => {
         logout();
         addToast({ type: 'success', message: 'Logged out successfully!' });
-        navigate('/login');
+        navigate('/login/');
     };
 
     const tabs = [

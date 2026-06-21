@@ -90,7 +90,7 @@ const PaymentFailed: React.FC = () => {
                                 variant="primary"
                                 size="lg"
                                 className="flex-1"
-                                onClick={() => navigate('/payment')}
+                                onClick={() => navigate('/payment/')}
                                 leftIcon={<RotateCcw className="w-5 h-5" />}
                             >
                                 Try Again

@@ -29,9 +29,9 @@ const PaymentPage: React.FC = () => {
                 const orderId = 'ORD-' + Math.random().toString(36).substring(2, 10).toUpperCase();
                 console.log('Passing shipping address to order tracker:', shippingAddress);
                 // Navigate to order tracker with shipping address
-                navigate(`/orders/${orderId}`, { state: { shippingAddress } });
+                navigate(`/orders/${orderId}/`, { state: { shippingAddress } });
             } else {
-                navigate('/payment/failed');
+                navigate('/payment/failed/');
             }
         }, 3000);
     };

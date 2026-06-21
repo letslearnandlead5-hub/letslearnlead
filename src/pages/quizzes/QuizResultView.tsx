@@ -36,7 +36,7 @@ const QuizResultView: React.FC = () => {
             setResult(data.result);
         } catch (error: any) {
             toast.error(error.response?.data?.message || 'Failed to load results');
-            navigate('/my-quizzes');
+            navigate('/my-quizzes/');
         } finally {
             setLoading(false);
         }

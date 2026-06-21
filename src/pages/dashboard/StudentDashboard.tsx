@@ -68,7 +68,7 @@ const StudentDashboard: React.FC = () => {
     const confirmLogout = () => {
         logout();
         addToast({ type: 'success', message: 'Logged out successfully!' });
-        navigate('/login');
+        navigate('/login/');
         setShowLogoutModal(false);
     };
 

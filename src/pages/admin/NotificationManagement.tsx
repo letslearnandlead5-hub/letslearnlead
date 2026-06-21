@@ -172,7 +172,7 @@ const NotificationManagement: React.FC = () => {
                         {notifications.map((notification) => (
                             <div
                                 key={notification._id}
-                                className="flex items-start gap-4 p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                                className="flex items-start gap-4 p-4 border border-gray-200 dark:border-gray-700 rounded-lg"
                             >
                                 <div className={`p-2 rounded-lg ${getTypeColor(notification.type)}`}>
                                     <Bell className="w-5 h-5" />

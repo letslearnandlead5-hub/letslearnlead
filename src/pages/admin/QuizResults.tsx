@@ -263,7 +263,7 @@ const QuizResults: React.FC = () => {
                                             initial={{ opacity: 0, x: -20 }}
                                             animate={{ opacity: 1, x: 0 }}
                                             transition={{ delay: index * 0.03 }}
-                                            className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+                                            className=""
                                         >
                                             <td className="px-6 py-4 whitespace-nowrap">
                                                 <span className="text-sm font-bold text-gray-900 dark:text-white">

@@ -573,7 +573,7 @@ export const BannerManagement: React.FC = () => {
             {banners.map((banner) => (
               <div
                 key={banner._id}
-                className="flex items-start gap-4 p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                className="flex items-start gap-4 p-4 border border-gray-200 dark:border-gray-700 rounded-lg"
               >
                 <div
                   className="w-32 h-20 rounded-lg flex items-center justify-center text-white font-bold text-sm shadow-md"

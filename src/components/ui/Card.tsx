@@ -9,7 +9,7 @@ interface CardProps extends HTMLAttributes<HTMLDivElement> {
 }
 
 const Card = forwardRef<HTMLDivElement, CardProps>(
-    ({ className, variant = 'default', hover = true, children, ...props }, ref) => {
+    ({ className, variant = 'default', hover = false, children, ...props }, ref) => {
         const { onDrag, onDragStart, onDragEnd, onAnimationStart, onAnimationEnd, ...restProps } = props;
         
         const variants = {

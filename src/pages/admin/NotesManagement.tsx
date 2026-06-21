@@ -247,7 +247,7 @@ const NotesManagement: React.FC = () => {
                                 </tr>
                             ) : (
                                 notes.map((note) => (
-                                    <tr key={note._id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                                    <tr key={note._id} className="">
                                         <td className="px-6 py-4">
                                             <div className="flex items-center">
                                                 <FileText className="w-5 h-5 text-primary-600 mr-3" />

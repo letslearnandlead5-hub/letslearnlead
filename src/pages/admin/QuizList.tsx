@@ -222,7 +222,7 @@ const QuizList: React.FC = () => {
                                             </thead>
                                             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                                                 {filteredQuizzes.map((quiz, index) => (
-                                                    <motion.tr key={quiz._id || quiz.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.05 }} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                                                    <motion.tr key={quiz._id || quiz.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.05 }} className="">
                                                         <td className="px-6 py-4">
                                                             <div className="flex flex-col">
                                                                 <div className="text-sm font-medium text-gray-900 dark:text-white">{quiz.title}</div>

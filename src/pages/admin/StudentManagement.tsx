@@ -322,7 +322,7 @@ const StudentManagement: React.FC = () => {
                                 </tr>
                             ) : (
                                 students.map((student) => (
-                                    <tr key={student._id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                                    <tr key={student._id} className="">
                                         <td className="px-6 py-4">
                                             <div className="flex items-center">
                                                 <div className="w-10 h-10 rounded-full bg-primary-100 dark:bg-primary-900 flex items-center justify-center mr-3">

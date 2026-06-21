@@ -13,30 +13,43 @@ const router = Router();
 router.get('/', async (req: Request, res: Response, next) => {
     try {
         const startTime = Date.now();
-        const { category, level, search, medium, featured, page = '1', limit = '100' } = req.query;
+        const { category, level, search, medium, featured, grade, page = '1', limit = '100' } = req.query;
 
         // Build a stable cache key from query params
-        const cacheKey = `courses:${category || ''}:${level || ''}:${search || ''}:${medium || ''}:${featured || ''}:${page}:${limit}`;
+        const cacheKey = `courses:${category || ''}:${level || ''}:${search || ''}:${medium || ''}:${featured || ''}:${grade || ''}:${page}:${limit}`;
 
+        // TEMPORARILY DISABLE CACHE FOR DEBUGGING
         // Return cached result if still fresh (avoids DB hit on every page load)
-        const cached = cache.get<any[]>(cacheKey);
-        if (cached) {
-            console.log(`✅ Cache HIT for ${cacheKey} - ${Date.now() - startTime}ms`);
-            return res.status(200).json({
-                success: true,
-                count: cached.length,
-                data: cached,
-                cached: true,
-            });
-        }
+        // const cached = cache.get<any[]>(cacheKey);
+        // if (cached) {
+        //     console.log(`✅ Cache HIT for ${cacheKey} - ${Date.now() - startTime}ms`);
+        //     return res.status(200).json({
+        //         success: true,
+        //         count: cached.length,
+        //         data: cached,
+        //         cached: true,
+        //     });
+        // }
 
-        console.log(`⏳ Cache MISS for ${cacheKey} - Fetching from DB...`);
-        console.log(`📋 Filter params:`, { category, level, search, medium, featured });
+        // Minimal logging - only log slow queries
+        // console.log(`⏳ Cache MISS for ${cacheKey} - Fetching from DB...`);
+        // console.log(`📋 Filter params:`, { category, level, search, medium, featured, grade });
 
         const filter: any = {};
-        if (category) filter.category = category;
+        if (category && category !== 'all') filter.category = category;
         if (level) filter.level = level;
-        if (search) filter.title = { $regex: search, $options: 'i' };
+        if (grade && grade !== 'All') filter.grade = grade;
+        
+        // Enhanced search: search in title, description, category, and instructor
+        if (search) {
+            filter.$or = [
+                { title: { $regex: search, $options: 'i' } },
+                { description: { $regex: search, $options: 'i' } },
+                { category: { $regex: search, $options: 'i' } },
+                { instructor: { $regex: search, $options: 'i' } },
+            ];
+        }
+        
         // medium filter: exact match only
         if (medium && medium !== 'all') {
             filter.medium = medium;
@@ -48,7 +61,8 @@ router.get('/', async (req: Request, res: Response, next) => {
             filter.featuredOnHome = false;
         }
 
-        console.log(`🔍 MongoDB filter:`, JSON.stringify(filter));
+        // console.log(`🔍 MongoDB filter:`, JSON.stringify(filter));
+        // console.log(`🔍 Grade filter specifically:`, grade, '→', filter.grade);
 
         const dbStartTime = Date.now();
         const pageNum = parseInt(page as string);
@@ -59,7 +73,7 @@ router.get('/', async (req: Request, res: Response, next) => {
         // studentsEnrolled is already maintained as a counter on the Course document
         // — no need for a separate expensive User.aggregate() on every request.
         const courses = await Course.find(filter)
-            .select('title description instructor thumbnail price originalPrice rating studentsEnrolled duration category level medium featuredOnHome')
+            .select('title description instructor thumbnail price originalPrice rating studentsEnrolled duration category level medium grade featuredOnHome')
             .sort({ createdAt: -1 })
             .skip(skip)
             .limit(limitNum)
@@ -67,13 +81,18 @@ router.get('/', async (req: Request, res: Response, next) => {
             .exec();
 
         const dbTime = Date.now() - dbStartTime;
-        console.log(`📊 DB Query took ${dbTime}ms - Found ${courses.length} courses`);
+        // console.log(`📊 DB Query took ${dbTime}ms - Found ${courses.length} courses`);
+        // console.log(`📊 Courses returned:`, courses.map(c => ({ title: c.title, grade: c.grade, category: c.category, medium: c.medium })));
 
-        // Cache results for TTL seconds
-        cache.set(cacheKey, courses, TTL.COURSES_LIST);
+        // Cache results for TTL seconds - TEMPORARILY DISABLED
+        // cache.set(cacheKey, courses, TTL.COURSES_LIST);
 
         const totalTime = Date.now() - startTime;
-        console.log(`✅ Total request time: ${totalTime}ms`);
+        
+        // Only log slow queries (> 100ms)
+        if (totalTime > 100) {
+            console.log(`⚠️ Slow query (${totalTime}ms): ${cacheKey}`);
+        }
 
         res.status(200).json({
             success: true,
@@ -195,6 +214,25 @@ router.delete('/:id', protect, authorize('admin'), async (req: Request, res: Res
         });
     } catch (error) {
         next(error);
+    }
+});
+
+// @route   POST /api/courses/cache/clear
+// @desc    Clear course cache (for debugging)
+// @access  Public (temporary for debugging)
+router.post('/cache/clear', async (req: Request, res: Response) => {
+    try {
+        cache.invalidatePrefix('courses:');
+        console.log('🗑️ Cleared all course caches');
+        res.status(200).json({
+            success: true,
+            message: 'Course cache cleared successfully',
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: 'Failed to clear cache',
+        });
     }
 });
 

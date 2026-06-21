@@ -52,7 +52,8 @@ export interface ICourse extends Document {
     duration: string;
     category: string;
     level: 'beginner' | 'intermediate' | 'advanced';
-    medium: 'kannada' | 'english' | 'both';
+    medium: 'kannada' | 'english';
+    grade?: string; // e.g., "6th", "7th", "8th", "9th", "10th"
     featuredOnHome: boolean;
     sections: ISection[]; // New hierarchical structure
     lessons: ILesson[]; // Legacy field for backward compatibility
@@ -201,9 +202,13 @@ const CourseSchema = new Schema<ICourse>(
         },
         medium: {
             type: String,
-            enum: ['kannada', 'english', 'both'],
-            default: 'both',
+            enum: ['kannada', 'english'],
+            default: 'kannada',
             index: true, // Index for fast medium filtering
+        },
+        grade: {
+            type: String,
+            index: true, // Index for fast grade filtering
         },
         featuredOnHome: {
             type: Boolean,

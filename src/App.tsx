@@ -21,6 +21,7 @@ import NotesLibrary from './pages/notes/NotesLibrary';
 import CourseEditor from './pages/admin/CourseEditor';
 import NotificationEditor from './pages/admin/NotificationEditor';
 import NoteEditor from './pages/admin/NoteEditor';
+import { BannerManagement } from './pages/admin/BannerManagement';
 import AboutUs from './pages/AboutUs';
 import Contact from './pages/Contact';
 import DashboardRouter from './pages/DashboardRouter';
@@ -176,6 +177,13 @@ function App() {
           <Route path="/notifications/create" element={
             <ProtectedRoute requiredRole="admin">
               <NotificationEditor />
+            </ProtectedRoute>
+          } />
+
+          {/* Admin Banner Management Route */}
+          <Route path="/admin/banners" element={
+            <ProtectedRoute requiredRole="admin">
+              <BannerManagement />
             </ProtectedRoute>
           } />
 

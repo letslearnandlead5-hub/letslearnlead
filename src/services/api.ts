@@ -110,8 +110,8 @@ export const statsAPI = {
 export const notificationAPI = {
   getAll: (params?: any) => api.get("/notifications", { params }),
   markAsRead: (id: string) => api.put(`/notifications/${id}/read`),
-  markAllAsRead: () => api.put("/notifications/read-all"),
-  create: (data: any) => api.post("/notifications", data),
+  markAllAsRead: () => api.put("/notifications/mark-all-read"),
+  create: (data: any) => api.post("/notifications/create", data),
   update: (id: string, data: any) => api.put(`/notifications/${id}`, data),
   delete: (id: string) => api.delete(`/notifications/${id}`),
 };
@@ -157,6 +157,15 @@ export const userNoteAPI = {
   updateCategory: (id: string, category: string) =>
     api.put(`/user-notes/${id}/category`, { category }),
   markViewed: (id: string) => api.put(`/user-notes/${id}/view`),
+};
+
+/* ================= BANNERS ================= */
+export const bannerAPI = {
+  getAll: () => api.get("/banners"),
+  getAllAdmin: () => api.get("/banners/all"),
+  create: (data: any) => api.post("/banners", data),
+  update: (id: string, data: any) => api.put(`/banners/${id}`, data),
+  delete: (id: string) => api.delete(`/banners/${id}`),
 };
 
 export default api;

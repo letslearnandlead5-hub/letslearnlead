@@ -28,8 +28,9 @@ const CourseEditor: React.FC = () => {
         originalPrice: '',
         duration: '',
         category: '',
+        grade: '',
         level: 'beginner',
-        medium: 'both',
+        medium: 'kannada',
         featuredOnHome: false,
         sections: [] as ISection[],
     });
@@ -56,8 +57,9 @@ const CourseEditor: React.FC = () => {
                 originalPrice: course.originalPrice?.toString() || '',
                 duration: course.duration,
                 category: course.category,
+                grade: course.grade || '',
                 level: course.level,
-                medium: course.medium || 'both',
+                medium: course.medium || 'kannada',
                 featuredOnHome: course.featuredOnHome === true,
                 sections: course.sections || [],
             });
@@ -130,6 +132,7 @@ const CourseEditor: React.FC = () => {
                 originalPrice: formData.originalPrice ? parseFloat(formData.originalPrice) : undefined,
                 duration: formData.duration,
                 category: formData.category,
+                grade: formData.grade || undefined,
                 level: formData.level,
                 medium: formData.medium,
                 featuredOnHome: formData.featuredOnHome,
@@ -408,8 +411,8 @@ const CourseEditor: React.FC = () => {
                                             </div>
                                         </div>
 
-                                        {/* Duration and Category */}
-                                        <div className="grid grid-cols-2 gap-4">
+                                        {/* Duration, Category, and Grade */}
+                                        <div className="grid grid-cols-3 gap-4">
                                             <div>
                                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                                                     Duration *
@@ -421,12 +424,12 @@ const CourseEditor: React.FC = () => {
                                                     onChange={handleFormChange}
                                                     required
                                                     className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                                                    placeholder="e.g., 40h or 6 weeks"
+                                                    placeholder="e.g., 1 Year"
                                                 />
                                             </div>
                                             <div>
                                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                                    Category *
+                                                    Category (Subject) *
                                                 </label>
                                                 <select
                                                     name="category"
@@ -436,16 +439,36 @@ const CourseEditor: React.FC = () => {
                                                     className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
                                                 >
                                                     <option value="">Select Category</option>
-                                                    <option value="6th Standard">6th Standard</option>
-                                                    <option value="7th Standard">7th Standard</option>
-                                                    <option value="8th Standard">8th Standard</option>
-                                                    <option value="9th Standard">9th Standard</option>
-                                                    <option value="10th Standard">10th Standard</option>
-                                                    <option value="PUC">PUC (11th & 12th)</option>
-                                                    <option value="NEET">NEET Preparation</option>
-                                                    <option value="Language">Language</option>
-                                                    <option value="Foundation Course">Foundation Course</option>
-                                                    <option value="Other">Other</option>
+                                                    <option value="science">🔬 Science</option>
+                                                    <option value="math">📐 Mathematics</option>
+                                                    <option value="english">📚 English</option>
+                                                    <option value="kannada">🗣️ Kannada</option>
+                                                    <option value="social">🌍 Social Studies</option>
+                                                    <option value="computer">💻 Computer Science</option>
+                                                    <option value="physics">⚛️ Physics</option>
+                                                    <option value="chemistry">🧪 Chemistry</option>
+                                                    <option value="biology">🧬 Biology</option>
+                                                    <option value="history">📜 History</option>
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                                    Grade / Standard
+                                                </label>
+                                                <select
+                                                    name="grade"
+                                                    value={formData.grade}
+                                                    onChange={handleFormChange}
+                                                    className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                                >
+                                                    <option value="">Select Grade</option>
+                                                    <option value="6th">6th Standard</option>
+                                                    <option value="7th">7th Standard</option>
+                                                    <option value="8th">8th Standard</option>
+                                                    <option value="9th">9th Standard</option>
+                                                    <option value="10th">10th Standard</option>
+                                                    <option value="11th">11th Standard (PUC)</option>
+                                                    <option value="12th">12th Standard (PUC)</option>
                                                 </select>
                                             </div>
                                         </div>
@@ -479,7 +502,6 @@ const CourseEditor: React.FC = () => {
                                                     required
                                                     className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
                                                 >
-                                                    <option value="both">Both (Kannada & English)</option>
                                                     <option value="kannada">🔵 Kannada Medium</option>
                                                     <option value="english">🟢 English Medium</option>
                                                 </select>

@@ -307,6 +307,7 @@ const AdminDashboard: React.FC = () => {
         { id: 'quizzes', label: 'Quizzes', icon: FileQuestion },
         { id: 'doubts', label: 'Student Doubts', icon: MessageSquare },
         { id: 'notifications', label: 'Notifications', icon: Brain },
+        { id: 'banners', label: 'Mobile Banners', icon: FileText },
     ];
 
     return (
@@ -335,6 +336,8 @@ const AdminDashboard: React.FC = () => {
                                 onClick={() => {
                                     if (tab.id === 'quizzes') {
                                         navigate('/admin/quizzes');
+                                    } else if (tab.id === 'banners') {
+                                        navigate('/admin/banners');
                                     } else {
                                         setSelectedTab(tab.id);
                                         setShowMobileSidebar(false);

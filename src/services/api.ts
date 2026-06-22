@@ -91,6 +91,13 @@ api.interceptors.response.use(
         errorCode === 'SESSION_INVALIDATED' ||
         errorCode === 'ACCOUNT_BLOCKED'
       ) {
+        // Don't show the modal if the user is already on an auth page
+        const authPaths = ['/login', '/login/', '/signup', '/signup/', '/auth/forgot-password/', '/auth/reset-password/'];
+        const isOnAuthPage = authPaths.some(p => window.location.pathname === p);
+        if (isOnAuthPage) {
+          return Promise.reject(responseData || error.message);
+        }
+
         const reason =
           errorCode === 'DEVICE_MISMATCH'
             ? 'Your session was ended because this account logged in on another device.'

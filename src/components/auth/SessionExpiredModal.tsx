@@ -1,13 +1,24 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ShieldAlert, LogIn, Clock } from 'lucide-react';
 import { useAuthStore } from '../../store/useAuthStore';
 
+// Routes where the session-expired modal should never appear
+const AUTH_ROUTES = ['/login/', '/login', '/signup/', '/signup', '/auth/forgot-password/', '/auth/reset-password/'];
+
 const SessionExpiredModal: React.FC = () => {
     const { sessionExpired, sessionExpiredReason, clearSessionExpiry } = useAuthStore();
     const navigate = useNavigate();
+    const location = useLocation();
     const [countdown, setCountdown] = useState(6);
+
+    // If user is already on an auth page, clear the stale sessionExpired flag immediately
+    useEffect(() => {
+        if (sessionExpired && AUTH_ROUTES.includes(location.pathname)) {
+            clearSessionExpiry();
+        }
+    }, [location.pathname, sessionExpired, clearSessionExpiry]);
 
     // Auto-redirect countdown when modal is visible
     useEffect(() => {
@@ -34,9 +45,12 @@ const SessionExpiredModal: React.FC = () => {
         navigate('/login/', { replace: true });
     };
 
+    // Never show modal when user is already on an auth page
+    const isOnAuthPage = AUTH_ROUTES.includes(location.pathname);
+
     return (
         <AnimatePresence>
-            {sessionExpired && (
+            {sessionExpired && !isOnAuthPage && (
                 <>
                     {/* Backdrop */}
                     <motion.div

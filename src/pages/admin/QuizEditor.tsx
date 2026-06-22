@@ -97,7 +97,7 @@ const QuizEditor: React.FC = () => {
             setQuestions(quiz.questions || []);
         } catch (error: any) {
             toast.error(error.response?.data?.message || 'Failed to load quiz');
-            navigate('/dashboard');
+            navigate('/dashboard/');
         } finally {
             setLoading(false);
         }
@@ -277,14 +277,14 @@ const QuizEditor: React.FC = () => {
                 toast.success('Quiz created successfully');
 
                 if (publish) {
-                    navigate('/dashboard');
+                    navigate('/dashboard/');
                 } else {
-                    navigate(`/admin/quizzes/edit/${newQuiz._id}`);
+                    navigate(`/admin/quizzes/edit/${newQuiz._id}/`);
                 }
                 return;
             }
 
-            navigate('/dashboard');
+            navigate('/dashboard/');
         } catch (error: any) {
             toast.error(error.response?.data?.message || 'Failed to save quiz');
         } finally {
@@ -295,7 +295,7 @@ const QuizEditor: React.FC = () => {
     const handleLogout = () => {
         logout();
         toast.success('Logged out successfully');
-        navigate('/login');
+        navigate('/login/');
     };
 
     const tabs = [
@@ -341,11 +341,11 @@ const QuizEditor: React.FC = () => {
                                 key={tab.id}
                                 onClick={() => {
                                     if (tab.id === 'quizzes') {
-                                        navigate('/admin/quizzes');
+                                        navigate('/admin/quizzes/');
                                         setShowMobileSidebar(false);
                                     } else {
                                         window.dispatchEvent(new CustomEvent('selectAdminTab', { detail: tab.id }));
-                                        navigate('/dashboard');
+                                        navigate('/dashboard/');
                                         setShowMobileSidebar(false);
                                     }
                                 }}
@@ -355,7 +355,7 @@ const QuizEditor: React.FC = () => {
                                 <span className="font-medium">{tab.label}</span>
                             </button>
                         ))}
-                        <button onClick={() => { window.dispatchEvent(new CustomEvent('selectAdminTab', { detail: 'settings' })); navigate('/dashboard'); setShowMobileSidebar(false); }} className="w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors mt-6 hover:bg-gray-100 dark:hover:bg-gray-800">
+                        <button onClick={() => { window.dispatchEvent(new CustomEvent('selectAdminTab', { detail: 'settings' })); navigate('/dashboard/'); setShowMobileSidebar(false); }} className="w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors mt-6 hover:bg-gray-100 dark:hover:bg-gray-800">
                             <Settings className="w-5 h-5" />
                             <span className="font-medium">Settings</span>
                         </button>
@@ -376,7 +376,7 @@ const QuizEditor: React.FC = () => {
                             {/* Header */}
                             <div className="mb-8">
                                 <button
-                                    onClick={() => navigate('/admin/quizzes')}
+                                    onClick={() => navigate('/admin/quizzes/')}
                                     className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white mb-4"
                                 >
                                     <ChevronLeft className="w-5 h-5" />

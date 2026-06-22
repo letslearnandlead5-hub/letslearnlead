@@ -17,6 +17,14 @@ export interface IUser extends Document {
     subjectInterests?: string[];
     enrolledCourses: mongoose.Types.ObjectId[];
     isBlocked?: boolean;
+    // ── Single Device Login fields ──────────────────────────────────────
+    currentDeviceId?: string;        // UUID fingerprint of the active browser
+    activeSessionToken?: string;     // SHA-256 hash of the active refresh token
+    lastLoginAt?: Date;              // Timestamp of last successful login
+    deviceInfo?: string;             // User-agent string at login time
+    ipAddress?: string;              // IP address at login time
+    sessionStatus?: 'active' | 'invalidated'; // Explicit session state
+    // ────────────────────────────────────────────────────────────────────
     createdAt: Date;
     updatedAt: Date;
 }
@@ -87,6 +95,30 @@ const UserSchema = new Schema<IUser>(
             type: Boolean,
             default: false,
         },
+        // ── Single Device Login fields ──────────────────────────────────
+        currentDeviceId: {
+            type: String,
+            select: false, // Not included in default queries — must be explicitly selected
+        },
+        activeSessionToken: {
+            type: String,
+            select: false, // Sensitive — never expose to client
+        },
+        lastLoginAt: {
+            type: Date,
+        },
+        deviceInfo: {
+            type: String,
+        },
+        ipAddress: {
+            type: String,
+        },
+        sessionStatus: {
+            type: String,
+            enum: ['active', 'invalidated'],
+            default: null,
+        },
+        // ────────────────────────────────────────────────────────────────
     },
     {
         timestamps: true,

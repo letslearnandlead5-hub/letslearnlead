@@ -1,11 +1,12 @@
-import axios from "axios";
+import axios, { AxiosRequestConfig } from "axios";
+import { getDeviceId } from "../utils/deviceId";
 
 /**
  * IMPORTANT:
  * VITE_API_URL should be:
  * https://api.letslearnandlead.com (production)
  * http://localhost:5000 (development)
- * 
+ *
  * The /api prefix is added automatically below
  */
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
@@ -22,17 +23,27 @@ if (import.meta.env.DEV) {
 // Create axios instance
 const api = axios.create({
   baseURL: `${API_BASE_URL}/api`,
-  withCredentials: true, // ✅ REQUIRED for cookies
-  timeout: 30000, // 30 second timeout
-  // NOTE: Don't set Content-Type here! 
-  // Axios automatically sets it based on request data:
-  // - FormData → multipart/form-data (for file uploads)
-  // - Objects → application/json (for regular API calls)
+  withCredentials: true, // ✅ REQUIRED — sends HTTP-only refresh token cookie
+  timeout: 30000,
 });
 
-// 🔐 Request interceptor (JWT from Zustand)
+// ── Flag to prevent multiple simultaneous refresh attempts ──────────────────
+let isRefreshing = false;
+let refreshSubscribers: ((token: string) => void)[] = [];
+
+const subscribeTokenRefresh = (cb: (token: string) => void) => {
+  refreshSubscribers.push(cb);
+};
+
+const onTokenRefreshed = (token: string) => {
+  refreshSubscribers.forEach(cb => cb(token));
+  refreshSubscribers = [];
+};
+
+// ── Request interceptor ──────────────────────────────────────────────────────
 api.interceptors.request.use(
   (config) => {
+    // Attach JWT access token from Zustand store
     const authStorage = localStorage.getItem("auth-storage");
     if (authStorage) {
       try {
@@ -45,30 +56,130 @@ api.interceptors.request.use(
         console.error("Auth parse error:", err);
       }
     }
+
+    // Attach device ID on every request for device verification
+    try {
+      const deviceId = getDeviceId();
+      if (deviceId) {
+        config.headers['X-Device-Id'] = deviceId;
+      }
+    } catch {
+      // localStorage may be unavailable in some edge cases
+    }
+
     return config;
   },
   (error) => Promise.reject(error)
 );
 
-// ❗ Response interceptor
+// ── Response interceptor ─────────────────────────────────────────────────────
 api.interceptors.response.use(
   (response) => response.data,
-  (error) => {
-    if (error.response?.status === 401) {
-      localStorage.removeItem("auth-storage");
-      window.location.href = "/login";
+
+  async (error) => {
+    const originalRequest: AxiosRequestConfig & { _retry?: boolean } = error.config;
+    const status = error.response?.status;
+    const responseData = error.response?.data;
+    const errorCode = responseData?.code;
+
+    // ── 401 handling ─────────────────────────────────────────────────────────
+    if (status === 401) {
+
+      // DEVICE_MISMATCH or SESSION_INVALIDATED → trigger session expiry UI
+      if (
+        errorCode === 'DEVICE_MISMATCH' ||
+        errorCode === 'SESSION_INVALIDATED' ||
+        errorCode === 'ACCOUNT_BLOCKED'
+      ) {
+        const reason =
+          errorCode === 'DEVICE_MISMATCH'
+            ? 'Your session was ended because this account logged in on another device.'
+            : errorCode === 'ACCOUNT_BLOCKED'
+            ? 'Your account has been disabled by an administrator.'
+            : 'Your session has been ended. Please log in again.';
+
+        // Dynamically import to avoid circular dependency
+        const { useAuthStore } = await import('../store/useAuthStore');
+        useAuthStore.getState().triggerSessionExpiry(reason);
+        return Promise.reject(responseData || error.message);
+      }
+
+      // TOKEN_EXPIRED → attempt silent refresh (only once per original request)
+      if (errorCode === 'TOKEN_EXPIRED' && !originalRequest._retry) {
+        originalRequest._retry = true;
+
+        if (isRefreshing) {
+          // Queue the request until refresh completes
+          return new Promise((resolve) => {
+            subscribeTokenRefresh((newToken: string) => {
+              originalRequest.headers = {
+                ...originalRequest.headers,
+                Authorization: `Bearer ${newToken}`,
+              };
+              resolve(api(originalRequest));
+            });
+          });
+        }
+
+        isRefreshing = true;
+
+        try {
+          const refreshResponse: any = await api.post('/auth/refresh');
+          const newToken = refreshResponse?.token;
+
+          if (newToken) {
+            // Update the store token
+            const { useAuthStore } = await import('../store/useAuthStore');
+            useAuthStore.getState().setToken(newToken);
+            if (refreshResponse.user) {
+              useAuthStore.getState().updateUser(refreshResponse.user);
+            }
+
+            onTokenRefreshed(newToken);
+            isRefreshing = false;
+
+            // Retry original request with new token
+            originalRequest.headers = {
+              ...originalRequest.headers,
+              Authorization: `Bearer ${newToken}`,
+            };
+            return api(originalRequest);
+          }
+        } catch (refreshError) {
+          isRefreshing = false;
+          refreshSubscribers = [];
+
+          // Refresh failed → full logout
+          const { useAuthStore } = await import('../store/useAuthStore');
+          useAuthStore.getState().triggerSessionExpiry('Your session has expired. Please log in again.');
+          return Promise.reject(refreshError);
+        }
+      }
+
+      // Generic 401 (e.g., no token on a protected endpoint) — clear state
+      if (!originalRequest._retry) {
+        localStorage.removeItem("auth-storage");
+        if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
+          window.location.href = "/login";
+        }
+      }
     }
-    return Promise.reject(error.response?.data || error.message);
+
+    return Promise.reject(responseData || error.message);
   }
 );
 
 /* ================= AUTH ================= */
 export const authAPI = {
-  signup: (data: { name: string; email: string; password: string }) =>
+  signup: (data: { name: string; email: string; password: string; deviceId?: string; deviceInfo?: string }) =>
     api.post("/auth/signup", data),
-  login: (data: { email: string; password: string }) =>
+  login: (data: { email: string; password: string; deviceId?: string; deviceInfo?: string }) =>
     api.post("/auth/login", data),
+  logout: () => api.post("/auth/logout"),
+  refresh: () => api.post("/auth/refresh"),
   getMe: () => api.get("/auth/me"),
+  adminInvalidateSession: (userId: string) =>
+    api.post("/auth/admin/invalidate-session", { userId }),
 };
 
 /* ================= COURSES ================= */
@@ -92,9 +203,6 @@ export const noteAPI = {
   delete: (id: string) => api.delete(`/notes/${id}`),
 };
 
-/* ================= SHOP ================= */
-// Shop functionality removed - no longer needed
-
 /* ================= SETTINGS ================= */
 export const settingsAPI = {
   get: () => api.get("/settings"),
@@ -116,9 +224,6 @@ export const notificationAPI = {
   delete: (id: string) => api.delete(`/notifications/${id}`),
 };
 
-/* ================= PAYMENT ================= */
-// Payment functionality removed - enrollment is now admin-only
-
 /* ================= ADMIN ================= */
 export const adminAPI = {
   users: {
@@ -135,7 +240,6 @@ export const adminAPI = {
     update: (id: string, data: any) => api.put(`/admin/students/${id}`, data),
     delete: (id: string) => api.delete(`/admin/students/${id}`),
   },
-  // Product and order management removed - no longer needed
   dashboard: {
     getStats: () => api.get("/admin/dashboard/stats"),
   },
@@ -169,4 +273,3 @@ export const bannerAPI = {
 };
 
 export default api;
-

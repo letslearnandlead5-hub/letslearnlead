@@ -413,7 +413,7 @@ const CoursesList: React.FC = () => {
                                     <motion.div key={course._id} variants={staggerItem}>
                                         <Card
                                             className="cursor-pointer group h-full flex flex-col hover:shadow-2xl transition-all"
-                                            onClick={() => navigate(`/courses/${course._id}`)}
+                                            onClick={() => navigate(`/courses/${course._id}/`)}
                                         >
                                             <div className="relative overflow-hidden rounded-xl mb-4">
                                                 <img

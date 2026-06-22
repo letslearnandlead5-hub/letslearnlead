@@ -1,42 +1,44 @@
 import React, { useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useToastStore } from '../../store/useToastStore';
+import { useAuthStore } from '../../store/useAuthStore';
 
 const GoogleCallback: React.FC = () => {
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
     const { addToast } = useToastStore();
+    const { setToken } = useAuthStore();
 
     useEffect(() => {
         const token = searchParams.get('token');
         const error = searchParams.get('error');
 
         if (error) {
-            addToast({ type: 'error', message: 'Google authentication failed. Please try again.' });
+            if (error === 'account_active_elsewhere') {
+                addToast({
+                    type: 'warning',
+                    message: 'This account is already active on another device. Please log out from that device first.',
+                });
+            } else {
+                addToast({ type: 'error', message: 'Google authentication failed. Please try again.' });
+            }
             navigate('/login/');
             return;
         }
 
         if (token) {
-            // Store token in auth store
-            localStorage.setItem('auth-storage', JSON.stringify({
-                state: { token },
-                version: 0
-            }));
+            // Store token via auth store (proper Zustand state management)
+            setToken(token);
 
-            // Fetch user data and redirect
+            // Trigger a page reload so checkAuth picks up the new token and fetches user
             addToast({ type: 'success', message: 'Successfully signed in with Google!' });
-
-            // Redirect to dashboard
-            navigate('/dashboard');
-
-            // Reload to update auth state
+            navigate('/dashboard/');
             window.location.reload();
         } else {
             addToast({ type: 'error', message: 'Authentication failed. Please try again.' });
-            navigate('/login');
+            navigate('/login/');
         }
-    }, [searchParams, navigate, addToast]);
+    }, [searchParams, navigate, addToast, setToken]);
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50 dark:from-slate-900 dark:via-blue-950 dark:to-purple-950">

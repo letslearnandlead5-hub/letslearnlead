@@ -39,6 +39,7 @@ import QuizList from './pages/admin/QuizList';
 import QuizEditor from './pages/admin/QuizEditor';
 import QuizResults from './pages/admin/QuizResults';
 import NoteViewer from './pages/notes/NoteViewer';
+import SessionExpiredModal from './components/auth/SessionExpiredModal';
 
 const ProtectedRoute = ({ children, requiredRole }: { children: React.ReactNode; requiredRole?: string }) => {
   const { isAuthenticated, user } = useAuthStore();
@@ -281,6 +282,9 @@ function App() {
             },
           }}
         />
+
+        {/* Single Device Login — Session Expiry Modal */}
+        <SessionExpiredModal />
       </Router>
     </ErrorBoundary>
   );

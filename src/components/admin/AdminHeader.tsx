@@ -111,7 +111,7 @@ const AdminHeader: React.FC<AdminHeaderProps> = ({ onMenuClick }) => {
                                 console.error('Error marking notifications as read:', error);
                             }
 
-                            navigate('/dashboard');
+                            navigate('/dashboard/');
                             // Dispatch event to switch to notifications tab
                             window.dispatchEvent(new CustomEvent('selectAdminTab', { detail: 'notifications' }));
                         }}

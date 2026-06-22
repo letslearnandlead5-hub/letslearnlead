@@ -55,7 +55,7 @@ const NoteEditor: React.FC = () => {
         } catch (error) {
             console.error('Error loading note:', error);
             addToast({ type: 'error', message: 'Failed to load note' });
-            navigate('/dashboard');
+            navigate('/dashboard/');
             setTimeout(() => {
                 window.dispatchEvent(new CustomEvent('selectAdminTab', { detail: 'notes' }));
             }, 100);
@@ -77,7 +77,7 @@ const NoteEditor: React.FC = () => {
             }
 
             // Navigate to dashboard and select notes tab
-            navigate('/dashboard');
+            navigate('/dashboard/');
             setTimeout(() => {
                 window.dispatchEvent(new CustomEvent('selectAdminTab', { detail: 'notes' }));
             }, 100);
@@ -93,7 +93,7 @@ const NoteEditor: React.FC = () => {
     };
 
     const handleCancel = () => {
-        navigate('/dashboard');
+        navigate('/dashboard/');
         setTimeout(() => {
             window.dispatchEvent(new CustomEvent('selectAdminTab', { detail: 'notes' }));
         }, 100);
@@ -102,7 +102,7 @@ const NoteEditor: React.FC = () => {
     const handleLogout = () => {
         logout();
         addToast({ type: 'success', message: 'Logged out successfully!' });
-        navigate('/login');
+        navigate('/login/');
     };
 
     const tabs = [
@@ -147,7 +147,7 @@ const NoteEditor: React.FC = () => {
                             <button
                                 key={tab.id}
                                 onClick={() => {
-                                    navigate(tab.path);
+                                    navigate(`${tab.path}/`);
                                     setShowMobileSidebar(false);
                                     setTimeout(() => {
                                         window.dispatchEvent(new CustomEvent('selectAdminTab', { detail: tab.id }));
@@ -161,7 +161,7 @@ const NoteEditor: React.FC = () => {
                         ))}
                         <button
                             onClick={() => {
-                                navigate('/dashboard');
+                                navigate('/dashboard/');
                                 setShowMobileSidebar(false);
                             }}
                             className="w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors mt-6 hover:bg-gray-100 dark:hover:bg-gray-800"

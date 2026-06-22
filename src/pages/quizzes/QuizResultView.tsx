@@ -154,14 +154,14 @@ const QuizResultView: React.FC = () => {
 
                     <div className="mt-6 flex gap-4 justify-center">
                         <button
-                            onClick={() => navigate('/my-quizzes')}
+                            onClick={() => navigate('/my-quizzes/')}
                             className="flex items-center gap-2 px-6 py-3 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg font-medium hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                         >
                             <Home className="w-5 h-5" />
                             Back to Quizzes
                         </button>
                         <button
-                            onClick={() => navigate(`/quizzes/${quizId}/leaderboard`)}
+                            onClick={() => navigate(`/quizzes/${quizId}/leaderboard/`)}
                             className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 transition-colors"
                         >
                             <BarChart3 className="w-5 h-5" />

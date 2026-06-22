@@ -48,13 +48,13 @@ const QuizList: React.FC = () => {
     const handleLogout = () => {
         logout();
         toast.success('Logged out successfully');
-        navigate('/login');
+        navigate('/login/');
     };
 
     useEffect(() => {
         if (user?.role !== 'admin') {
             toast.error('You must be logged in as an admin to access this page');
-            navigate('/login');
+            navigate('/login/');
             return;
         }
         fetchQuizzes();
@@ -72,7 +72,7 @@ const QuizList: React.FC = () => {
 
             if (error.response?.status === 401) {
                 toast.error('Session expired. Please login again.');
-                navigate('/login');
+                navigate('/login/');
             } else {
                 toast.error(errorMessage);
             }
@@ -145,7 +145,7 @@ const QuizList: React.FC = () => {
                                     } else {
                                         // Dispatch custom event to switch tab in AdminDashboard
                                         window.dispatchEvent(new CustomEvent('selectAdminTab', { detail: tab.id }));
-                                        navigate('/dashboard');
+                                        navigate('/dashboard/');
                                         setShowMobileSidebar(false);
                                     }
                                 }}
@@ -157,7 +157,7 @@ const QuizList: React.FC = () => {
                         ))}
                         <button onClick={() => {
                             window.dispatchEvent(new CustomEvent('selectAdminTab', { detail: 'settings' }));
-                            navigate('/dashboard');
+                            navigate('/dashboard/');
                             setShowMobileSidebar(false);
                         }} className="w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors mt-6 hover:bg-gray-100 dark:hover:bg-gray-800">
                             <Settings className="w-5 h-5" />

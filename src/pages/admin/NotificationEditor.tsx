@@ -52,7 +52,7 @@ const NotificationEditor: React.FC = () => {
             addToast({ type: 'success', message: 'Notification sent successfully!' });
 
             // Navigate to dashboard and select notifications tab
-            navigate('/dashboard');
+            navigate('/dashboard/');
             setTimeout(() => {
                 window.dispatchEvent(new CustomEvent('selectAdminTab', { detail: 'notifications' }));
             }, 100);
@@ -70,7 +70,7 @@ const NotificationEditor: React.FC = () => {
     const handleLogout = () => {
         logout();
         addToast({ type: 'success', message: 'Logged out successfully!' });
-        navigate('/login');
+        navigate('/login/');
     };
 
     const tabs = [
@@ -107,7 +107,7 @@ const NotificationEditor: React.FC = () => {
                             <button
                                 key={tab.id}
                                 onClick={() => {
-                                    navigate(tab.path);
+                                    navigate(`${tab.path}/`);
                                     setShowMobileSidebar(false);
                                     setTimeout(() => {
                                         window.dispatchEvent(new CustomEvent('selectAdminTab', { detail: tab.id }));
@@ -121,7 +121,7 @@ const NotificationEditor: React.FC = () => {
                         ))}
                         <button
                             onClick={() => {
-                                navigate('/dashboard');
+                                navigate('/dashboard/');
                                 setShowMobileSidebar(false);
                             }}
                             className="w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors mt-6 hover:bg-gray-100 dark:hover:bg-gray-800"
@@ -158,7 +158,7 @@ const NotificationEditor: React.FC = () => {
                                     variant="ghost"
                                     leftIcon={<ArrowLeft className="w-5 h-5" />}
                                     onClick={() => {
-                                        navigate('/dashboard');
+                                        navigate('/dashboard/');
                                         setTimeout(() => {
                                             window.dispatchEvent(new CustomEvent('selectAdminTab', { detail: 'notifications' }));
                                         }, 100);
@@ -288,7 +288,7 @@ const NotificationEditor: React.FC = () => {
                                         type="button"
                                         variant="outline"
                                         onClick={() => {
-                                            navigate('/dashboard');
+                                            navigate('/dashboard/');
                                             setTimeout(() => {
                                                 window.dispatchEvent(new CustomEvent('selectAdminTab', { detail: 'notifications' }));
                                             }, 100);

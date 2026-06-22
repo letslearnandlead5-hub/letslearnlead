@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Mail, Lock, Eye, EyeOff, AlertCircle } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, AlertCircle, MonitorSmartphone } from 'lucide-react';
 import Input from '../../components/ui/Input';
 import Button from '../../components/ui/Button';
 import { slideInUp } from '../../utils/animations';
@@ -15,6 +15,7 @@ const Login: React.FC = () => {
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [error, setError] = useState('');
+    const [isBlockedElsewhere, setIsBlockedElsewhere] = useState(false);
 
     const navigate = useNavigate();
     const { login, loading } = useAuthStore();
@@ -23,6 +24,7 @@ const Login: React.FC = () => {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
+        setIsBlockedElsewhere(false);
 
         try {
             await login(email, password);
@@ -37,8 +39,14 @@ const Login: React.FC = () => {
                 navigate('/dashboard/');
             }
         } catch (err: any) {
-            setError(err.message || 'Login failed. Please try again.');
-            addToast({ type: 'error', message: err.message || 'Login failed' });
+            // Handle Single Device Login block mode specifically
+            if (err?.code === 'ACCOUNT_ACTIVE_ELSEWHERE') {
+                setIsBlockedElsewhere(true);
+                setError(err.message || 'This account is already active on another device.');
+            } else {
+                setError(err?.message || 'Login failed. Please try again.');
+                addToast({ type: 'error', message: err?.message || 'Login failed' });
+            }
         }
     };
 
@@ -87,9 +95,32 @@ const Login: React.FC = () => {
 
                         {/* Error Message */}
                         {error && (
-                            <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg flex items-start">
-                                <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 mt-0.5 mr-3 flex-shrink-0" />
-                                <p className="text-sm text-red-800 dark:text-red-200">{error}</p>
+                            <div className={`mb-6 p-4 rounded-lg flex items-start gap-3 ${
+                                isBlockedElsewhere
+                                    ? 'bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700'
+                                    : 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800'
+                            }`}>
+                                {isBlockedElsewhere ? (
+                                    <MonitorSmartphone className="w-5 h-5 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+                                ) : (
+                                    <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 mt-0.5 flex-shrink-0" />
+                                )}
+                                <div>
+                                    <p className={`text-sm font-medium ${
+                                        isBlockedElsewhere
+                                            ? 'text-amber-800 dark:text-amber-200'
+                                            : 'text-red-800 dark:text-red-200'
+                                    }`}>
+                                        {isBlockedElsewhere ? 'Account Active Elsewhere' : 'Login Failed'}
+                                    </p>
+                                    <p className={`text-sm mt-0.5 ${
+                                        isBlockedElsewhere
+                                            ? 'text-amber-700 dark:text-amber-300'
+                                            : 'text-red-700 dark:text-red-300'
+                                    }`}>
+                                        {error}
+                                    </p>
+                                </div>
                             </div>
                         )}
 

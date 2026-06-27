@@ -23,27 +23,24 @@ export const getDeviceInfo = (req: Request): string => {
 };
 
 /**
- * Create a deterministic server-side device fingerprint by hashing the
- * client-supplied deviceId (UUID) with the IP + user-agent.
+ * Build the server-side device identifier.
  *
- * Why include client UUID?
- *   → The client generates a stable UUID per browser via crypto.randomUUID()
- *     and persists it in localStorage. This ensures the same browser always
- *     produces the same fingerprint even across IPs (mobile networks etc.).
- *
- * Why include IP + UA?
- *   → Adds an extra layer; a stolen UUID alone isn't enough to match.
+ * We use the client-supplied UUID directly (no IP / UA hashing) because:
+ *  - The UUID is cryptographically random (128-bit) — it cannot be guessed.
+ *  - It is persisted in localStorage, so the same browser always produces
+ *    the same value across page reloads and token refreshes.
+ *  - Including IP caused false DEVICE_MISMATCH logouts whenever the user's
+ *    IP changed (mobile networks, DHCP reassignment, VPN, etc.).
+ *  - Including UA in a hash broke token refresh: the refresh route embedded
+ *    the stored fingerprint as the new token's deviceId, so the next request
+ *    recomputed hash(fingerprint+IP+UA) which never matched the stored value.
  *
  * The result is stored in `user.currentDeviceId`.
  */
 export const buildServerDeviceFingerprint = (
     clientDeviceId: string,
-    req: Request
+    _req: Request
 ): string => {
-    const ip = getClientIp(req);
-    const ua = getDeviceInfo(req);
-    return crypto
-        .createHash('sha256')
-        .update(`${clientDeviceId}:${ip}:${ua}`)
-        .digest('hex');
+    // Return the UUID directly — it is already a secure, unique device token.
+    return clientDeviceId;
 };

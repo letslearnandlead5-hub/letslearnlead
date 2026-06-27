@@ -88,7 +88,8 @@ export const protect = async (
         }
 
         // 6. Single Device Login — device fingerprint check
-        if (user.currentDeviceId) {
+        //    Admins are exempt: they can use multiple devices simultaneously.
+        if (user.currentDeviceId && user.role !== 'admin') {
             // Rebuild the server-side fingerprint from the current request
             const clientDeviceId = decoded.deviceId; // UUID from the JWT
             if (!clientDeviceId) {

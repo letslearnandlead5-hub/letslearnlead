@@ -187,8 +187,10 @@ router.post('/login', authLimiter, validate(loginSchema), async (req: Request, r
         const newFingerprint = buildServerDeviceFingerprint(clientDeviceId, req);
 
         // 5. ── SINGLE DEVICE LOGIN ENFORCEMENT ──────────────────────────────
-        //    Only block if there is already an active session on a DIFFERENT device.
+        //    Admins are exempt — they can log in from multiple devices freely.
+        //    Only block non-admin users who have an active session on a DIFFERENT device.
         if (
+            user.role !== 'admin' &&
             user.currentDeviceId &&
             user.sessionStatus === 'active' &&
             user.currentDeviceId !== newFingerprint
@@ -599,11 +601,13 @@ router.get(
             const fingerprint = buildServerDeviceFingerprint(clientDeviceId, req);
 
             // Check for existing active session (block mode)
+            // Admins are exempt — they can use multiple devices.
             const freshUser = await User.findById(user._id)
                 .select('+currentDeviceId +activeSessionToken +sessionStatus');
 
             if (
                 freshUser &&
+                freshUser.role !== 'admin' &&
                 freshUser.currentDeviceId &&
                 freshUser.sessionStatus === 'active' &&
                 freshUser.currentDeviceId !== fingerprint
@@ -616,12 +620,23 @@ router.get(
                 }
             }
 
+            // Bind device session and get the real refresh token
+            let rawRefreshToken: string;
             if (freshUser) {
-                await bindDeviceSession(freshUser, fingerprint, req);
+                rawRefreshToken = await bindDeviceSession(freshUser, fingerprint, req);
+            } else {
+                // Fallback: fetch user and bind session
+                const targetUser = await User.findById(user._id)
+                    .select('+currentDeviceId +activeSessionToken +sessionStatus');
+                if (!targetUser) {
+                    return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:5173'}/login?error=auth_failed`);
+                }
+                rawRefreshToken = await bindDeviceSession(targetUser, fingerprint, req);
             }
 
             const accessToken = signAccessToken(String(user._id), clientDeviceId);
-            setRefreshTokenCookie(res, generateRefreshToken()); // placeholder cookie until full OAuth device flow
+            // Set the real refresh token cookie (not a throwaway)
+            setRefreshTokenCookie(res, rawRefreshToken);
 
             res.redirect(
                 `${process.env.FRONTEND_URL || 'http://localhost:5173'}/auth/google/callback?token=${accessToken}`

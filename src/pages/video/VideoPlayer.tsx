@@ -509,7 +509,7 @@ const VideoPlayer: React.FC = () => {
                                                 onPause={() => setIsPlaying(false)}
                                                 poster="https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=800&q=80"
                                             >
-                                                <source src="http://localhost:5000/videos/demo-countdown.mp4" type="video/mp4" />
+                                                <source src={`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/videos/demo-countdown.mp4`} type="video/mp4" />
                                                 Your browser does not support the video tag.
                                             </video>
 

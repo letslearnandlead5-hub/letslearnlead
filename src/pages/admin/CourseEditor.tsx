@@ -97,10 +97,34 @@ const CourseEditor: React.FC = () => {
                 return;
             }
 
-            // Convert to base64
+            // Compress + convert to base64 using canvas
+            // This keeps the payload small enough for the server (target: ~200KB base64)
             const reader = new FileReader();
             reader.onloadend = () => {
-                setFormData(prev => ({ ...prev, thumbnail: reader.result as string }));
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    // Max dimensions: 800×600 — sufficient for a course thumbnail
+                    const MAX_W = 800;
+                    const MAX_H = 600;
+                    let { width, height } = img;
+                    if (width > MAX_W || height > MAX_H) {
+                        const ratio = Math.min(MAX_W / width, MAX_H / height);
+                        width = Math.round(width * ratio);
+                        height = Math.round(height * ratio);
+                    }
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d')!;
+                    ctx.drawImage(img, 0, 0, width, height);
+                    // Quality 0.8 → good visual quality with ~70–80% smaller file size
+                    const compressed = canvas.toDataURL('image/jpeg', 0.8);
+                    setFormData(prev => ({ ...prev, thumbnail: compressed }));
+                };
+                img.onerror = () => {
+                    addToast({ type: 'error', message: 'Failed to process image' });
+                };
+                img.src = reader.result as string;
             };
             reader.onerror = () => {
                 addToast({ type: 'error', message: 'Failed to read image file' });

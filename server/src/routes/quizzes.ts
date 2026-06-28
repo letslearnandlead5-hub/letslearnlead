@@ -558,13 +558,54 @@ router.post('/attempts/:attemptId/submit', protect, async (req: AuthRequest, res
                     questionId: question._id!,
                     questionText: question.questionText,
                     selectedAnswer: '',
-                    correctAnswer: question.correctAnswer,
+                    correctAnswer: question.questionType === 'match' ? 'match' : question.correctAnswer,
                     isCorrect: false,
                     marksAwarded: 0,
                     explanation: question.explanation,
                 };
             }
 
+            // ── Match the Following scoring ──────────────────────────────────
+            if (question.questionType === 'match') {
+                const pairs: { left: string; right: string }[] = question.matchPairs || [];
+                let correctPairs = 0;
+
+                try {
+                    // Student answer format: JSON object { "0": "1", "1": "0", ... }
+                    // Keys = left-item index, values = right-item index selected by student
+                    const mapping: Record<string, string> = JSON.parse(studentAnswer.selectedAnswer || '{}');
+
+                    pairs.forEach((pair, leftIdx) => {
+                        const selectedRightIdx = parseInt(mapping[String(leftIdx)], 10);
+                        const correctRightItem = pair.right;
+                        const selectedRightItem = pairs[selectedRightIdx]?.right;
+                        if (selectedRightItem === correctRightItem) correctPairs++;
+                    });
+                } catch {
+                    // malformed answer — 0 correct pairs
+                }
+
+                const pairMarks = pairs.length > 0 ? marks / pairs.length : 0;
+                const awarded = Math.round(correctPairs * pairMarks * 10) / 10;
+                const isFullyCorrect = correctPairs === pairs.length;
+
+                if (isFullyCorrect) correctAnswers++;
+                else incorrectAnswers++;
+
+                marksObtained += awarded;
+
+                return {
+                    questionId: question._id!,
+                    questionText: question.questionText,
+                    selectedAnswer: studentAnswer.selectedAnswer,
+                    correctAnswer: 'match',
+                    isCorrect: isFullyCorrect,
+                    marksAwarded: awarded,
+                    explanation: question.explanation,
+                };
+            }
+
+            // ── Standard MCQ scoring ─────────────────────────────────────────
             const isCorrect = studentAnswer.selectedAnswer === question.correctAnswer;
 
             if (isCorrect) {

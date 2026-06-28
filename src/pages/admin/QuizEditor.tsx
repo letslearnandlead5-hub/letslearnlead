@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
@@ -11,7 +11,6 @@ import {
     Send,
     BookOpen,
     Users,
-    ShoppingCart,
     FileText,
     MessageSquare,
     Brain,
@@ -19,12 +18,41 @@ import {
     LogOut,
     BarChart3,
     FileQuestion,
+    Image,
+    ArrowLeftRight,
+    Upload,
 } from 'lucide-react';
 import { createQuiz, getQuizById, updateQuiz } from '../../services/quizService';
-import type { Quiz, QuizQuestion, QuestionOption } from '../../types';
+import type { Quiz, QuizQuestion, QuestionOption, MatchPair } from '../../types';
 import toast from 'react-hot-toast';
 import AdminHeader from '../../components/admin/AdminHeader';
 import { useAuthStore } from '../../store/useAuthStore';
+
+// ── Image compression helper (same approach as CourseEditor) ─────────────────
+const compressImage = (file: File, maxW = 900, maxH = 700, quality = 0.82): Promise<string> =>
+    new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            const img = new window.Image();
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                let { width, height } = img;
+                if (width > maxW || height > maxH) {
+                    const ratio = Math.min(maxW / width, maxH / height);
+                    width = Math.round(width * ratio);
+                    height = Math.round(height * ratio);
+                }
+                canvas.width = width;
+                canvas.height = height;
+                canvas.getContext('2d')!.drawImage(img, 0, 0, width, height);
+                resolve(canvas.toDataURL('image/jpeg', quality));
+            };
+            img.onerror = reject;
+            img.src = reader.result as string;
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
 
 const QuizEditor: React.FC = () => {
     const { id: quizId } = useParams<{ id: string }>();
@@ -34,6 +62,7 @@ const QuizEditor: React.FC = () => {
     const [step, setStep] = useState(1);
     const [courses, setCourses] = useState<any[]>([]);
     const [showMobileSidebar, setShowMobileSidebar] = useState(false);
+    const imageInputRef = useRef<HTMLInputElement>(null);
 
     // Quiz basic info
     const [title, setTitle] = useState('');
@@ -57,7 +86,6 @@ const QuizEditor: React.FC = () => {
         if (quizId) {
             loadQuiz();
         } else {
-            // Add initial blank question
             addQuestion();
         }
     }, [quizId]);
@@ -79,12 +107,10 @@ const QuizEditor: React.FC = () => {
 
     const loadQuiz = async () => {
         if (!quizId) return;
-
         try {
             setLoading(true);
             const data = await getQuizById(quizId, true);
             const quiz = data.quiz || data;
-
             setTitle(quiz.title);
             setDescription(quiz.description);
             setCourseId(quiz.courseId);
@@ -103,24 +129,32 @@ const QuizEditor: React.FC = () => {
         }
     };
 
+    // ── Question management ──────────────────────────────────────────────────
+
+    const buildBlankQuestion = (): Partial<QuizQuestion> => ({
+        questionType: 'text',
+        questionText: '',
+        questionImage: '',
+        options: [
+            { id: '1', text: '' },
+            { id: '2', text: '' },
+            { id: '3', text: '' },
+            { id: '4', text: '' },
+        ],
+        correctAnswer: '',
+        matchPairs: [],
+        explanation: '',
+        marks: marksPerQuestion,
+        negativeMarks: negativeMarking,
+        order: questions.length,
+    });
+
     const addQuestion = () => {
-        const newQuestion: Partial<QuizQuestion> = {
-            questionType: 'text',
-            questionText: '',
-            options: [
-                { id: '1', text: '' },
-                { id: '2', text: '' },
-                { id: '3', text: '' },
-                { id: '4', text: '' },
-            ],
-            correctAnswer: '',
-            explanation: '',
-            marks: marksPerQuestion,
-            negativeMarks: negativeMarking,
-            order: questions.length,
-        };
-        setQuestions([...questions, newQuestion]);
-        setCurrentQuestionIndex(questions.length);
+        const newQuestion = buildBlankQuestion();
+        setQuestions(prev => [...prev, newQuestion]);
+        setCurrentQuestionIndex(prev => prev + (questions.length > 0 ? 0 : 0));
+        // navigate to the new question
+        setTimeout(() => setCurrentQuestionIndex(questions.length), 0);
     };
 
     const removeQuestion = (index: number) => {
@@ -132,10 +166,26 @@ const QuizEditor: React.FC = () => {
     };
 
     const updateQuestion = (index: number, updates: Partial<QuizQuestion>) => {
-        const newQuestions = [...questions];
-        newQuestions[index] = { ...newQuestions[index], ...updates };
-        setQuestions(newQuestions);
+        setQuestions(prev => {
+            const copy = [...prev];
+            copy[index] = { ...copy[index], ...updates };
+            return copy;
+        });
     };
+
+    // Change question type — reset type-specific fields
+    const changeQuestionType = (index: number, newType: QuizQuestion['questionType']) => {
+        updateQuestion(index, {
+            questionType: newType,
+            // Reset type-specific data when switching
+            ...(newType === 'match'
+                ? { options: [], correctAnswer: '', matchPairs: [{ left: '', right: '' }, { left: '', right: '' }] }
+                : { matchPairs: [], options: questions[index]?.options?.length ? questions[index].options : [{ id: '1', text: '' }, { id: '2', text: '' }, { id: '3', text: '' }, { id: '4', text: '' }] }
+            ),
+        });
+    };
+
+    // ── MCQ option management ────────────────────────────────────────────────
 
     const addOption = (questionIndex: number) => {
         const question = questions[questionIndex];
@@ -143,15 +193,8 @@ const QuizEditor: React.FC = () => {
             toast.error('Maximum 6 options allowed');
             return;
         }
-
-        const newOption: QuestionOption = {
-            id: String(question.options.length + 1),
-            text: '',
-        };
-
-        updateQuestion(questionIndex, {
-            options: [...question.options, newOption],
-        });
+        const newOption: QuestionOption = { id: String(Date.now()), text: '' };
+        updateQuestion(questionIndex, { options: [...question.options, newOption] });
     };
 
     const removeOption = (questionIndex: number, optionId: string) => {
@@ -160,77 +203,97 @@ const QuizEditor: React.FC = () => {
             toast.error('Minimum 2 options required');
             return;
         }
-
-        updateQuestion(questionIndex, {
-            options: question.options.filter((opt) => opt.id !== optionId),
-        });
+        const newOptions = question.options.filter(opt => opt.id !== optionId);
+        const updates: Partial<QuizQuestion> = { options: newOptions };
+        if (question.correctAnswer === optionId) updates.correctAnswer = '';
+        updateQuestion(questionIndex, updates);
     };
 
     const updateOption = (questionIndex: number, optionId: string, text: string) => {
         const question = questions[questionIndex];
         if (!question.options) return;
-
         updateQuestion(questionIndex, {
-            options: question.options.map((opt) => (opt.id === optionId ? { ...opt, text } : opt)),
+            options: question.options.map(opt => (opt.id === optionId ? { ...opt, text } : opt)),
         });
     };
+
+    // ── Match pair management ────────────────────────────────────────────────
+
+    const addMatchPair = (questionIndex: number) => {
+        const question = questions[questionIndex];
+        const pairs = question.matchPairs || [];
+        if (pairs.length >= 8) { toast.error('Maximum 8 pairs allowed'); return; }
+        updateQuestion(questionIndex, { matchPairs: [...pairs, { left: '', right: '' }] });
+    };
+
+    const removeMatchPair = (questionIndex: number, pairIndex: number) => {
+        const question = questions[questionIndex];
+        const pairs = question.matchPairs || [];
+        if (pairs.length <= 2) { toast.error('Minimum 2 pairs required'); return; }
+        updateQuestion(questionIndex, { matchPairs: pairs.filter((_, i) => i !== pairIndex) });
+    };
+
+    const updateMatchPair = (questionIndex: number, pairIndex: number, side: 'left' | 'right', value: string) => {
+        const question = questions[questionIndex];
+        const pairs = [...(question.matchPairs || [])];
+        pairs[pairIndex] = { ...pairs[pairIndex], [side]: value };
+        updateQuestion(questionIndex, { matchPairs: pairs });
+    };
+
+    // ── Image upload ─────────────────────────────────────────────────────────
+
+    const handleQuestionImageUpload = async (questionIndex: number, file: File) => {
+        if (!file.type.match(/^image\/(jpeg|jpg|png|gif|webp)$/)) {
+            toast.error('Please upload a JPEG, PNG, GIF or WebP image');
+            return;
+        }
+        if (file.size > 5 * 1024 * 1024) {
+            toast.error('Image must be less than 5MB');
+            return;
+        }
+        try {
+            const compressed = await compressImage(file);
+            updateQuestion(questionIndex, { questionImage: compressed });
+        } catch {
+            toast.error('Failed to process image');
+        }
+    };
+
+    // ── Validation ───────────────────────────────────────────────────────────
 
     const validateStep = (stepNum: number): boolean => {
         switch (stepNum) {
             case 1:
-                if (!title.trim()) {
-                    toast.error('Quiz title is required');
-                    return false;
-                }
-                if (!description.trim()) {
-                    toast.error('Quiz description is required');
-                    return false;
-                }
-                if (!courseId) {
-                    toast.error('Please select a course');
-                    return false;
-                }
+                if (!title.trim()) { toast.error('Quiz title is required'); return false; }
+                if (!description.trim()) { toast.error('Quiz description is required'); return false; }
+                if (!courseId) { toast.error('Please select a course'); return false; }
                 return true;
 
             case 2:
-                if (marksPerQuestion <= 0) {
-                    toast.error('Marks per question must be greater than 0');
-                    return false;
-                }
-                if (timeLimit <= 0) {
-                    toast.error('Time limit must be greater than 0');
-                    return false;
-                }
+                if (marksPerQuestion <= 0) { toast.error('Marks per question must be greater than 0'); return false; }
+                if (timeLimit <= 0) { toast.error('Time limit must be greater than 0'); return false; }
                 return true;
 
             case 3:
-                if (questions.length === 0) {
-                    toast.error('Add at least one question');
-                    return false;
-                }
-
+                if (questions.length === 0) { toast.error('Add at least one question'); return false; }
                 for (let i = 0; i < questions.length; i++) {
                     const q = questions[i];
-                    if (!q.questionText?.trim()) {
-                        toast.error(`Question ${i + 1}: Question text is required`);
-                        return false;
+                    if (!q.questionText?.trim()) { toast.error(`Question ${i + 1}: Question text is required`); return false; }
+
+                    if (q.questionType === 'match') {
+                        const pairs = q.matchPairs || [];
+                        if (pairs.length < 2) { toast.error(`Question ${i + 1}: At least 2 match pairs required`); return false; }
+                        if (pairs.some(p => !p.left.trim() || !p.right.trim())) {
+                            toast.error(`Question ${i + 1}: All match pairs must have both left and right text`);
+                            return false;
+                        }
+                    } else {
+                        if (!q.options || q.options.length < 2) { toast.error(`Question ${i + 1}: At least 2 options required`); return false; }
+                        if (!q.options.every(opt => opt.text.trim())) { toast.error(`Question ${i + 1}: All options must have text`); return false; }
+                        if (!q.correctAnswer) { toast.error(`Question ${i + 1}: Please select the correct answer`); return false; }
                     }
-                    if (!q.options || q.options.length < 2) {
-                        toast.error(`Question ${i + 1}: At least 2 options required`);
-                        return false;
-                    }
-                    if (!q.options.every((opt) => opt.text.trim())) {
-                        toast.error(`Question ${i + 1}: All options must have text`);
-                        return false;
-                    }
-                    if (!q.correctAnswer) {
-                        toast.error(`Question ${i + 1}: Please select the correct answer`);
-                        return false;
-                    }
-                    if (!q.explanation?.trim()) {
-                        toast.error(`Question ${i + 1}: Explanation is required`);
-                        return false;
-                    }
+
+                    if (!q.explanation?.trim()) { toast.error(`Question ${i + 1}: Explanation is required`); return false; }
                 }
                 return true;
 
@@ -240,31 +303,19 @@ const QuizEditor: React.FC = () => {
     };
 
     const handleNext = () => {
-        if (validateStep(step)) {
-            setStep(step + 1);
-        }
+        if (validateStep(step)) setStep(step + 1);
     };
 
     const handleSave = async (publish: boolean = false) => {
-        if (!validateStep(1) || !validateStep(2) || !validateStep(3)) {
-            return;
-        }
+        if (!validateStep(1) || !validateStep(2) || !validateStep(3)) return;
 
         try {
             setLoading(true);
-
             const quizData: Partial<Quiz> = {
                 title,
                 description,
                 courseId,
-                settings: {
-                    marksPerQuestion,
-                    negativeMarking,
-                    timeLimit,
-                    passingPercentage,
-                    allowRetake,
-                    maxAttempts,
-                },
+                settings: { marksPerQuestion, negativeMarking, timeLimit, passingPercentage, allowRetake, maxAttempts },
                 questions: questions as QuizQuestion[],
                 isPublished: publish,
             };
@@ -275,7 +326,6 @@ const QuizEditor: React.FC = () => {
             } else {
                 const newQuiz = await createQuiz(quizData);
                 toast.success('Quiz created successfully');
-
                 if (publish) {
                     navigate('/dashboard/');
                 } else {
@@ -283,7 +333,6 @@ const QuizEditor: React.FC = () => {
                 }
                 return;
             }
-
             navigate('/dashboard/');
         } catch (error: any) {
             toast.error(error.response?.data?.message || 'Failed to save quiz');
@@ -327,6 +376,7 @@ const QuizEditor: React.FC = () => {
             <AdminHeader onMenuClick={() => setShowMobileSidebar(true)} />
 
             <div className="flex">
+                {/* Sidebar */}
                 <div className={`fixed lg:sticky top-20 inset-y-0 left-0 z-50 w-64 bg-white dark:bg-gray-900 h-[calc(100vh-5rem)] border-r border-gray-200 dark:border-gray-800 flex flex-col transition-transform duration-300 ${showMobileSidebar ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
                     <div className="p-6 flex-shrink-0 border-b border-gray-200 dark:border-gray-800 lg:hidden">
                         <div className="flex items-center justify-end">
@@ -340,14 +390,8 @@ const QuizEditor: React.FC = () => {
                             <button
                                 key={tab.id}
                                 onClick={() => {
-                                    if (tab.id === 'quizzes') {
-                                        navigate('/admin/quizzes/');
-                                        setShowMobileSidebar(false);
-                                    } else {
-                                        window.dispatchEvent(new CustomEvent('selectAdminTab', { detail: tab.id }));
-                                        navigate('/dashboard/');
-                                        setShowMobileSidebar(false);
-                                    }
+                                    if (tab.id === 'quizzes') { navigate('/admin/quizzes/'); setShowMobileSidebar(false); }
+                                    else { window.dispatchEvent(new CustomEvent('selectAdminTab', { detail: tab.id })); navigate('/dashboard/'); setShowMobileSidebar(false); }
                                 }}
                                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${tab.id === 'quizzes' ? 'bg-blue-100 dark:bg-blue-950 text-blue-600' : 'hover:bg-gray-100 dark:hover:bg-gray-800'}`}
                             >
@@ -373,12 +417,10 @@ const QuizEditor: React.FC = () => {
                 <div className="flex-1 flex flex-col h-[calc(100vh-5rem)] overflow-hidden">
                     <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
                         <div className="max-w-5xl mx-auto">
+
                             {/* Header */}
                             <div className="mb-8">
-                                <button
-                                    onClick={() => navigate('/admin/quizzes/')}
-                                    className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white mb-4"
-                                >
+                                <button onClick={() => navigate('/admin/quizzes/')} className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white mb-4">
                                     <ChevronLeft className="w-5 h-5" />
                                     Back to Quizzes
                                 </button>
@@ -391,329 +433,283 @@ const QuizEditor: React.FC = () => {
                             <div className="mb-8">
                                 <div className="flex items-center justify-between">
                                     {['Basic Info', 'Settings', 'Questions', 'Review'].map((label, index) => (
-                                        <div
-                                            key={index}
-                                            className={`flex-1 ${index < 3 ? 'mr-2' : ''}`}
-                                        >
-                                            <div
-                                                className={`flex items-center ${step > index + 1
-                                                    ? 'text-green-600'
-                                                    : step === index + 1
-                                                        ? 'text-indigo-600'
-                                                        : 'text-gray-400'
-                                                    }`}
-                                            >
-                                                <div
-                                                    className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${step > index + 1
-                                                        ? 'bg-green-100 dark:bg-green-900'
-                                                        : step === index + 1
-                                                            ? 'bg-indigo-100 dark:bg-indigo-900'
-                                                            : 'bg-gray-100 dark:bg-gray-800'
-                                                        }`}
-                                                >
+                                        <div key={index} className={`flex-1 ${index < 3 ? 'mr-2' : ''}`}>
+                                            <div className={`flex items-center ${step > index + 1 ? 'text-green-600' : step === index + 1 ? 'text-indigo-600' : 'text-gray-400'}`}>
+                                                <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${step > index + 1 ? 'bg-green-100 dark:bg-green-900' : step === index + 1 ? 'bg-indigo-100 dark:bg-indigo-900' : 'bg-gray-100 dark:bg-gray-800'}`}>
                                                     {index + 1}
                                                 </div>
-                                                <span className="ml-2 text-sm font-medium hidden sm:block">
-                                                    {label}
-                                                </span>
+                                                <span className="ml-2 text-sm font-medium hidden sm:block">{label}</span>
                                             </div>
-                                            {index < 3 && (
-                                                <div
-                                                    className={`h-1 mt-2 rounded ${step > index + 1
-                                                        ? 'bg-green-600'
-                                                        : 'bg-gray-200 dark:bg-gray-700'
-                                                        }`}
-                                                />
-                                            )}
+                                            {index < 3 && (<div className={`h-1 mt-2 rounded ${step > index + 1 ? 'bg-green-600' : 'bg-gray-200 dark:bg-gray-700'}`} />)}
                                         </div>
                                     ))}
                                 </div>
                             </div>
 
                             {/* Step Content */}
-                            <motion.div
-                                key={step}
-                                initial={{ opacity: 0, x: 20 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6"
-                            >
-                                {/* Step 1: Basic Info */}
+                            <motion.div key={step} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6">
+
+                                {/* ── Step 1: Basic Info ── */}
                                 {step === 1 && (
                                     <div className="space-y-6">
                                         <div>
-                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                                Quiz Title *
-                                            </label>
-                                            <input
-                                                type="text"
-                                                value={title}
-                                                onChange={(e) => setTitle(e.target.value)}
-                                                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
-                                                placeholder="Enter quiz title"
-                                            />
+                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Quiz Title *</label>
+                                            <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white" placeholder="Enter quiz title" />
                                         </div>
-
                                         <div>
-                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                                Description *
-                                            </label>
-                                            <textarea
-                                                value={description}
-                                                onChange={(e) => setDescription(e.target.value)}
-                                                rows={4}
-                                                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
-                                                placeholder="Enter quiz description"
-                                            />
+                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Description *</label>
+                                            <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={4} className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white" placeholder="Enter quiz description" />
                                         </div>
-
                                         <div>
-                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                                Course *
-                                            </label>
-                                            <select
-                                                value={courseId}
-                                                onChange={(e) => setCourseId(e.target.value)}
-                                                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
-                                            >
+                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Course *</label>
+                                            <select value={courseId} onChange={(e) => setCourseId(e.target.value)} className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white">
                                                 <option value="">Select a course</option>
-                                                {courses.map((course) => (
-                                                    <option key={course._id} value={course._id}>
-                                                        {course.title}
-                                                    </option>
-                                                ))}
+                                                {courses.map((course) => (<option key={course._id} value={course._id}>{course.title}</option>))}
                                             </select>
                                         </div>
                                     </div>
                                 )}
 
-                                {/* Step 2: Settings */}
+                                {/* ── Step 2: Settings ── */}
                                 {step === 2 && (
                                     <div className="space-y-6">
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                             <div>
-                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                                    Marks per Question *
-                                                </label>
-                                                <input
-                                                    type="number"
-                                                    value={marksPerQuestion}
-                                                    onChange={(e) => setMarksPerQuestion(Number(e.target.value))}
-                                                    min="1"
-                                                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
-                                                />
+                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Marks per Question *</label>
+                                                <input type="number" value={marksPerQuestion} onChange={(e) => setMarksPerQuestion(Number(e.target.value))} min="1" className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white" />
                                             </div>
-
                                             <div>
-                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                                    Negative Marking
-                                                </label>
-                                                <input
-                                                    type="number"
-                                                    value={negativeMarking}
-                                                    onChange={(e) => setNegativeMarking(Number(e.target.value))}
-                                                    min="0"
-                                                    step="0.25"
-                                                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
-                                                />
+                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Negative Marking</label>
+                                                <input type="number" value={negativeMarking} onChange={(e) => setNegativeMarking(Number(e.target.value))} min="0" step="0.25" className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white" />
                                             </div>
-
                                             <div>
-                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                                    Time Limit (minutes) *
-                                                </label>
-                                                <input
-                                                    type="number"
-                                                    value={timeLimit}
-                                                    onChange={(e) => setTimeLimit(Number(e.target.value))}
-                                                    min="1"
-                                                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
-                                                />
+                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Time Limit (minutes) *</label>
+                                                <input type="number" value={timeLimit} onChange={(e) => setTimeLimit(Number(e.target.value))} min="1" className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white" />
                                             </div>
-
                                             <div>
-                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                                    Passing Percentage (%)
-                                                </label>
-                                                <input
-                                                    type="number"
-                                                    value={passingPercentage}
-                                                    onChange={(e) => setPassingPercentage(Number(e.target.value))}
-                                                    min="0"
-                                                    max="100"
-                                                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
-                                                />
+                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Passing Percentage (%)</label>
+                                                <input type="number" value={passingPercentage} onChange={(e) => setPassingPercentage(Number(e.target.value))} min="0" max="100" className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white" />
                                             </div>
                                         </div>
-
                                         <div className="flex items-center gap-4">
                                             <label className="flex items-center">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={allowRetake}
-                                                    onChange={(e) => setAllowRetake(e.target.checked)}
-                                                    className="w-4 h-4 text-indigo-600 focus:ring-indigo-500"
-                                                />
-                                                <span className="ml-2 text-sm text-gray-700 dark:text-gray-300">
-                                                    Allow Retakes
-                                                </span>
+                                                <input type="checkbox" checked={allowRetake} onChange={(e) => setAllowRetake(e.target.checked)} className="w-4 h-4 text-indigo-600 focus:ring-indigo-500" />
+                                                <span className="ml-2 text-sm text-gray-700 dark:text-gray-300">Allow Retakes</span>
                                             </label>
-
                                             {allowRetake && (
                                                 <div className="flex items-center gap-2">
-                                                    <label className="text-sm text-gray-700 dark:text-gray-300">
-                                                        Max Attempts:
-                                                    </label>
-                                                    <input
-                                                        type="number"
-                                                        value={maxAttempts}
-                                                        onChange={(e) => setMaxAttempts(Number(e.target.value))}
-                                                        min="1"
-                                                        className="w-20 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
-                                                    />
+                                                    <label className="text-sm text-gray-700 dark:text-gray-300">Max Attempts:</label>
+                                                    <input type="number" value={maxAttempts} onChange={(e) => setMaxAttempts(Number(e.target.value))} min="1" className="w-20 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white" />
                                                 </div>
                                             )}
                                         </div>
                                     </div>
                                 )}
 
-                                {/* Step 3: Questions */}
+                                {/* ── Step 3: Questions ── */}
                                 {step === 3 && (
                                     <div className="space-y-6">
                                         {/* Question Navigation */}
                                         <div className="flex items-center justify-between mb-4">
                                             <div className="flex items-center gap-2 flex-wrap">
                                                 {questions.map((_, index) => (
-                                                    <button
-                                                        key={index}
-                                                        onClick={() => setCurrentQuestionIndex(index)}
-                                                        className={`w-10 h-10 rounded font-semibold transition-all ${currentQuestionIndex === index
-                                                            ? 'bg-indigo-600 text-white'
-                                                            : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                                                            }`}
-                                                    >
+                                                    <button key={index} onClick={() => setCurrentQuestionIndex(index)}
+                                                        className={`w-10 h-10 rounded font-semibold transition-all ${currentQuestionIndex === index ? 'bg-indigo-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}`}>
                                                         {index + 1}
                                                     </button>
                                                 ))}
-                                                <button
-                                                    onClick={addQuestion}
-                                                    className="w-10 h-10 rounded bg-green-100 dark:bg-green-900 text-green-600 dark:text-green-300 hover:bg-green-200 dark:hover:bg-green-800 flex items-center justify-center"
-                                                >
+                                                <button onClick={addQuestion} className="w-10 h-10 rounded bg-green-100 dark:bg-green-900 text-green-600 dark:text-green-300 hover:bg-green-200 dark:hover:bg-green-800 flex items-center justify-center">
                                                     <Plus className="w-5 h-5" />
                                                 </button>
                                             </div>
                                             {questions.length > 1 && (
-                                                <button
-                                                    onClick={() => removeQuestion(currentQuestionIndex)}
-                                                    className="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300"
-                                                >
+                                                <button onClick={() => removeQuestion(currentQuestionIndex)} className="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300">
                                                     <Trash2 className="w-5 h-5" />
                                                 </button>
                                             )}
                                         </div>
 
                                         {currentQuestion && (
-                                            <div className="space-y-4">
-                                                {/* Question Text */}
+                                            <div className="space-y-5">
+                                                {/* ── Question Type Selector ── */}
+                                                <div>
+                                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Question Type</label>
+                                                    <div className="flex flex-wrap gap-2">
+                                                        {([
+                                                            { value: 'text', label: 'Text / MCQ', icon: FileText },
+                                                            { value: 'image', label: 'Text + Image', icon: Image },
+                                                            { value: 'match', label: 'Match the Following', icon: ArrowLeftRight },
+                                                        ] as { value: QuizQuestion['questionType']; label: string; icon: any }[]).map(({ value, label, icon: Icon }) => (
+                                                            <button
+                                                                key={value}
+                                                                type="button"
+                                                                onClick={() => changeQuestionType(currentQuestionIndex, value)}
+                                                                className={`flex items-center gap-2 px-4 py-2 rounded-lg border-2 text-sm font-medium transition-all ${currentQuestion.questionType === value ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300' : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-indigo-300'}`}
+                                                            >
+                                                                <Icon className="w-4 h-4" />
+                                                                {label}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
+
+                                                {/* ── Question Text ── */}
                                                 <div>
                                                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                                                         Question {currentQuestionIndex + 1} *
                                                     </label>
                                                     <textarea
                                                         value={currentQuestion.questionText || ''}
-                                                        onChange={(e) =>
-                                                            updateQuestion(currentQuestionIndex, {
-                                                                questionText: e.target.value,
-                                                            })
-                                                        }
+                                                        onChange={(e) => updateQuestion(currentQuestionIndex, { questionText: e.target.value })}
                                                         rows={3}
-                                                        className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
-                                                        placeholder="Enter question text"
+                                                        className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white whitespace-pre-wrap"
+                                                        placeholder="Enter question text (supports multiple lines and spaces)"
+                                                        style={{ whiteSpace: 'pre-wrap' }}
                                                     />
                                                 </div>
 
-                                                {/* Options */}
-                                                <div>
+                                                {/* ── Question Image Upload (for all question types) ── */}
+                                                <div className="border border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-4">
                                                     <div className="flex items-center justify-between mb-2">
-                                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                                                            Options *
+                                                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                                                            <Image className="w-4 h-4" />
+                                                            Question Image <span className="text-gray-400 font-normal">(optional)</span>
                                                         </label>
-                                                        <button
-                                                            onClick={() => addOption(currentQuestionIndex)}
-                                                            className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
-                                                        >
-                                                            + Add Option
-                                                        </button>
+                                                        <label className="cursor-pointer">
+                                                            <input
+                                                                type="file"
+                                                                accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                                                                className="hidden"
+                                                                onChange={(e) => {
+                                                                    const file = e.target.files?.[0];
+                                                                    if (file) handleQuestionImageUpload(currentQuestionIndex, file);
+                                                                    e.target.value = '';
+                                                                }}
+                                                            />
+                                                            <span className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-indigo-500 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950 text-sm font-medium transition-colors">
+                                                                <Upload className="w-3.5 h-3.5" />
+                                                                Upload Image
+                                                            </span>
+                                                        </label>
                                                     </div>
-
-                                                    <div className="space-y-2">
-                                                        {currentQuestion.options?.map((option, optIndex) => (
-                                                            <div
-                                                                key={option.id}
-                                                                className="flex items-center gap-2"
+                                                    {currentQuestion.questionImage ? (
+                                                        <div className="relative">
+                                                            <img src={currentQuestion.questionImage} alt="Question" className="max-h-48 rounded-lg border border-gray-200 dark:border-gray-700 object-contain bg-gray-50 dark:bg-gray-800" />
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => updateQuestion(currentQuestionIndex, { questionImage: '' })}
+                                                                className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors"
                                                             >
-                                                                <input
-                                                                    type="radio"
-                                                                    name={`question-${currentQuestionIndex}`}
-                                                                    checked={
-                                                                        currentQuestion.correctAnswer === option.id
-                                                                    }
-                                                                    onChange={() =>
-                                                                        updateQuestion(currentQuestionIndex, {
-                                                                            correctAnswer: option.id,
-                                                                        })
-                                                                    }
-                                                                    className="w-4 h-4 text-indigo-600"
-                                                                />
-                                                                <input
-                                                                    type="text"
-                                                                    value={option.text}
-                                                                    onChange={(e) =>
-                                                                        updateOption(
-                                                                            currentQuestionIndex,
-                                                                            option.id,
-                                                                            e.target.value
-                                                                        )
-                                                                    }
-                                                                    className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
-                                                                    placeholder={`Option ${optIndex + 1}`}
-                                                                />
-                                                                {currentQuestion.options &&
-                                                                    currentQuestion.options.length > 2 && (
-                                                                        <button
-                                                                            onClick={() =>
-                                                                                removeOption(
-                                                                                    currentQuestionIndex,
-                                                                                    option.id
-                                                                                )
-                                                                            }
-                                                                            className="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300"
-                                                                        >
-                                                                            <X className="w-5 h-5" />
-                                                                        </button>
-                                                                    )}
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                                                        Select the radio button to mark the correct answer
-                                                    </p>
+                                                                <X className="w-3.5 h-3.5" />
+                                                            </button>
+                                                        </div>
+                                                    ) : (
+                                                        <p className="text-xs text-gray-400 dark:text-gray-500">Attach a diagram, graph, or illustration (JPEG, PNG, GIF, WebP — max 5MB)</p>
+                                                    )}
                                                 </div>
 
-                                                {/* Explanation */}
+                                                {/* ── MCQ Options (for text/image/formula/diagram types) ── */}
+                                                {currentQuestion.questionType !== 'match' && (
+                                                    <div>
+                                                        <div className="flex items-center justify-between mb-2">
+                                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Options *</label>
+                                                            <button onClick={() => addOption(currentQuestionIndex)} className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1">
+                                                                <Plus className="w-3.5 h-3.5" /> Add Option
+                                                            </button>
+                                                        </div>
+                                                        <div className="space-y-2">
+                                                            {currentQuestion.options?.map((option, optIndex) => (
+                                                                <div key={option.id} className={`flex items-center gap-2 p-2 rounded-lg border ${currentQuestion.correctAnswer === option.id ? 'border-green-500 bg-green-50 dark:bg-green-950/30' : 'border-gray-200 dark:border-gray-700'}`}>
+                                                                    <input
+                                                                        type="radio"
+                                                                        name={`question-${currentQuestionIndex}`}
+                                                                        checked={currentQuestion.correctAnswer === option.id}
+                                                                        onChange={() => updateQuestion(currentQuestionIndex, { correctAnswer: option.id })}
+                                                                        className="w-4 h-4 text-indigo-600 flex-shrink-0"
+                                                                        title="Mark as correct answer"
+                                                                    />
+                                                                    <input
+                                                                        type="text"
+                                                                        value={option.text}
+                                                                        onChange={(e) => updateOption(currentQuestionIndex, option.id, e.target.value)}
+                                                                        className="flex-1 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white text-sm"
+                                                                        placeholder={`Option ${optIndex + 1}`}
+                                                                    />
+                                                                    {currentQuestion.options && currentQuestion.options.length > 2 && (
+                                                                        <button onClick={() => removeOption(currentQuestionIndex, option.id)} className="text-red-500 hover:text-red-700 flex-shrink-0">
+                                                                            <X className="w-4 h-4" />
+                                                                        </button>
+                                                                    )}
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">🔘 Click the radio button to mark the correct answer (highlighted in green)</p>
+                                                    </div>
+                                                )}
+
+                                                {/* ── Match the Following Pairs ── */}
+                                                {currentQuestion.questionType === 'match' && (
+                                                    <div>
+                                                        <div className="flex items-center justify-between mb-3">
+                                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                                                                <ArrowLeftRight className="w-4 h-4" />
+                                                                Match Pairs *
+                                                            </label>
+                                                            <button onClick={() => addMatchPair(currentQuestionIndex)} className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1">
+                                                                <Plus className="w-3.5 h-3.5" /> Add Pair
+                                                            </button>
+                                                        </div>
+
+                                                        {/* Column headers */}
+                                                        <div className="grid grid-cols-[1fr_auto_1fr_auto] gap-2 mb-2 px-1">
+                                                            <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide text-center bg-blue-50 dark:bg-blue-950 rounded py-1">Column A (Left)</div>
+                                                            <div></div>
+                                                            <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide text-center bg-green-50 dark:bg-green-950 rounded py-1">Column B (Right)</div>
+                                                            <div></div>
+                                                        </div>
+
+                                                        <div className="space-y-2">
+                                                            {(currentQuestion.matchPairs || []).map((pair, pairIndex) => (
+                                                                <div key={pairIndex} className="grid grid-cols-[1fr_auto_1fr_auto] gap-2 items-center">
+                                                                    <input
+                                                                        type="text"
+                                                                        value={pair.left}
+                                                                        onChange={(e) => updateMatchPair(currentQuestionIndex, pairIndex, 'left', e.target.value)}
+                                                                        className="px-3 py-2 border border-blue-300 dark:border-blue-700 rounded-lg focus:ring-2 focus:ring-blue-400 dark:bg-gray-700 dark:text-white text-sm"
+                                                                        placeholder={`Item ${pairIndex + 1}`}
+                                                                    />
+                                                                    <ArrowLeftRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                                                                    <input
+                                                                        type="text"
+                                                                        value={pair.right}
+                                                                        onChange={(e) => updateMatchPair(currentQuestionIndex, pairIndex, 'right', e.target.value)}
+                                                                        className="px-3 py-2 border border-green-300 dark:border-green-700 rounded-lg focus:ring-2 focus:ring-green-400 dark:bg-gray-700 dark:text-white text-sm"
+                                                                        placeholder={`Match ${pairIndex + 1}`}
+                                                                    />
+                                                                    {(currentQuestion.matchPairs || []).length > 2 && (
+                                                                        <button onClick={() => removeMatchPair(currentQuestionIndex, pairIndex)} className="text-red-500 hover:text-red-700">
+                                                                            <X className="w-4 h-4" />
+                                                                        </button>
+                                                                    )}
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                                                            ℹ️ Students will see Column A items in order and must select the correct Column B match from a dropdown. Partial marks are awarded per correct pair.
+                                                        </p>
+                                                    </div>
+                                                )}
+
+                                                {/* ── Explanation ── */}
                                                 <div>
-                                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                                        Explanation *
-                                                    </label>
+                                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Explanation *</label>
                                                     <textarea
                                                         value={currentQuestion.explanation || ''}
-                                                        onChange={(e) =>
-                                                            updateQuestion(currentQuestionIndex, {
-                                                                explanation: e.target.value,
-                                                            })
-                                                        }
+                                                        onChange={(e) => updateQuestion(currentQuestionIndex, { explanation: e.target.value })}
                                                         rows={3}
                                                         className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
-                                                        placeholder="Explain the correct answer"
+                                                        placeholder="Explain the correct answer (shown after submission)"
+                                                        style={{ whiteSpace: 'pre-wrap' }}
                                                     />
                                                 </div>
                                             </div>
@@ -721,65 +717,55 @@ const QuizEditor: React.FC = () => {
                                     </div>
                                 )}
 
-                                {/* Step 4: Review */}
+                                {/* ── Step 4: Review ── */}
                                 {step === 4 && (
                                     <div className="space-y-6">
                                         <div className="bg-blue-50 dark:bg-blue-900/30 rounded-lg p-4">
-                                            <h3 className="font-semibold text-blue-900 dark:text-blue-200 mb-2">
-                                                Quiz Summary
-                                            </h3>
+                                            <h3 className="font-semibold text-blue-900 dark:text-blue-200 mb-2">Quiz Summary</h3>
                                             <div className="space-y-1 text-sm text-blue-800 dark:text-blue-300">
-                                                <p>
-                                                    <strong>Title:</strong> {title}
-                                                </p>
-                                                <p>
-                                                    <strong>Questions:</strong> {questions.length}
-                                                </p>
-                                                <p>
-                                                    <strong>Time Limit:</strong> {timeLimit} minutes
-                                                </p>
-                                                <p>
-                                                    <strong>Marks:</strong> {marksPerQuestion} per question
-                                                </p>
-                                                {negativeMarking > 0 && (
-                                                    <p>
-                                                        <strong>Negative Marking:</strong> -{negativeMarking}
-                                                    </p>
-                                                )}
-                                                <p>
-                                                    <strong>Total Marks:</strong>{' '}
-                                                    {questions.length * marksPerQuestion}
-                                                </p>
+                                                <p><strong>Title:</strong> {title}</p>
+                                                <p><strong>Questions:</strong> {questions.length}</p>
+                                                <p><strong>Time Limit:</strong> {timeLimit} minutes</p>
+                                                <p><strong>Marks:</strong> {marksPerQuestion} per question</p>
+                                                {negativeMarking > 0 && (<p><strong>Negative Marking:</strong> -{negativeMarking}</p>)}
+                                                <p><strong>Total Marks:</strong> {questions.length * marksPerQuestion}</p>
                                             </div>
                                         </div>
 
                                         <div>
-                                            <h3 className="font-semibold text-gray-900 dark:text-white mb-4">
-                                                Questions Preview
-                                            </h3>
+                                            <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Questions Preview</h3>
                                             <div className="space-y-4">
                                                 {questions.map((q, index) => (
-                                                    <div
-                                                        key={index}
-                                                        className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4"
-                                                    >
-                                                        <p className="font-medium text-gray-900 dark:text-white mb-2">
-                                                            {index + 1}. {q.questionText}
-                                                        </p>
-                                                        <div className="space-y-1 ml-4">
-                                                            {q.options?.map((opt) => (
-                                                                <p
-                                                                    key={opt.id}
-                                                                    className={`text-sm ${q.correctAnswer === opt.id
-                                                                        ? 'text-green-600 dark:text-green-400 font-medium'
-                                                                        : 'text-gray-600 dark:text-gray-400'
-                                                                        }`}
-                                                                >
-                                                                    {opt.text}{' '}
-                                                                    {q.correctAnswer === opt.id && '✓'}
-                                                                </p>
-                                                            ))}
+                                                    <div key={index} className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                                                        <div className="flex items-start gap-2 mb-2">
+                                                            <span className="text-sm font-semibold text-gray-500 dark:text-gray-400 flex-shrink-0">{index + 1}.</span>
+                                                            {/* ✅ FIX: whitespace-pre-wrap preserves spaces and newlines */}
+                                                            <p className="font-medium text-gray-900 dark:text-white" style={{ whiteSpace: 'pre-wrap' }}>
+                                                                {q.questionText}
+                                                            </p>
                                                         </div>
+                                                        {q.questionImage && (
+                                                            <img src={q.questionImage} alt="Question" className="max-h-32 rounded border border-gray-200 dark:border-gray-600 mb-2 ml-5" />
+                                                        )}
+                                                        {q.questionType === 'match' ? (
+                                                            <div className="ml-5 space-y-1">
+                                                                {(q.matchPairs || []).map((pair, pi) => (
+                                                                    <p key={pi} className="text-sm text-gray-600 dark:text-gray-400">
+                                                                        <span className="text-blue-600 dark:text-blue-400 font-medium">{pair.left}</span>
+                                                                        <span className="mx-2">→</span>
+                                                                        <span className="text-green-600 dark:text-green-400 font-medium">{pair.right}</span>
+                                                                    </p>
+                                                                ))}
+                                                            </div>
+                                                        ) : (
+                                                            <div className="space-y-1 ml-5">
+                                                                {q.options?.map((opt) => (
+                                                                    <p key={opt.id} className={`text-sm ${q.correctAnswer === opt.id ? 'text-green-600 dark:text-green-400 font-semibold' : 'text-gray-600 dark:text-gray-400'}`}>
+                                                                        {q.correctAnswer === opt.id ? '✓ ' : '○ '}{opt.text}
+                                                                    </p>
+                                                                ))}
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 ))}
                                             </div>
@@ -790,46 +776,27 @@ const QuizEditor: React.FC = () => {
 
                             {/* Navigation Buttons */}
                             <div className="flex items-center justify-between">
-                                <button
-                                    onClick={() => setStep(Math.max(1, step - 1))}
-                                    disabled={step === 1}
-                                    className="flex items-center gap-2 px-6 py-3 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg font-medium hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                    <ChevronLeft className="w-5 h-5" />
-                                    Previous
+                                <button onClick={() => setStep(Math.max(1, step - 1))} disabled={step === 1} className="flex items-center gap-2 px-6 py-3 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg font-medium hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                                    <ChevronLeft className="w-5 h-5" /> Previous
                                 </button>
-
                                 <div className="flex gap-2">
                                     {step === 4 ? (
                                         <>
-                                            <button
-                                                onClick={() => handleSave(false)}
-                                                disabled={loading}
-                                                className="flex items-center gap-2 px-6 py-3 bg-gray-600 text-white rounded-lg font-medium hover:bg-gray-700 transition-colors disabled:opacity-50"
-                                            >
-                                                <Save className="w-5 h-5" />
-                                                Save as Draft
+                                            <button onClick={() => handleSave(false)} disabled={loading} className="flex items-center gap-2 px-6 py-3 bg-gray-600 text-white rounded-lg font-medium hover:bg-gray-700 transition-colors disabled:opacity-50">
+                                                <Save className="w-5 h-5" /> Save as Draft
                                             </button>
-                                            <button
-                                                onClick={() => handleSave(true)}
-                                                disabled={loading}
-                                                className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 transition-colors disabled:opacity-50"
-                                            >
-                                                <Send className="w-5 h-5" />
-                                                {loading ? 'Publishing...' : 'Publish Quiz'}
+                                            <button onClick={() => handleSave(true)} disabled={loading} className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 transition-colors disabled:opacity-50">
+                                                <Send className="w-5 h-5" /> {loading ? 'Publishing...' : 'Publish Quiz'}
                                             </button>
                                         </>
                                     ) : (
-                                        <button
-                                            onClick={handleNext}
-                                            className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 transition-colors"
-                                        >
-                                            Next
-                                            <ChevronRight className="w-5 h-5" />
+                                        <button onClick={handleNext} className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 transition-colors">
+                                            Next <ChevronRight className="w-5 h-5" />
                                         </button>
                                     )}
                                 </div>
                             </div>
+
                         </div>
                     </div>
                 </div>

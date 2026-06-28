@@ -7,16 +7,23 @@ export interface IQuestionOption {
     imageUrl?: string;
 }
 
+// Match pair for Match the Following questions
+export interface IMatchPair {
+    left: string;  // Column A item
+    right: string; // Column B item (correct match)
+}
+
 // Quiz Question
 export interface IQuizQuestion {
     _id?: mongoose.Types.ObjectId;
-    questionType: 'text' | 'image' | 'formula' | 'diagram';
+    questionType: 'text' | 'image' | 'formula' | 'diagram' | 'match';
     questionText: string;
     questionImage?: string;
     questionFormula?: string; // LaTeX formula
     questionDiagram?: string; // URL to diagram image
     options: IQuestionOption[];
-    correctAnswer: string; // ID of the correct option
+    correctAnswer: string; // ID of the correct option (unused for match type)
+    matchPairs?: IMatchPair[]; // Used only for 'match' question type
     explanation: string;
     marks: number; // Marks for this question (can override quiz-level setting)
     negativeMarks?: number; // Negative marks for this question (can override quiz-level setting)
@@ -65,11 +72,17 @@ const QuestionOptionSchema = new Schema<IQuestionOption>({
     },
 });
 
+// Match Pair Schema
+const MatchPairSchema = new Schema<IMatchPair>({
+    left: { type: String, required: true },
+    right: { type: String, required: true },
+}, { _id: false });
+
 // Quiz Question Schema
 const QuizQuestionSchema = new Schema<IQuizQuestion>({
     questionType: {
         type: String,
-        enum: ['text', 'image', 'formula', 'diagram'],
+        enum: ['text', 'image', 'formula', 'diagram', 'match'],
         required: true,
         default: 'text',
     },
@@ -88,9 +101,11 @@ const QuizQuestionSchema = new Schema<IQuizQuestion>({
     },
     options: {
         type: [QuestionOptionSchema],
-        required: true,
+        default: [],
         validate: {
-            validator: function (options: IQuestionOption[]) {
+            validator: function (this: IQuizQuestion, options: IQuestionOption[]) {
+                // Match type questions don't need options
+                if (this.questionType === 'match') return true;
                 return options.length >= 2 && options.length <= 6;
             },
             message: 'A question must have between 2 and 6 options',
@@ -98,11 +113,15 @@ const QuizQuestionSchema = new Schema<IQuizQuestion>({
     },
     correctAnswer: {
         type: String,
-        required: true,
+        default: '',
+    },
+    matchPairs: {
+        type: [MatchPairSchema],
+        default: undefined,
     },
     explanation: {
         type: String,
-        required: true,
+        default: '',
     },
     marks: {
         type: Number,

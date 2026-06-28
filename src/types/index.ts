@@ -146,15 +146,21 @@ export interface QuestionOption {
     imageUrl?: string;
 }
 
+export interface MatchPair {
+    left: string;
+    right: string;
+}
+
 export interface QuizQuestion {
     _id?: string;
-    questionType: 'text' | 'image' | 'formula' | 'diagram';
+    questionType: 'text' | 'image' | 'formula' | 'diagram' | 'match';
     questionText: string;
     questionImage?: string;
     questionFormula?: string;
     questionDiagram?: string;
     options: QuestionOption[];
     correctAnswer: string;
+    matchPairs?: MatchPair[];
     explanation: string;
     marks: number;
     negativeMarks?: number;

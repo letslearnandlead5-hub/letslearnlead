@@ -546,7 +546,7 @@ const MyProfile: React.FC = () => {
                                     Member Since
                                 </label>
                                 <p className="text-gray-900 dark:text-white">
-                                    N/A
+                                    {user?.createdAt ? new Date(user.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'N/A'}
                                 </p>
                             </div>
 

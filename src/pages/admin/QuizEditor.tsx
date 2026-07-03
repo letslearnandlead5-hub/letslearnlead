@@ -21,12 +21,16 @@ import {
     Image,
     ArrowLeftRight,
     Upload,
+    Eye,
 } from 'lucide-react';
 import { createQuiz, getQuizById, updateQuiz } from '../../services/quizService';
 import type { Quiz, QuizQuestion, QuestionOption, MatchPair } from '../../types';
 import toast from 'react-hot-toast';
 import AdminHeader from '../../components/admin/AdminHeader';
 import { useAuthStore } from '../../store/useAuthStore';
+import ScientificEditor, { stripHtml } from '../../components/quiz/ScientificEditor';
+import RichTextDisplay from '../../components/quiz/RichTextDisplay';
+import LivePreview from '../../components/quiz/LivePreview';
 
 // ── Image compression helper (same approach as CourseEditor) ─────────────────
 const compressImage = (file: File, maxW = 900, maxH = 700, quality = 0.82): Promise<string> =>
@@ -80,6 +84,7 @@ const QuizEditor: React.FC = () => {
     // Questions
     const [questions, setQuestions] = useState<Partial<QuizQuestion>[]>([]);
     const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+    const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
     useEffect(() => {
         fetchCourses();
@@ -278,22 +283,29 @@ const QuizEditor: React.FC = () => {
                 if (questions.length === 0) { toast.error('Add at least one question'); return false; }
                 for (let i = 0; i < questions.length; i++) {
                     const q = questions[i];
-                    if (!q.questionText?.trim()) { toast.error(`Question ${i + 1}: Question text is required`); return false; }
+                    
+                    const isTextEmpty = (html: string | undefined) => {
+                        if (!html) return true;
+                        if (html.includes('<img')) return false;
+                        return !stripHtml(html);
+                    };
+
+                    if (isTextEmpty(q.questionText)) { toast.error(`Question ${i + 1}: Question text is required`); return false; }
 
                     if (q.questionType === 'match') {
                         const pairs = q.matchPairs || [];
                         if (pairs.length < 2) { toast.error(`Question ${i + 1}: At least 2 match pairs required`); return false; }
-                        if (pairs.some(p => !p.left.trim() || !p.right.trim())) {
+                        if (pairs.some(p => isTextEmpty(p.left) || isTextEmpty(p.right))) {
                             toast.error(`Question ${i + 1}: All match pairs must have both left and right text`);
                             return false;
                         }
                     } else {
                         if (!q.options || q.options.length < 2) { toast.error(`Question ${i + 1}: At least 2 options required`); return false; }
-                        if (!q.options.every(opt => opt.text.trim())) { toast.error(`Question ${i + 1}: All options must have text`); return false; }
+                        if (q.options.some(opt => isTextEmpty(opt.text))) { toast.error(`Question ${i + 1}: All options must have text`); return false; }
                         if (!q.correctAnswer) { toast.error(`Question ${i + 1}: Please select the correct answer`); return false; }
                     }
 
-                    if (!q.explanation?.trim()) { toast.error(`Question ${i + 1}: Explanation is required`); return false; }
+                    if (isTextEmpty(q.explanation)) { toast.error(`Question ${i + 1}: Explanation is required`); return false; }
                 }
                 return true;
 
@@ -522,11 +534,21 @@ const QuizEditor: React.FC = () => {
                                                     <Plus className="w-5 h-5" />
                                                 </button>
                                             </div>
-                                            {questions.length > 1 && (
-                                                <button onClick={() => removeQuestion(currentQuestionIndex)} className="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300">
-                                                    <Trash2 className="w-5 h-5" />
+                                            <div className="flex items-center gap-3">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setIsPreviewOpen(true)}
+                                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/60 text-indigo-600 dark:text-indigo-400 text-sm font-semibold transition-colors"
+                                                >
+                                                    <Eye className="w-4 h-4" />
+                                                    Live Preview
                                                 </button>
-                                            )}
+                                                {questions.length > 1 && (
+                                                    <button onClick={() => removeQuestion(currentQuestionIndex)} className="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300">
+                                                        <Trash2 className="w-5 h-5" />
+                                                    </button>
+                                                )}
+                                            </div>
                                         </div>
 
                                         {currentQuestion && (
@@ -558,13 +580,11 @@ const QuizEditor: React.FC = () => {
                                                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                                                         Question {currentQuestionIndex + 1} *
                                                     </label>
-                                                    <textarea
+                                                    <ScientificEditor
                                                         value={currentQuestion.questionText || ''}
-                                                        onChange={(e) => updateQuestion(currentQuestionIndex, { questionText: e.target.value })}
-                                                        rows={3}
-                                                        className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white whitespace-pre-wrap"
-                                                        placeholder="Enter question text (supports multiple lines and spaces)"
-                                                        style={{ whiteSpace: 'pre-wrap' }}
+                                                        onChange={(html) => updateQuestion(currentQuestionIndex, { questionText: html })}
+                                                        placeholder="Enter question text (supports scientific formatting, chemical equations, and inline diagrams)"
+                                                        minHeight="120px"
                                                     />
                                                 </div>
 
@@ -628,13 +648,15 @@ const QuizEditor: React.FC = () => {
                                                                         className="w-4 h-4 text-indigo-600 flex-shrink-0"
                                                                         title="Mark as correct answer"
                                                                     />
-                                                                    <input
-                                                                        type="text"
-                                                                        value={option.text}
-                                                                        onChange={(e) => updateOption(currentQuestionIndex, option.id, e.target.value)}
-                                                                        className="flex-1 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white text-sm"
-                                                                        placeholder={`Option ${optIndex + 1}`}
-                                                                    />
+                                                                    <div className="flex-1 min-w-0">
+                                                                        <ScientificEditor
+                                                                            value={option.text}
+                                                                            onChange={(html) => updateOption(currentQuestionIndex, option.id, html)}
+                                                                            placeholder={`Option ${optIndex + 1}`}
+                                                                            minHeight="44px"
+                                                                            compact
+                                                                        />
+                                                                    </div>
                                                                     {currentQuestion.options && currentQuestion.options.length > 2 && (
                                                                         <button onClick={() => removeOption(currentQuestionIndex, option.id)} className="text-red-500 hover:text-red-700 flex-shrink-0">
                                                                             <X className="w-4 h-4" />
@@ -671,21 +693,25 @@ const QuizEditor: React.FC = () => {
                                                         <div className="space-y-2">
                                                             {(currentQuestion.matchPairs || []).map((pair, pairIndex) => (
                                                                 <div key={pairIndex} className="grid grid-cols-[1fr_auto_1fr_auto] gap-2 items-center">
-                                                                    <input
-                                                                        type="text"
-                                                                        value={pair.left}
-                                                                        onChange={(e) => updateMatchPair(currentQuestionIndex, pairIndex, 'left', e.target.value)}
-                                                                        className="px-3 py-2 border border-blue-300 dark:border-blue-700 rounded-lg focus:ring-2 focus:ring-blue-400 dark:bg-gray-700 dark:text-white text-sm"
-                                                                        placeholder={`Item ${pairIndex + 1}`}
-                                                                    />
+                                                                    <div className="min-w-0">
+                                                                        <ScientificEditor
+                                                                            value={pair.left}
+                                                                            onChange={(html) => updateMatchPair(currentQuestionIndex, pairIndex, 'left', html)}
+                                                                            placeholder={`Item ${pairIndex + 1}`}
+                                                                            minHeight="44px"
+                                                                            compact
+                                                                        />
+                                                                    </div>
                                                                     <ArrowLeftRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                                                                    <input
-                                                                        type="text"
-                                                                        value={pair.right}
-                                                                        onChange={(e) => updateMatchPair(currentQuestionIndex, pairIndex, 'right', e.target.value)}
-                                                                        className="px-3 py-2 border border-green-300 dark:border-green-700 rounded-lg focus:ring-2 focus:ring-green-400 dark:bg-gray-700 dark:text-white text-sm"
-                                                                        placeholder={`Match ${pairIndex + 1}`}
-                                                                    />
+                                                                    <div className="min-w-0">
+                                                                        <ScientificEditor
+                                                                            value={pair.right}
+                                                                            onChange={(html) => updateMatchPair(currentQuestionIndex, pairIndex, 'right', html)}
+                                                                            placeholder={`Match ${pairIndex + 1}`}
+                                                                            minHeight="44px"
+                                                                            compact
+                                                                        />
+                                                                    </div>
                                                                     {(currentQuestion.matchPairs || []).length > 2 && (
                                                                         <button onClick={() => removeMatchPair(currentQuestionIndex, pairIndex)} className="text-red-500 hover:text-red-700">
                                                                             <X className="w-4 h-4" />
@@ -703,13 +729,11 @@ const QuizEditor: React.FC = () => {
                                                 {/* ── Explanation ── */}
                                                 <div>
                                                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Explanation *</label>
-                                                    <textarea
+                                                    <ScientificEditor
                                                         value={currentQuestion.explanation || ''}
-                                                        onChange={(e) => updateQuestion(currentQuestionIndex, { explanation: e.target.value })}
-                                                        rows={3}
-                                                        className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
+                                                        onChange={(html) => updateQuestion(currentQuestionIndex, { explanation: html })}
                                                         placeholder="Explain the correct answer (shown after submission)"
-                                                        style={{ whiteSpace: 'pre-wrap' }}
+                                                        minHeight="96px"
                                                     />
                                                 </div>
                                             </div>
@@ -739,30 +763,36 @@ const QuizEditor: React.FC = () => {
                                                     <div key={index} className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
                                                         <div className="flex items-start gap-2 mb-2">
                                                             <span className="text-sm font-semibold text-gray-500 dark:text-gray-400 flex-shrink-0">{index + 1}.</span>
-                                                            {/* ✅ FIX: whitespace-pre-wrap preserves spaces and newlines */}
-                                                            <p className="font-medium text-gray-900 dark:text-white" style={{ whiteSpace: 'pre-wrap' }}>
-                                                                {q.questionText}
-                                                            </p>
+                                                            <div className="font-medium text-gray-900 dark:text-white flex-1">
+                                                                <RichTextDisplay content={q.questionText || ''} />
+                                                            </div>
                                                         </div>
                                                         {q.questionImage && (
                                                             <img src={q.questionImage} alt="Question" className="max-h-32 rounded border border-gray-200 dark:border-gray-600 mb-2 ml-5" />
                                                         )}
                                                         {q.questionType === 'match' ? (
-                                                            <div className="ml-5 space-y-1">
+                                                            <div className="ml-5 space-y-2">
                                                                 {(q.matchPairs || []).map((pair, pi) => (
-                                                                    <p key={pi} className="text-sm text-gray-600 dark:text-gray-400">
-                                                                        <span className="text-blue-600 dark:text-blue-400 font-medium">{pair.left}</span>
+                                                                    <div key={pi} className="text-sm text-gray-600 dark:text-gray-400 flex flex-wrap items-center gap-1.5">
+                                                                        <span className="text-blue-600 dark:text-blue-400 font-medium">
+                                                                            <RichTextDisplay content={pair.left} />
+                                                                        </span>
                                                                         <span className="mx-2">→</span>
-                                                                        <span className="text-green-600 dark:text-green-400 font-medium">{pair.right}</span>
-                                                                    </p>
+                                                                        <span className="text-green-600 dark:text-green-400 font-medium">
+                                                                            <RichTextDisplay content={pair.right} />
+                                                                        </span>
+                                                                    </div>
                                                                 ))}
                                                             </div>
                                                         ) : (
-                                                            <div className="space-y-1 ml-5">
+                                                            <div className="space-y-2 ml-5">
                                                                 {q.options?.map((opt) => (
-                                                                    <p key={opt.id} className={`text-sm ${q.correctAnswer === opt.id ? 'text-green-600 dark:text-green-400 font-semibold' : 'text-gray-600 dark:text-gray-400'}`}>
-                                                                        {q.correctAnswer === opt.id ? '✓ ' : '○ '}{opt.text}
-                                                                    </p>
+                                                                    <div key={opt.id} className={`text-sm flex items-start gap-1.5 ${q.correctAnswer === opt.id ? 'text-green-600 dark:text-green-400 font-semibold' : 'text-gray-600 dark:text-gray-400'}`}>
+                                                                        <span>{q.correctAnswer === opt.id ? '✓ ' : '○ '}</span>
+                                                                        <div className="flex-1">
+                                                                            <RichTextDisplay content={opt.text} />
+                                                                        </div>
+                                                                    </div>
                                                                 ))}
                                                             </div>
                                                         )}
@@ -801,6 +831,16 @@ const QuizEditor: React.FC = () => {
                     </div>
                 </div>
             </div>
+
+            {/* Live Preview Modal */}
+            {currentQuestion && (
+                <LivePreview
+                    question={currentQuestion}
+                    questionNumber={currentQuestionIndex + 1}
+                    isOpen={isPreviewOpen}
+                    onClose={() => setIsPreviewOpen(false)}
+                />
+            )}
         </div>
     );
 };

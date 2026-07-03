@@ -15,6 +15,7 @@ import { getQuizResult } from '../../services/quizService';
 import { formatTime } from '../../services/quizService';
 import type { QuizResult } from '../../types';
 import toast from 'react-hot-toast';
+import RichTextDisplay from '../../components/quiz/RichTextDisplay';
 
 const QuizResultView: React.FC = () => {
     const { id: quizId, attemptId } = useParams<{ id: string; attemptId: string }>();
@@ -272,9 +273,9 @@ const QuizResultView: React.FC = () => {
                                                 exit={{ opacity: 0, height: 0 }}
                                                 className="mt-3 p-4 bg-blue-50 dark:bg-blue-900/30 rounded-lg"
                                             >
-                                                <p className="text-sm text-gray-700 dark:text-gray-300">
-                                                    {qResult.explanation}
-                                                </p>
+                                                <div className="text-sm text-gray-700 dark:text-gray-300">
+                                                    <RichTextDisplay content={qResult.explanation} />
+                                                </div>
                                             </motion.div>
                                         )}
                                     </div>

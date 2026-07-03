@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import type { QuizQuestion } from '../../types';
 import { FileCode, ArrowLeftRight } from 'lucide-react';
+import RichTextDisplay from './RichTextDisplay';
 
 interface QuestionDisplayProps {
     question: QuizQuestion;
@@ -42,8 +43,9 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
     const shuffledRights = useMemo(() => {
         if (question.questionType !== 'match' || !question.matchPairs) return [];
         const seed = question._id || question.questionText.slice(0, 20);
+        const stripHtmlLocal = (html: string) => html.replace(/<[^>]*>/g, '').trim();
         return shuffleWithSeed(
-            question.matchPairs.map((p, i) => ({ originalIdx: i, text: p.right })),
+            question.matchPairs.map((p, i) => ({ originalIdx: i, text: stripHtmlLocal(p.right) })),
             seed
         );
     }, [question.questionType, question.matchPairs, question._id, question.questionText]);
@@ -59,9 +61,9 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
             case 'match':
                 return (
                     <div className="space-y-4">
-                        {/* Question text with preserved whitespace */}
-                        <div className="text-lg text-gray-900 dark:text-white" style={{ whiteSpace: 'pre-wrap' }}>
-                            {question.questionText}
+                        {/* Question text with rich formatting */}
+                        <div className="text-lg text-gray-900 dark:text-white">
+                            <RichTextDisplay content={question.questionText} />
                         </div>
                         {/* Optional question image */}
                         {question.questionImage && (
@@ -94,7 +96,7 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
                                             {/* Column A item */}
                                             <div className={`px-4 py-3 rounded-lg border-2 text-sm font-medium text-gray-900 dark:text-white ${hasAnswer ? 'border-blue-400 bg-blue-50 dark:bg-blue-950/40' : 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800'}`}>
                                                 <span className="text-xs text-gray-400 mr-2">{leftIdx + 1}.</span>
-                                                {pair.left}
+                                                <RichTextDisplay content={pair.left} className="inline" />
                                             </div>
                                             {/* Column B dropdown */}
                                             <select
@@ -124,8 +126,8 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
             case 'formula':
                 return (
                     <div className="space-y-4">
-                        <div className="text-lg text-gray-900 dark:text-white" style={{ whiteSpace: 'pre-wrap' }}>
-                            {question.questionText}
+                        <div className="text-lg text-gray-900 dark:text-white">
+                            <RichTextDisplay content={question.questionText} />
                         </div>
                         {question.questionImage && (
                             <div className="rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
@@ -139,7 +141,7 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
                                     <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Formula:</span>
                                 </div>
                                 <div className="font-mono text-base text-gray-900 dark:text-white">
-                                    {question.questionFormula}
+                                    <RichTextDisplay content={question.questionFormula} />
                                 </div>
                             </div>
                         )}
@@ -149,8 +151,8 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
             case 'diagram':
                 return (
                     <div className="space-y-4">
-                        <div className="text-lg text-gray-900 dark:text-white" style={{ whiteSpace: 'pre-wrap' }}>
-                            {question.questionText}
+                        <div className="text-lg text-gray-900 dark:text-white">
+                            <RichTextDisplay content={question.questionText} />
                         </div>
                         {(question.questionImage || question.questionDiagram) && (
                             <div className="rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
@@ -169,9 +171,8 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
             default:
                 return (
                     <div className="space-y-4">
-                        {/* ✅ FIX: whitespace-pre-wrap preserves spaces, tabs, and newlines */}
-                        <div className="text-lg text-gray-900 dark:text-white" style={{ whiteSpace: 'pre-wrap' }}>
-                            {question.questionText}
+                        <div className="text-lg text-gray-900 dark:text-white">
+                            <RichTextDisplay content={question.questionText} />
                         </div>
                         {/* Always render image if present (regardless of question type) */}
                         {question.questionImage && (
@@ -243,16 +244,12 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
                                 disabled={disabled}
                                 className="mt-1 w-4 h-4 text-indigo-600 focus:ring-indigo-500"
                             />
-                            <div className="ml-3 flex-1">
-                                {option.imageUrl ? (
-                                    <div className="space-y-2">
-                                        <span className="text-gray-900 dark:text-white">{option.text}</span>
-                                        <img src={option.imageUrl} alt={option.text} className="max-h-32 rounded border border-gray-200 dark:border-gray-700" />
-                                    </div>
-                                ) : (
-                                    <span className="text-gray-900 dark:text-white">{option.text}</span>
-                                )}
-                            </div>
+                             <div className="ml-3 flex-1 text-gray-900 dark:text-white">
+                                 <RichTextDisplay content={option.text} />
+                                 {option.imageUrl && (
+                                     <img src={option.imageUrl} alt="Option image" className="max-h-32 rounded border border-gray-200 dark:border-gray-700 mt-2 object-contain" />
+                                 )}
+                             </div>
                         </label>
                     ))}
                 </div>

@@ -65,7 +65,7 @@ const AdminHeader: React.FC<AdminHeaderProps> = ({ onMenuClick }) => {
                         <img
                             src={isDark ? "/logo_black.png" : "/logo.png?v=2"}
                             alt="Let's L-earn and Lead"
-                            className={`w-auto object-contain flex-shrink-0 ${isDark ? "h-20 -my-2" : "h-12"}`}
+                            className="h-20 w-auto object-contain flex-shrink-0 -my-2"
                         />
                         <div className="flex flex-col min-w-0">
                             <span className="text-base sm:text-lg font-bold text-gray-900 dark:text-white leading-tight truncate">

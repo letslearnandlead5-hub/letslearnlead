@@ -56,6 +56,7 @@ const MyCourses: React.FC = () => {
     const [courseMaterials, setCourseMaterials] = useState<any[]>([]);
     const navigate = useNavigate();
     const [savedNotes, setSavedNotes] = useState<Set<string>>(new Set());
+    const [loadingCourse, setLoadingCourse] = useState<string>('');
     const { addToast } = useToastStore();
     const { token } = useAuthStore();
 
@@ -179,6 +180,47 @@ const MyCourses: React.FC = () => {
         setSelectedCourse(course);
         fetchCourseMaterials(course._id);
         setIsDetailsOpen(true);
+    };
+
+    // Smart Continue: fetch fresh course data → find first lesson → navigate to VideoPlayer
+    const handleContinueCourse = async (courseId: string, existingFirstLessonId: string) => {
+        // If we already have a firstLessonId, navigate immediately
+        if (existingFirstLessonId) {
+            navigate(`/video/${courseId}/${existingFirstLessonId}/`);
+            return;
+        }
+
+        // Fetch fresh course data (enrolled users get full sections)
+        try {
+            setLoadingCourse(courseId);
+            const response: any = await courseAPI.getById(courseId);
+            const courseData = response.data;
+
+            let firstLessonId = '';
+            for (const section of courseData?.sections || []) {
+                for (const subsection of section.subsections || []) {
+                    for (const item of subsection.content || []) {
+                        if (item._id) {
+                            firstLessonId = item._id.toString();
+                            break;
+                        }
+                    }
+                    if (firstLessonId) break;
+                }
+                if (firstLessonId) break;
+            }
+
+            if (firstLessonId) {
+                navigate(`/video/${courseId}/${firstLessonId}/`);
+            } else {
+                addToast({ type: 'warning', message: 'No lessons have been added to this course yet. Check back soon!' });
+            }
+        } catch (error) {
+            console.error('Error fetching course:', error);
+            addToast({ type: 'error', message: 'Failed to load course. Please try again.' });
+        } finally {
+            setLoadingCourse('');
+        }
     };
 
     const filteredCourses = courses.filter((course) => {
@@ -402,18 +444,15 @@ const MyCourses: React.FC = () => {
 
                                         {/* Action Buttons */}
                                         <div className="flex gap-2">
-                                            <Link
-                                                to={course.firstLessonId ? `/video/${course._id}/${course.firstLessonId}` : `/courses/${course._id}`}
+                                            <Button
+                                                variant="primary"
                                                 className="flex-1"
+                                                leftIcon={loadingCourse === course._id ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Play className="w-4 h-4" />}
+                                                onClick={() => handleContinueCourse(course._id, course.firstLessonId)}
+                                                disabled={loadingCourse === course._id}
                                             >
-                                                <Button
-                                                    variant="primary"
-                                                    className="w-full"
-                                                    leftIcon={<Play className="w-4 h-4" />}
-                                                >
-                                                    {course.status === 'completed' ? 'Review' : 'Continue'}
-                                                </Button>
-                                            </Link>
+                                                {loadingCourse === course._id ? 'Loading...' : course.status === 'completed' ? 'Review' : 'Continue'}
+                                            </Button>
                                             <Button
                                                 variant="outline"
                                                 size="sm"
@@ -585,14 +624,17 @@ const MyCourses: React.FC = () => {
                             >
                                 Close
                             </Button>
-                            <Link
-                                to={selectedCourse.firstLessonId ? `/video/${selectedCourse._id}/${selectedCourse.firstLessonId}` : `/courses/${selectedCourse._id}`}
+                            <Button
+                                variant="primary"
                                 className="flex-1"
+                                onClick={() => {
+                                    setIsDetailsOpen(false);
+                                    handleContinueCourse(selectedCourse._id, selectedCourse.firstLessonId);
+                                }}
+                                disabled={loadingCourse === selectedCourse._id}
                             >
-                                <Button variant="primary" className="w-full">
-                                    {selectedCourse.status === 'completed' ? 'Review Course' : 'Continue Learning'}
-                                </Button>
-                            </Link>
+                                {selectedCourse.status === 'completed' ? 'Review Course' : 'Continue Learning'}
+                            </Button>
                         </div>
                     </div>
                 )}

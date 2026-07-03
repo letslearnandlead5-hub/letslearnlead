@@ -58,7 +58,7 @@ const Footer: React.FC = () => {
                             <img
                                 src="/logo_black.png"
                                 alt="Let's L-Earn and Lead"
-                                className="h-24 w-auto -my-4"
+                                className="h-16 w-auto"
                             />
                             <div className="flex flex-col">
                                 <span className="text-lg font-bold text-white leading-tight">

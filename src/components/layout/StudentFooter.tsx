@@ -13,7 +13,7 @@ const StudentFooter: React.FC = () => {
                             <img
                                 src="/logo_black.png"
                                 alt="Let's L-earn and Lead"
-                                className="h-20 w-auto -my-3"
+                                className="h-14 w-auto"
                             />
                             <div className="flex flex-col">
                                 <span className="text-lg font-bold text-gray-900 dark:text-white leading-tight">

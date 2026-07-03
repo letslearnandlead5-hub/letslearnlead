@@ -103,7 +103,7 @@ const StudentHeader: React.FC<StudentHeaderProps> = ({ onMenuClick }) => {
                         <img
                             src={isDark ? "/logo_black.png" : "/logo.png?v=2"}
                             alt="Let's L-earn and Lead"
-                            className="h-18 sm:h-22 w-auto object-contain -my-2"
+                            className="h-12 sm:h-14 w-auto object-contain"
                         />
                         <div className="hidden sm:flex flex-col">
                             <span className="text-lg font-bold text-gray-900 dark:text-white leading-tight whitespace-nowrap">

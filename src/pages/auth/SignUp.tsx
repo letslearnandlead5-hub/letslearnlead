@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Mail, Lock, User as UserIcon, Eye, EyeOff, AlertCircle } from 'lucide-react';
@@ -20,8 +20,14 @@ const SignUp: React.FC = () => {
     const [error, setError] = useState('');
 
     const navigate = useNavigate();
-    const { signup, loading } = useAuthStore();
+    const { signup, loading, isAuthenticated } = useAuthStore();
     const { addToast } = useToastStore();
+
+    useEffect(() => {
+        if (isAuthenticated) {
+            navigate('/dashboard/');
+        }
+    }, [isAuthenticated, navigate]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();

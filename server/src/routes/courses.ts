@@ -4,6 +4,7 @@ import { User } from '../models/User';
 import { protect, authorize, AuthRequest } from '../middleware/auth';
 import { AppError } from '../middleware/error';
 import { cache, TTL } from '../utils/cache';
+import * as jwt from 'jsonwebtoken';
 
 const router = Router();
 
@@ -138,9 +139,70 @@ router.get('/:id', async (req: Request, res: Response, next) => {
             throw new AppError('Course not found', 404);
         }
 
+        let isAuthorized = false;
+
+        // Extract token if present
+        let token: string | undefined;
+        if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+            token = req.headers.authorization.split(' ')[1];
+        }
+
+        if (course.price === 0) {
+            isAuthorized = true;
+        } else if (token) {
+            try {
+                const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { id: string };
+                const user = await User.findById(decoded.id);
+                if (user) {
+                    if (user.role === 'admin' || user.role === 'teacher') {
+                        isAuthorized = true;
+                    } else {
+                        // Check if enrolled
+                        isAuthorized = user.enrolledCourses.some(
+                            (enrolledCourseId: any) => enrolledCourseId.toString() === course._id.toString()
+                        );
+                    }
+                }
+            } catch (err) {
+                // Token verification failed or user not found, treat as guest/unauthorized
+            }
+        }
+
+        // Redact premium contents if not authorized
+        let responseData = course.toObject();
+        if (!isAuthorized) {
+            // Redact new sections structure
+            if (responseData.sections) {
+                responseData.sections = responseData.sections.map((section: any) => ({
+                    ...section,
+                    subsections: (section.subsections || []).map((subsection: any) => ({
+                        ...subsection,
+                        content: (subsection.content || []).map((item: any) => {
+                            if (!item.isFree) {
+                                return {
+                                    ...item,
+                                    videoUrl: '',
+                                    articleContent: '',
+                                };
+                            }
+                            return item;
+                        }),
+                    })),
+                }));
+            }
+
+            // Redact legacy lessons
+            if (responseData.lessons) {
+                responseData.lessons = responseData.lessons.map((lesson: any) => ({
+                    ...lesson,
+                    videoUrl: '', // No isFree flag in legacy, hide by default
+                }));
+            }
+        }
+
         res.status(200).json({
             success: true,
-            data: course,
+            data: responseData,
         });
     } catch (error) {
         next(error);

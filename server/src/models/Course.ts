@@ -47,6 +47,7 @@ export interface ICourse extends Document {
     thumbnail: string;
     price: number;
     originalPrice?: number;
+    currency: string;
     rating: number;
     studentsEnrolled: number;
     duration: string;
@@ -55,6 +56,14 @@ export interface ICourse extends Document {
     medium: 'kannada' | 'english';
     grade?: string; // e.g., "6th", "7th", "8th", "9th", "10th"
     featuredOnHome: boolean;
+    // ── Payment Settings ────────────────────────────────────────────────
+    paymentEnabled: boolean;      // false = free, true = paid
+    paymentMethod: 'qr' | 'gateway' | 'both'; // future-proof
+    qrImage?: string;             // base64 encoded QR code image
+    upiId?: string;
+    merchantName?: string;
+    paymentInstructions?: string;
+    // ────────────────────────────────────────────────────────────────────
     sections: ISection[]; // New hierarchical structure
     lessons: ILesson[]; // Legacy field for backward compatibility
     quizId?: mongoose.Types.ObjectId;
@@ -229,6 +238,36 @@ const CourseSchema = new Schema<ICourse>(
         },
         demoVideoUrl: {
             type: String,
+        },
+        currency: {
+            type: String,
+            default: 'INR',
+        },
+        // ── Payment Settings ────────────────────────────────────────────
+        paymentEnabled: {
+            type: Boolean,
+            default: false,
+        },
+        paymentMethod: {
+            type: String,
+            enum: ['qr', 'gateway', 'both'],
+            default: 'qr',
+        },
+        qrImage: {
+            type: String,
+            default: '',
+        },
+        upiId: {
+            type: String,
+            default: '',
+        },
+        merchantName: {
+            type: String,
+            default: '',
+        },
+        paymentInstructions: {
+            type: String,
+            default: 'Scan the QR using PhonePe, Google Pay, Paytm or any UPI app. After payment, enter your Transaction ID below.',
         },
     },
     {

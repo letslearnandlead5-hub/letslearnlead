@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, X, BookOpen, Users, FileText, MessageSquare, Brain, Settings, LogOut, TrendingUp } from 'lucide-react';
+import { ArrowLeft, X, BookOpen, Users, FileText, MessageSquare, Brain, Settings, LogOut, TrendingUp, QrCode, Copy, CheckCircle } from 'lucide-react';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import { courseAPI } from '../../services/api';
@@ -33,6 +33,13 @@ const CourseEditor: React.FC = () => {
         medium: 'kannada',
         featuredOnHome: false,
         sections: [] as ISection[],
+        // Payment settings
+        paymentEnabled: false,
+        paymentMethod: 'qr',
+        qrImage: '',
+        upiId: '',
+        merchantName: '',
+        paymentInstructions: 'Scan the QR using PhonePe, Google Pay, Paytm or any UPI app. After payment, enter your Transaction ID below.',
     });
 
     // Load course data if editing
@@ -62,6 +69,13 @@ const CourseEditor: React.FC = () => {
                 medium: course.medium || 'kannada',
                 featuredOnHome: course.featuredOnHome === true,
                 sections: course.sections || [],
+                // Payment settings
+                paymentEnabled: course.paymentEnabled || false,
+                paymentMethod: course.paymentMethod || 'qr',
+                qrImage: course.qrImage || '',
+                upiId: course.upiId || '',
+                merchantName: course.merchantName || '',
+                paymentInstructions: course.paymentInstructions || 'Scan the QR using PhonePe, Google Pay, Paytm or any UPI app. After payment, enter your Transaction ID below.',
             });
         } catch (error) {
             console.error('Error loading course:', error);
@@ -161,6 +175,13 @@ const CourseEditor: React.FC = () => {
                 medium: formData.medium,
                 featuredOnHome: formData.featuredOnHome,
                 sections: formData.sections,
+                // Payment settings
+                paymentEnabled: formData.paymentEnabled,
+                paymentMethod: formData.paymentMethod,
+                qrImage: formData.qrImage,
+                upiId: formData.upiId,
+                merchantName: formData.merchantName,
+                paymentInstructions: formData.paymentInstructions,
             };
 
             if (id) {
@@ -235,6 +256,7 @@ const CourseEditor: React.FC = () => {
                             <button
                                 key={tab.id}
                                 onClick={() => {
+                                    window.dispatchEvent(new CustomEvent('selectAdminTab', { detail: tab.id }));
                                     navigate(`${tab.path}/`);
                                     setShowMobileSidebar(false);
                                 }}
@@ -246,6 +268,7 @@ const CourseEditor: React.FC = () => {
                         ))}
                         <button
                             onClick={() => {
+                                window.dispatchEvent(new CustomEvent('selectAdminTab', { detail: 'settings' }));
                                 navigate('/dashboard/');
                                 setShowMobileSidebar(false);
                             }}
@@ -565,6 +588,145 @@ const CourseEditor: React.FC = () => {
                                         sections={formData.sections}
                                         onChange={(sections) => setFormData(prev => ({ ...prev, sections }))}
                                     />
+                                </Card>
+
+                                {/* Payment Settings */}
+                                <Card className="p-6 mb-6">
+                                    <div className="flex items-center gap-3 mb-5">
+                                        <div className="w-10 h-10 bg-indigo-100 dark:bg-indigo-950 rounded-xl flex items-center justify-center">
+                                            <QrCode className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                                        </div>
+                                        <div>
+                                            <h3 className="font-bold text-gray-900 dark:text-white">Payment Settings</h3>
+                                            <p className="text-xs text-gray-500 dark:text-gray-400">Configure QR payment for this course</p>
+                                        </div>
+                                    </div>
+
+                                    {/* Enable Payment Toggle */}
+                                    <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-xl mb-4">
+                                        <div>
+                                            <p className="font-medium text-gray-900 dark:text-white text-sm">Enable Paid Access</p>
+                                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Students must pay to access this course</p>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => setFormData(prev => ({ ...prev, paymentEnabled: !prev.paymentEnabled }))}
+                                            className={`relative inline-flex h-7 w-14 items-center rounded-full transition-colors ${formData.paymentEnabled ? 'bg-indigo-600' : 'bg-gray-300 dark:bg-gray-600'}`}
+                                        >
+                                            <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-md transition-transform duration-300 ${formData.paymentEnabled ? 'translate-x-8' : 'translate-x-1'}`} />
+                                        </button>
+                                    </div>
+
+                                    {formData.paymentEnabled && (
+                                        <div className="space-y-4">
+                                            {/* Payment Method */}
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Payment Method</label>
+                                                <select
+                                                    value={formData.paymentMethod}
+                                                    onChange={e => setFormData(prev => ({ ...prev, paymentMethod: e.target.value }))}
+                                                    className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                                >
+                                                    <option value="qr">QR Code Only</option>
+                                                    <option value="gateway">Payment Gateway Only</option>
+                                                    <option value="both">QR + Gateway</option>
+                                                </select>
+                                            </div>
+
+                                            {/* QR Image Upload */}
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">QR Code Image</label>
+                                                {formData.qrImage ? (
+                                                    <div className="relative inline-block">
+                                                        <img src={formData.qrImage} alt="QR Code" className="w-48 h-48 object-contain border-2 border-indigo-200 dark:border-indigo-800 rounded-xl p-2 bg-white" />
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setFormData(prev => ({ ...prev, qrImage: '' }))}
+                                                            className="absolute -top-2 -right-2 w-7 h-7 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors shadow"
+                                                        >
+                                                            <X className="w-3.5 h-3.5" />
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl cursor-pointer hover:border-indigo-400 dark:hover:border-indigo-600 transition-colors bg-gray-50 dark:bg-gray-800">
+                                                        <QrCode className="w-8 h-8 text-gray-400 mb-2" />
+                                                        <p className="text-sm text-gray-500 dark:text-gray-400">Upload QR Code image</p>
+                                                        <p className="text-xs text-gray-400 mt-0.5">PNG, JPG · Max 5MB</p>
+                                                        <input
+                                                            type="file"
+                                                            accept="image/png,image/jpeg,image/webp"
+                                                            className="hidden"
+                                                            onChange={e => {
+                                                                const file = e.target.files?.[0];
+                                                                if (!file) return;
+                                                                if (file.size > 5 * 1024 * 1024) {
+                                                                    addToast({ type: 'error', message: 'QR image must be < 5MB' });
+                                                                    return;
+                                                                }
+                                                                const reader = new FileReader();
+                                                                reader.onloadend = () => {
+                                                                    const img = new Image();
+                                                                    img.onload = () => {
+                                                                        const canvas = document.createElement('canvas');
+                                                                        const MAX = 600;
+                                                                        let { width, height } = img;
+                                                                        if (width > MAX || height > MAX) {
+                                                                            const ratio = Math.min(MAX / width, MAX / height);
+                                                                            width = Math.round(width * ratio);
+                                                                            height = Math.round(height * ratio);
+                                                                        }
+                                                                        canvas.width = width;
+                                                                        canvas.height = height;
+                                                                        canvas.getContext('2d')!.drawImage(img, 0, 0, width, height);
+                                                                        const compressed = canvas.toDataURL('image/png', 0.9);
+                                                                        setFormData(prev => ({ ...prev, qrImage: compressed }));
+                                                                    };
+                                                                    img.src = reader.result as string;
+                                                                };
+                                                                reader.readAsDataURL(file);
+                                                            }}
+                                                        />
+                                                    </label>
+                                                )}
+                                            </div>
+
+                                            {/* UPI ID */}
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">UPI ID</label>
+                                                <input
+                                                    type="text"
+                                                    value={formData.upiId}
+                                                    onChange={e => setFormData(prev => ({ ...prev, upiId: e.target.value }))}
+                                                    className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                                    placeholder="e.g. name@phonpe or name@okicici"
+                                                />
+                                            </div>
+
+                                            {/* Merchant Name */}
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Merchant / Account Name</label>
+                                                <input
+                                                    type="text"
+                                                    value={formData.merchantName}
+                                                    onChange={e => setFormData(prev => ({ ...prev, merchantName: e.target.value }))}
+                                                    className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                                    placeholder="Name shown in UPI apps"
+                                                />
+                                            </div>
+
+                                            {/* Payment Instructions */}
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Payment Instructions</label>
+                                                <textarea
+                                                    value={formData.paymentInstructions}
+                                                    onChange={e => setFormData(prev => ({ ...prev, paymentInstructions: e.target.value }))}
+                                                    rows={3}
+                                                    className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+                                                    placeholder="Instructions shown to students on the payment screen"
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
                                 </Card>
 
                                 {/* Actions */}

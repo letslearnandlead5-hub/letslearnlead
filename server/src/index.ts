@@ -27,6 +27,7 @@ import statsRoutes from "./routes/stats";
 import contactRoutes from "./routes/contact";
 import userNotesRoutes from "./routes/userNotes";
 import bannerRoutes from "./routes/banners";
+import paymentRoutes from "./routes/payments";
 
 
 // 🔹 Load environment variables
@@ -164,6 +165,7 @@ app.use("/api/stats", statsRoutes);
 app.use("/api/contact", contactRoutes);
 app.use("/api/user-notes", userNotesRoutes);
 app.use("/api/banners", bannerRoutes);
+app.use("/api/payments", paymentRoutes);
 
 
 // 🔹 API Health check

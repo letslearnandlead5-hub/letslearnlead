@@ -7,13 +7,15 @@ import {
     Users,
     CheckCircle,
     BookOpen,
+    QrCode,
 } from 'lucide-react';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import { pageTransition } from '../../utils/animations';
-import { courseAPI } from '../../services/api';
+import { courseAPI, paymentAPI } from '../../services/api';
 import { useToastStore } from '../../store/useToastStore';
 import { useAuthStore } from '../../store/useAuthStore';
+import PaymentModal from '../../components/payment/PaymentModal';
 
 interface Course {
     _id: string;
@@ -23,10 +25,17 @@ interface Course {
     thumbnail: string;
     price: number;
     originalPrice?: number;
+    currency?: string;
     rating: number;
     studentsEnrolled: number;
     duration: string;
     category: string;
+    paymentEnabled?: boolean;
+    paymentMethod?: string;
+    qrImage?: string;
+    upiId?: string;
+    merchantName?: string;
+    paymentInstructions?: string;
     lessons: Array<{
         title: string;
         description: string;
@@ -39,7 +48,11 @@ const CourseDetails: React.FC = () => {
     const navigate = useNavigate();
     const [course, setCourse] = useState<Course | null>(null);
     const [loading, setLoading] = useState(true);
+    const [showPaymentModal, setShowPaymentModal] = useState(false);
+    const [paymentStatus, setPaymentStatus] = useState<string>('none');
+    const [isEnrolled, setIsEnrolled] = useState(false);
     const { addToast } = useToastStore();
+    const { user } = useAuthStore();
 
     useEffect(() => {
         if (id) {
@@ -51,7 +64,26 @@ const CourseDetails: React.FC = () => {
         try {
             setLoading(true);
             const response: any = await courseAPI.getById(id!);
-            setCourse(response.data);
+            const courseData = response.data;
+            setCourse(courseData);
+            // Check payment/enrollment status if user is logged in
+            if (user) {
+                try {
+                    if (courseData?.paymentEnabled) {
+                        const statusRes: any = await paymentAPI.getStatus(id!);
+                        const st = statusRes.status || 'none';
+                        setPaymentStatus(st);
+                        if (st === 'approved') setIsEnrolled(true);
+                    } else {
+                        // Free course: check enrollment via enrolled courses endpoint
+                        const enrolledRes: any = await courseAPI.getEnrolled();
+                        const enrolled = (enrolledRes.data || []).some((c: any) => (c._id || c) === id || (c.courseId && (c.courseId._id || c.courseId) === id));
+                        setIsEnrolled(enrolled);
+                    }
+                } catch {
+                    // Could not verify enrollment
+                }
+            }
         } catch (error) {
             console.error('Error fetching course:', error);
             addToast({ type: 'error', message: 'Failed to load course' });
@@ -59,8 +91,6 @@ const CourseDetails: React.FC = () => {
             setLoading(false);
         }
     };
-
-
 
     if (loading) {
         return (
@@ -86,7 +116,7 @@ const CourseDetails: React.FC = () => {
         );
     }
 
-    return (
+    return (<>
         <motion.div
             className="min-h-screen bg-gray-50 dark:bg-gray-950"
             {...pageTransition}
@@ -126,15 +156,73 @@ const CourseDetails: React.FC = () => {
                                 />
                             </div>
 
-                            {/* Info Message */}
-                            <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-                                <p className="text-sm font-semibold text-blue-900 dark:text-blue-200 mb-2">
-                                    📚 Want to access this course?
-                                </p>
-                                <p className="text-sm text-blue-700 dark:text-blue-300">
-                                    Contact your administrator to get enrolled in this course.
-                                </p>
-                            </div>
+                            {/* Price */}
+                            {course.price > 0 && (
+                                <div className="flex items-baseline gap-2 mb-4">
+                                    <span className="text-3xl font-bold text-gray-900 dark:text-white">₹{course.price.toLocaleString()}</span>
+                                    {course.originalPrice && course.originalPrice > course.price && (
+                                        <span className="text-lg text-gray-400 line-through">₹{course.originalPrice.toLocaleString()}</span>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* CTA based on state */}
+                            {isEnrolled ? (
+                                <Button
+                                    variant="primary"
+                                    className="w-full"
+                                    onClick={() => navigate(`/courses/${id}/learn/`)}
+                                >
+                                    <CheckCircle className="w-4 h-4 mr-2" />
+                                    Go to Course
+                                </Button>
+                            ) : course.paymentEnabled ? (
+                                <div className="space-y-3">
+                                    {paymentStatus === 'pending' ? (
+                                        <div className="bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-xl p-4 text-center">
+                                            <Clock className="w-6 h-6 text-amber-600 dark:text-amber-400 mx-auto mb-2" />
+                                            <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">Payment Pending Verification</p>
+                                            <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">Our team will verify within 24 hours</p>
+                                        </div>
+                                    ) : paymentStatus === 'rejected' ? (
+                                        <>
+                                            <div className="bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-xl p-4 text-center mb-2">
+                                                <p className="text-sm font-semibold text-red-800 dark:text-red-300">Previous Payment Rejected</p>
+                                                <p className="text-xs text-red-600 dark:text-red-400 mt-1">Please try again with correct details</p>
+                                            </div>
+                                            <button
+                                                onClick={() => user ? setShowPaymentModal(true) : navigate('/login/')}
+                                                className="w-full py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-semibold flex items-center justify-center gap-2 hover:from-indigo-700 hover:to-purple-700 transition-all shadow-lg"
+                                            >
+                                                <QrCode className="w-5 h-5" />
+                                                Try Again
+                                            </button>
+                                        </>
+                                    ) : (
+                                        <button
+                                            onClick={() => user ? setShowPaymentModal(true) : navigate('/login/')}
+                                            className="w-full py-3.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-semibold flex items-center justify-center gap-2 hover:from-indigo-700 hover:to-purple-700 transition-all shadow-lg shadow-indigo-200 dark:shadow-indigo-950 text-base"
+                                        >
+                                            <QrCode className="w-5 h-5" />
+                                            Buy Now — ₹{course.price.toLocaleString()}
+                                        </button>
+                                    )}
+                                    {!user && (
+                                        <p className="text-xs text-center text-gray-500 dark:text-gray-400">
+                                            <button onClick={() => navigate('/login/')} className="text-indigo-600 dark:text-indigo-400 hover:underline font-medium">Login</button> to purchase this course
+                                        </p>
+                                    )}
+                                </div>
+                            ) : (
+                                <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                                    <p className="text-sm font-semibold text-blue-900 dark:text-blue-200 mb-2">
+                                        📚 Want to access this course?
+                                    </p>
+                                    <p className="text-sm text-blue-700 dark:text-blue-300">
+                                        Contact your administrator to get enrolled in this course.
+                                    </p>
+                                </div>
+                            )}
                         </Card>
                     </div>
                 </div>
@@ -219,7 +307,20 @@ const CourseDetails: React.FC = () => {
                 </div>
             </div>
         </motion.div>
-    );
+
+        {/* Payment Modal */}
+        {course && showPaymentModal && (
+            <PaymentModal
+                course={course}
+                isOpen={showPaymentModal}
+                onClose={() => setShowPaymentModal(false)}
+                onSuccess={() => {
+                    setPaymentStatus('pending');
+                    setShowPaymentModal(false);
+                }}
+            />
+        )}
+    </>);
 };
 
 export default CourseDetails;

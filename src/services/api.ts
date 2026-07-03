@@ -279,4 +279,17 @@ export const bannerAPI = {
   delete: (id: string) => api.delete(`/banners/${id}`),
 };
 
+/* ================= PAYMENTS ================= */
+export const paymentAPI = {
+  // Student
+  submit: (data: any) => api.post("/payments/submit", data),
+  getMyPayments: () => api.get("/payments/my"),
+  getStatus: (courseId: string) => api.get(`/payments/status/${courseId}`),
+  getCoursePaymentInfo: (courseId: string) => api.get(`/payments/course/${courseId}`),
+  // Admin
+  getAll: (params?: any) => api.get("/payments/admin", { params }),
+  approve: (id: string, data?: { adminRemark?: string }) => api.put(`/payments/approve/${id}`, data),
+  reject: (id: string, data: { adminRemark: string }) => api.put(`/payments/reject/${id}`, data),
+};
+
 export default api;

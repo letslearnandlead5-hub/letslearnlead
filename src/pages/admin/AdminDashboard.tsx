@@ -14,6 +14,7 @@ import {
     FileQuestion,
     ShoppingCart,
     DollarSign,
+    CreditCard,
 } from 'lucide-react';
 import {
     AreaChart,
@@ -50,6 +51,7 @@ const CourseManagement = lazy(() => import('./CourseManagement'));
 const StudentManagement = lazy(() => import('./StudentManagement'));
 const NotificationManagement = lazy(() => import('./NotificationManagement'));
 const DoubtManagement = lazy(() => import('./DoubtManagement'));
+const PaymentManagement = lazy(() => import('./PaymentManagement'));
 
 // TypeScript Interfaces
 interface StatItem {
@@ -318,6 +320,7 @@ const AdminDashboard: React.FC = () => {
         { id: 'students', label: 'Students', icon: Users },
         { id: 'users', label: 'All Users', icon: Users },
         { id: 'courses', label: 'Courses', icon: BookOpen },
+        { id: 'payments', label: 'Payments', icon: CreditCard },
         { id: 'notes', label: 'Notes', icon: FileText },
         { id: 'quizzes', label: 'Quizzes', icon: FileQuestion },
         { id: 'doubts', label: 'Student Doubts', icon: MessageSquare },
@@ -719,6 +722,12 @@ const AdminDashboard: React.FC = () => {
                         {selectedTab === 'notifications' && (
                             <Suspense fallback={<div className="flex items-center justify-center h-96"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div></div>}>
                                 <NotificationManagement />
+                            </Suspense>
+                        )}
+
+                        {selectedTab === 'payments' && (
+                            <Suspense fallback={<div className="flex items-center justify-center h-96"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div></div>}>
+                                <PaymentManagement />
                             </Suspense>
                         )}
                     </div>

@@ -426,3 +426,143 @@ Let's L-Earn and Lead System
         // Don't throw error - notification email is optional
     }
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PAYMENT EMAILS
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const sendPaymentSubmittedEmail = async (
+    email: string,
+    studentName: string,
+    courseName: string,
+    transactionId: string,
+    amount: number
+): Promise<void> => {
+    try {
+        const transporter = createTransporter();
+        const mailOptions = {
+            from: `"Let's L-Earn and Lead" <${process.env.EMAIL_USER || 'noreply@letslearnandlead.com'}>`,
+            to: email,
+            subject: `Payment Received — ${courseName}`,
+            html: `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+                body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f5f5f5;margin:0;padding:0}
+                .container{max-width:600px;margin:40px auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.1)}
+                .header{background:linear-gradient(135deg,#4f46e5,#7c3aed);padding:40px 30px;text-align:center;color:#fff}
+                .header h1{margin:0;font-size:26px}
+                .body{padding:36px 30px}
+                .info-row{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #f0f0f0}
+                .badge{display:inline-block;background:#fef3c7;color:#92400e;padding:6px 16px;border-radius:999px;font-weight:600}
+                .footer{text-align:center;padding:20px;font-size:12px;color:#999;background:#fafafa}
+            </style></head><body>
+            <div class="container">
+                <div class="header">
+                    <h1>⏳ Payment Under Review</h1>
+                    <p style="margin:8px 0 0;opacity:.9">We've received your payment details</p>
+                </div>
+                <div class="body">
+                    <p>Hi <strong>${studentName}</strong>,</p>
+                    <p>Thank you for your payment! We've received your transaction details and our team will verify them within <strong>24 hours</strong>. You'll receive a notification once your course access is activated.</p>
+                    <div class="info-row"><span style="color:#666">Course</span><strong>${courseName}</strong></div>
+                    <div class="info-row"><span style="color:#666">Amount</span><strong>₹${amount}</strong></div>
+                    <div class="info-row"><span style="color:#666">Transaction ID</span><code>${transactionId}</code></div>
+                    <div class="info-row"><span style="color:#666">Status</span><span class="badge">Pending Verification</span></div>
+                    <br><p style="color:#666;font-size:14px">If you have any questions, please contact us. Keep your Transaction ID safe for reference.</p>
+                </div>
+                <div class="footer">Let's L-Earn and Lead · Educational Platform</div>
+            </div></body></html>`,
+        };
+        const info = await transporter.sendMail(mailOptions);
+        console.log('Payment submitted email sent:', info.messageId);
+    } catch (error) {
+        console.error('Error sending payment submitted email:', error);
+    }
+};
+
+export const sendPaymentApprovedEmail = async (
+    email: string,
+    studentName: string,
+    courseName: string,
+    adminRemark?: string
+): Promise<void> => {
+    try {
+        const transporter = createTransporter();
+        const frontendUrl = process.env.FRONTEND_URL || 'https://letslearnandlead.com';
+        const mailOptions = {
+            from: `"Let's L-Earn and Lead" <${process.env.EMAIL_USER || 'noreply@letslearnandlead.com'}>`,
+            to: email,
+            subject: `🎉 Payment Approved — Start Learning "${courseName}"`,
+            html: `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+                body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f5f5f5;margin:0;padding:0}
+                .container{max-width:600px;margin:40px auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.1)}
+                .header{background:linear-gradient(135deg,#059669,#10b981);padding:40px 30px;text-align:center;color:#fff}
+                .header h1{margin:0;font-size:26px}
+                .body{padding:36px 30px}
+                .cta{display:block;text-align:center;margin:24px 0;padding:14px 32px;background:#4f46e5;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;font-size:16px}
+                .footer{text-align:center;padding:20px;font-size:12px;color:#999;background:#fafafa}
+            </style></head><body>
+            <div class="container">
+                <div class="header">
+                    <h1>🎉 Payment Approved!</h1>
+                    <p style="margin:8px 0 0;opacity:.9">Your course access has been activated</p>
+                </div>
+                <div class="body">
+                    <p>Hi <strong>${studentName}</strong>,</p>
+                    <p>Great news! Your payment for <strong>"${courseName}"</strong> has been <strong style="color:#059669">verified and approved</strong>. You can now access the full course content.</p>
+                    ${adminRemark ? `<div style="background:#f0fdf4;border-left:4px solid #10b981;padding:12px 16px;border-radius:4px;margin:16px 0"><strong>Admin Note:</strong> ${adminRemark}</div>` : ''}
+                    <a href="${frontendUrl}/dashboard/" class="cta">Start Learning Now →</a>
+                    <p style="color:#666;font-size:14px;text-align:center">Happy learning! 🚀</p>
+                </div>
+                <div class="footer">Let's L-Earn and Lead · Educational Platform</div>
+            </div></body></html>`,
+        };
+        const info = await transporter.sendMail(mailOptions);
+        console.log('Payment approved email sent:', info.messageId);
+    } catch (error) {
+        console.error('Error sending payment approved email:', error);
+    }
+};
+
+export const sendPaymentRejectedEmail = async (
+    email: string,
+    studentName: string,
+    courseName: string,
+    adminRemark: string
+): Promise<void> => {
+    try {
+        const transporter = createTransporter();
+        const frontendUrl = process.env.FRONTEND_URL || 'https://letslearnandlead.com';
+        const mailOptions = {
+            from: `"Let's L-Earn and Lead" <${process.env.EMAIL_USER || 'noreply@letslearnandlead.com'}>`,
+            to: email,
+            subject: `Payment Update — "${courseName}"`,
+            html: `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+                body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f5f5f5;margin:0;padding:0}
+                .container{max-width:600px;margin:40px auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.1)}
+                .header{background:linear-gradient(135deg,#dc2626,#ef4444);padding:40px 30px;text-align:center;color:#fff}
+                .header h1{margin:0;font-size:26px}
+                .body{padding:36px 30px}
+                .remark{background:#fef2f2;border-left:4px solid #ef4444;padding:12px 16px;border-radius:4px;margin:16px 0}
+                .cta{display:block;text-align:center;margin:24px 0;padding:14px 32px;background:#4f46e5;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;font-size:16px}
+                .footer{text-align:center;padding:20px;font-size:12px;color:#999;background:#fafafa}
+            </style></head><body>
+            <div class="container">
+                <div class="header">
+                    <h1>Payment Not Verified</h1>
+                    <p style="margin:8px 0 0;opacity:.9">We could not verify your payment</p>
+                </div>
+                <div class="body">
+                    <p>Hi <strong>${studentName}</strong>,</p>
+                    <p>Unfortunately, we were unable to verify your payment for <strong>"${courseName}"</strong>.</p>
+                    <div class="remark"><strong>Reason:</strong> ${adminRemark}</div>
+                    <p>Please try submitting your payment again with the correct transaction details, or contact our support team for assistance.</p>
+                    <a href="${frontendUrl}/courses/" class="cta">Try Again →</a>
+                </div>
+                <div class="footer">Let's L-Earn and Lead · Educational Platform</div>
+            </div></body></html>`,
+        };
+        const info = await transporter.sendMail(mailOptions);
+        console.log('Payment rejected email sent:', info.messageId);
+    } catch (error) {
+        console.error('Error sending payment rejected email:', error);
+    }
+};

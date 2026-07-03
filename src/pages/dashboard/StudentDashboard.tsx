@@ -11,6 +11,7 @@ import {
     X,
     Brain,
     BookmarkCheck,
+    CreditCard,
 } from 'lucide-react';
 import Button from '../../components/ui/Button';
 import Modal from '../../components/ui/Modal';
@@ -25,6 +26,7 @@ import MyCertificates from '../certificates/MyCertificates';
 import MyDoubts from '../doubts/MyDoubts';
 import MyQuizzes from '../quizzes/MyQuizzes';
 import MyNotesLibrary from '../notes/MyNotesLibrary';
+import MyPayments from '../payment/MyPayments';
 
 interface Notification {
     _id: string;
@@ -77,6 +79,7 @@ const StudentDashboard: React.FC = () => {
         { id: 'my-notes', label: 'My Notes Library', icon: BookmarkCheck },
         { id: 'quizzes', label: 'My Quizzes', icon: Brain },
         { id: 'doubts', label: 'My Doubts', icon: MessageSquare },
+        { id: 'payments', label: 'My Payments', icon: CreditCard },
         { id: 'profile', label: 'My Profile', icon: User },
         { id: 'certificates', label: 'Certificates', icon: Award },
     ];
@@ -176,6 +179,8 @@ const StudentDashboard: React.FC = () => {
                     {selectedTab === 'quizzes' && <MyQuizzes />}
 
                     {selectedTab === 'doubts' && <MyDoubts />}
+
+                    {selectedTab === 'payments' && <MyPayments />}
 
                     {selectedTab === 'profile' && <MyProfile />}
 

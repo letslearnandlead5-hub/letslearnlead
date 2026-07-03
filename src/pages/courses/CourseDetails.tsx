@@ -36,6 +36,24 @@ interface Course {
     upiId?: string;
     merchantName?: string;
     paymentInstructions?: string;
+    sections?: Array<{
+        title: string;
+        description: string;
+        order: number;
+        subsections?: Array<{
+            title: string;
+            description: string;
+            order: number;
+            content?: Array<{
+                _id: string;
+                type: string;
+                title: string;
+                description: string;
+                videoUrl?: string;
+                isFree: boolean;
+            }>;
+        }>;
+    }>;
     lessons: Array<{
         title: string;
         description: string;
@@ -116,6 +134,22 @@ const CourseDetails: React.FC = () => {
         );
     }
 
+    let firstLessonId = '';
+    if (course?.sections) {
+        for (const section of course.sections) {
+            for (const subsection of section.subsections || []) {
+                for (const item of subsection.content || []) {
+                    if (item._id) {
+                        firstLessonId = item._id;
+                        break;
+                    }
+                }
+                if (firstLessonId) break;
+            }
+            if (firstLessonId) break;
+        }
+    }
+
     return (<>
         <motion.div
             className="min-h-screen bg-gray-50 dark:bg-gray-950"
@@ -171,7 +205,13 @@ const CourseDetails: React.FC = () => {
                                 <Button
                                     variant="primary"
                                     className="w-full"
-                                    onClick={() => navigate(`/courses/${id}/learn/`)}
+                                    onClick={() => {
+                                        if (firstLessonId) {
+                                            navigate(`/video/${id}/${firstLessonId}/`);
+                                        } else {
+                                            addToast({ type: 'warning', message: 'No lessons are available for this course yet.' });
+                                        }
+                                    }}
                                 >
                                     <CheckCircle className="w-4 h-4 mr-2" />
                                     Go to Course

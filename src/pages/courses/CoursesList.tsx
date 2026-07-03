@@ -24,29 +24,17 @@ interface Course {
     grade?: string;
 }
 
+// Category values MUST exactly match what's stored in MongoDB
 const CATEGORIES = [
-    { value: 'all', label: 'All Subjects', icon: '📚' },
-    { value: 'science', label: 'Science', icon: '🔬' },
-    { value: 'math', label: 'Mathematics', icon: '📐' },
-    { value: 'english', label: 'English', icon: '📖' },
-    { value: 'kannada', label: 'Kannada', icon: '🗣️' },
-    { value: 'social', label: 'Social Studies', icon: '🌍' },
-    { value: 'computer', label: 'Computer Science', icon: '💻' },
-    { value: 'physics', label: 'Physics', icon: '⚛️' },
-    { value: 'chemistry', label: 'Chemistry', icon: '🧪' },
-    { value: 'biology', label: 'Biology', icon: '🧬' },
-    { value: 'history', label: 'History', icon: '📜' },
-];
-
-const GRADES = [
-    { value: 'All', label: '🎓 All Grades' },
-    { value: '6th', label: '6th Std' },
-    { value: '7th', label: '7th Std' },
-    { value: '8th', label: '8th Std' },
-    { value: '9th', label: '9th Std' },
-    { value: '10th', label: '10th Std' },
-    { value: '11th', label: '11th Std' },
-    { value: '12th', label: '12th Std' },
+    { value: 'all',           label: 'All Courses',        icon: '📚' },
+    { value: '6th Standard',  label: '6th Standard',       icon: '6️⃣' },
+    { value: '7th Standard',  label: '7th Standard',       icon: '7️⃣' },
+    { value: '8th Standard',  label: '8th Standard',       icon: '8️⃣' },
+    { value: '9th Standard',  label: '9th Standard',       icon: '9️⃣' },
+    { value: '10th Standard', label: '10th Standard',      icon: '🔟' },
+    { value: 'science',       label: 'Science (NEET/JEE)', icon: '🔬' },
+    { value: 'Language',      label: 'Language',           icon: '📖' },
+    { value: 'Other',         label: 'Other Exams',        icon: '📋' },
 ];
 
 const CoursesList: React.FC = () => {
@@ -54,18 +42,16 @@ const CoursesList: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedCategory, setSelectedCategory] = useState('all');
-    const [selectedGrade, setSelectedGrade] = useState('All');
     const [selectedMedium, setSelectedMedium] = useState('all');
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    const fetchCourses = async (category: string, grade: string, med: string, search: string) => {
+    const fetchCourses = async (category: string, med: string, search: string) => {
         try {
             setLoading(true);
             const params: any = {};
             if (category !== 'all') params.category = category;
-            if (grade !== 'All') params.grade = grade;
             if (med !== 'all') params.medium = med;
             if (search.trim()) params.search = search.trim();
             
@@ -96,22 +82,22 @@ const CoursesList: React.FC = () => {
         const searchQuery = searchParams.get('search');
         if (searchQuery) {
             setSearchTerm(searchQuery);
-            fetchCourses(selectedCategory, selectedGrade, selectedMedium, searchQuery);
+            fetchCourses(selectedCategory, selectedMedium, searchQuery);
         } else {
-            fetchCourses(selectedCategory, selectedGrade, selectedMedium, '');
+            fetchCourses(selectedCategory, selectedMedium, '');
         }
     }, []);
 
-    // Re-fetch when category, grade, or medium changes (immediately)
+    // Re-fetch when category or medium changes (immediately)
     useEffect(() => {
-        fetchCourses(selectedCategory, selectedGrade, selectedMedium, searchTerm);
-    }, [selectedCategory, selectedGrade, selectedMedium]);
+        fetchCourses(selectedCategory, selectedMedium, searchTerm);
+    }, [selectedCategory, selectedMedium]);
 
     // Debounced re-fetch when search text changes (wait 400ms after user stops typing)
     useEffect(() => {
         if (debounceRef.current) clearTimeout(debounceRef.current);
         debounceRef.current = setTimeout(() => {
-            fetchCourses(selectedCategory, selectedGrade, selectedMedium, searchTerm);
+            fetchCourses(selectedCategory, selectedMedium, searchTerm);
         }, 400);
         return () => {
             if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -124,29 +110,20 @@ const CoursesList: React.FC = () => {
     const activeFilters: Array<{ type: string; value: string; label: string }> = [];
     if (selectedCategory !== 'all') {
         const cat = CATEGORIES.find(c => c.value === selectedCategory);
-        if (cat) activeFilters.push({ type: 'category', value: selectedCategory, label: cat.label });
-    }
-    if (selectedGrade !== 'All') {
-        const grade = GRADES.find(g => g.value === selectedGrade);
-        if (grade) activeFilters.push({ type: 'grade', value: selectedGrade, label: grade.label });
+        if (cat) activeFilters.push({ type: 'category', value: selectedCategory, label: `${cat.icon} ${cat.label}` });
     }
     if (selectedMedium !== 'all') {
-        activeFilters.push({
-            type: 'medium',
-            value: selectedMedium,
-            label: selectedMedium === 'kannada' ? 'Kannada Medium' : 'English Medium'
-        });
+        const medLabel = selectedMedium === 'kannada' ? '🔵 Kannada Medium' : selectedMedium === 'english' ? '🟢 English Medium' : '🌐 Both';
+        activeFilters.push({ type: 'medium', value: selectedMedium, label: medLabel });
     }
 
     const removeFilter = (type: string) => {
         if (type === 'category') setSelectedCategory('all');
-        if (type === 'grade') setSelectedGrade('All');
         if (type === 'medium') setSelectedMedium('all');
     };
 
     const clearAllFilters = () => {
         setSelectedCategory('all');
-        setSelectedGrade('All');
         setSelectedMedium('all');
         setSearchTerm('');
     };
@@ -182,26 +159,11 @@ const CoursesList: React.FC = () => {
                         />
                     </div>
 
-                    {/* Filter drop downs */}
+                    {/* Only Medium dropdown remains — Grade was removed because
+                        courses store grade info inside the category field (e.g. '8th Standard') */}
                     <div className="flex flex-col sm:flex-row gap-3">
-                        {/* Grade Dropdown */}
-                        <div className="relative flex-1 sm:w-48">
-                            <select
-                                value={selectedGrade}
-                                onChange={(e) => setSelectedGrade(e.target.value)}
-                                className="w-full appearance-none pl-4 pr-10 py-2.5 rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-white font-semibold focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all cursor-pointer text-sm"
-                            >
-                                {GRADES.map((g) => (
-                                    <option key={g.value} value={g.value}>
-                                        {g.label}
-                                    </option>
-                                ))}
-                            </select>
-                            <ChevronDown className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
-                        </div>
-
                         {/* Medium Dropdown */}
-                        <div className="relative flex-1 sm:w-48">
+                        <div className="relative sm:w-56">
                             <select
                                 value={selectedMedium}
                                 onChange={(e) => setSelectedMedium(e.target.value)}

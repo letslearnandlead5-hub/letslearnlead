@@ -99,7 +99,7 @@ const Header: React.FC = () => {
                     {/* Logo */}
                     <Link to="/" className="flex items-center space-x-2 sm:space-x-3">
                         <img
-                            src="/logo.png?v=2"
+                            src={isDark ? "/logo_black.png" : "/logo.png?v=2"}
                             alt="Let's L-Earn and Lead"
                             className="h-8 sm:h-10 w-auto flex-shrink-0"
                         />

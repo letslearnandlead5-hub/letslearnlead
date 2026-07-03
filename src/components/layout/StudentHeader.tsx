@@ -8,6 +8,7 @@ import {
 import Badge from '../ui/Badge';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useToastStore } from '../../store/useToastStore';
+import { useThemeStore } from '../../store/useThemeStore';
 import { notificationAPI } from '../../services/api';
 
 interface Notification {
@@ -30,6 +31,7 @@ const StudentHeader: React.FC<StudentHeaderProps> = ({ onMenuClick }) => {
     const [unreadCount, setUnreadCount] = useState(0);
     const { user } = useAuthStore();
     const { addToast } = useToastStore();
+    const { isDark } = useThemeStore();
 
     useEffect(() => {
         fetchNotifications();
@@ -99,7 +101,7 @@ const StudentHeader: React.FC<StudentHeaderProps> = ({ onMenuClick }) => {
 
                     <Link to="/dashboard/" className="flex items-center gap-3">
                         <img
-                            src="/logo.png?v=2"
+                            src={isDark ? "/logo_black.png" : "/logo.png?v=2"}
                             alt="Let's L-earn and Lead"
                             className="h-10 sm:h-12 w-auto object-contain"
                         />

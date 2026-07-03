@@ -101,7 +101,7 @@ const Header: React.FC = () => {
                         <img
                             src={isDark ? "/logo_black.png" : "/logo.png?v=2"}
                             alt="Let's L-Earn and Lead"
-                            className="h-16 sm:h-20 w-auto flex-shrink-0 -my-2"
+                            className={`w-auto flex-shrink-0 object-contain ${isDark ? "h-16 sm:h-20 -my-2" : "h-10 sm:h-12"}`}
                         />
                         <div className="flex flex-col min-w-0">
                             <span className="text-sm sm:text-lg font-bold text-gray-900 dark:text-white leading-tight whitespace-nowrap">

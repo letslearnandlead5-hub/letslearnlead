@@ -13,7 +13,6 @@ import {
     Info,
     Mail,
     FileText,
-    GraduationCap,
     HelpCircle,
     FileQuestion,
     User,
@@ -54,18 +53,13 @@ const Header: React.FC = () => {
     const navigate = useNavigate();
     const [showUserMenu, setShowUserMenu] = useState(false);
     const [showMobileMenu, setShowMobileMenu] = useState(false);
-    const [showMyLearning, setShowMyLearning] = useState(false);
     const userMenuRef = useRef<HTMLDivElement>(null);
-    const myLearningRef = useRef<HTMLDivElement>(null);
 
     // Close dropdowns on outside click
     useEffect(() => {
         const handleClickOutside = (e: MouseEvent) => {
             if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
                 setShowUserMenu(false);
-            }
-            if (myLearningRef.current && !myLearningRef.current.contains(e.target as Node)) {
-                setShowMyLearning(false);
             }
         };
         document.addEventListener('mousedown', handleClickOutside);
@@ -168,41 +162,6 @@ const Header: React.FC = () => {
                             </>
                         )}
 
-                        {/* My Learning Dropdown - For Students */}
-                        {isAuthenticated && user?.role !== 'admin' && (
-                            <div className="relative" ref={myLearningRef}>
-                                <button
-                                    onClick={() => setShowMyLearning(!showMyLearning)}
-                                    className="flex items-center space-x-1 text-gray-700 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
-                                >
-                                    <GraduationCap className="w-4 h-4" />
-                                    <span>My Learning</span>
-                                    <ChevronDown className={`w-4 h-4 transition-transform ${showMyLearning ? 'rotate-180' : ''}`} />
-                                </button>
-
-                                <AnimatePresence>
-                                    {showMyLearning && (
-                                        <motion.div
-                                            initial={{ opacity: 0, y: -10 }}
-                                            animate={{ opacity: 1, y: 0 }}
-                                            exit={{ opacity: 0, y: -10 }}
-                                            className="absolute left-0 mt-2 w-52 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 py-2 z-50"
-                                        >
-                                            {studentLinks.slice(1).map(({ tab, label, icon: Icon }) => (
-                                                <button
-                                                    key={tab}
-                                                    onClick={() => { goToDashboardTab(tab); setShowMyLearning(false); }}
-                                                    className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center space-x-2 transition-colors"
-                                                >
-                                                    <Icon className="w-4 h-4 text-primary-500" />
-                                                    <span>{label}</span>
-                                                </button>
-                                            ))}
-                                        </motion.div>
-                                    )}
-                                </AnimatePresence>
-                            </div>
-                        )}
 
                         {/* Common Links for All Users */}
                         <Link

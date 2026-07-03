@@ -12,6 +12,8 @@ import {
     Menu,
     X,
     FileQuestion,
+    ShoppingCart,
+    DollarSign,
 } from 'lucide-react';
 import {
     AreaChart,
@@ -215,8 +217,8 @@ const AdminDashboard: React.FC = () => {
     };
 
     const handleSaveProfile = async () => {
-        if (!profileName || !profileEmail) {
-            addToast({ type: 'error', message: 'Please fill in all fields' });
+        if (!profileName) {
+            addToast({ type: 'error', message: 'Please enter your name' });
             return;
         }
 
@@ -224,7 +226,6 @@ const AdminDashboard: React.FC = () => {
             setSavingProfile(true);
             const response: any = await api.put('/auth/profile', {
                 name: profileName,
-                email: profileEmail,
             });
 
             updateUser(response.user);
@@ -286,6 +287,20 @@ const AdminDashboard: React.FC = () => {
             value: dashboardStats?.stats?.totalCourses || 0,
             change: '+5%',
             color: 'bg-green-500'
+        },
+        {
+            icon: ShoppingCart,
+            label: 'Total Orders',
+            value: dashboardStats?.stats?.totalOrders || 0,
+            change: '+8%',
+            color: 'bg-purple-500'
+        },
+        {
+            icon: DollarSign,
+            label: 'Total Revenue',
+            value: formatPrice(dashboardStats?.stats?.totalRevenue || 0),
+            change: '+15%',
+            color: 'bg-amber-500'
         },
     ];
 
@@ -530,10 +545,11 @@ const AdminDashboard: React.FC = () => {
                                                 <input
                                                     type="email"
                                                     value={profileEmail}
-                                                    onChange={(e) => setProfileEmail(e.target.value)}
-                                                    className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                                    disabled
+                                                    className="w-full px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 cursor-not-allowed"
                                                     placeholder="admin@example.com"
                                                 />
+                                                <p className="text-xs text-gray-400 mt-1">Email cannot be changed here.</p>
                                             </div>
                                             <Button
                                                 variant="primary"

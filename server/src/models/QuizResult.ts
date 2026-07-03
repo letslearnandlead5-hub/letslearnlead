@@ -49,11 +49,13 @@ const QuestionResultSchema = new Schema<IQuestionResult>({
     },
     selectedAnswer: {
         type: String,
-        required: true,
+        required: false,
+        default: '',
     },
     correctAnswer: {
         type: String,
-        required: true,
+        required: false,
+        default: '',
     },
     isCorrect: {
         type: Boolean,
@@ -65,7 +67,8 @@ const QuestionResultSchema = new Schema<IQuestionResult>({
     },
     explanation: {
         type: String,
-        required: true,
+        required: false,
+        default: '',
     },
 });
 

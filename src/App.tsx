@@ -135,6 +135,11 @@ function App() {
             </ProtectedRoute>
           } />
 
+          {/* Redirect /admin/ and /admin/overview → /dashboard/ */}
+          <Route path="/admin/" element={<Navigate to="/dashboard/" replace />} />
+          <Route path="/admin/overview/" element={<Navigate to="/dashboard/" replace />} />
+          <Route path="/admin/overview" element={<Navigate to="/dashboard/" replace />} />
+
           {/* Admin Course Editor Routes */}
           <Route path="/admin/courses/new/" element={
             <ProtectedRoute requiredRole="admin">

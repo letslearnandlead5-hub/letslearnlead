@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, Star, Clock, BookOpen, X, ChevronDown, RefreshCw } from 'lucide-react';
@@ -58,14 +58,16 @@ const CoursesList: React.FC = () => {
     const [selectedMedium, setSelectedMedium] = useState('all');
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
+    const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    const fetchCourses = async (category: string, grade: string, med: string) => {
+    const fetchCourses = async (category: string, grade: string, med: string, search: string) => {
         try {
             setLoading(true);
             const params: any = {};
             if (category !== 'all') params.category = category;
             if (grade !== 'All') params.grade = grade;
             if (med !== 'all') params.medium = med;
+            if (search.trim()) params.search = search.trim();
             
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 10000);
@@ -92,17 +94,32 @@ const CoursesList: React.FC = () => {
     useEffect(() => {
         window.scrollTo(0, 0);
         const searchQuery = searchParams.get('search');
-        if (searchQuery) setSearchTerm(searchQuery);
+        if (searchQuery) {
+            setSearchTerm(searchQuery);
+            fetchCourses(selectedCategory, selectedGrade, selectedMedium, searchQuery);
+        } else {
+            fetchCourses(selectedCategory, selectedGrade, selectedMedium, '');
+        }
     }, []);
 
+    // Re-fetch when category, grade, or medium changes (immediately)
     useEffect(() => {
-        fetchCourses(selectedCategory, selectedGrade, selectedMedium);
+        fetchCourses(selectedCategory, selectedGrade, selectedMedium, searchTerm);
     }, [selectedCategory, selectedGrade, selectedMedium]);
 
-    const filteredCourses = courses.filter((course) =>
-        course.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        course.description.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    // Debounced re-fetch when search text changes (wait 400ms after user stops typing)
+    useEffect(() => {
+        if (debounceRef.current) clearTimeout(debounceRef.current);
+        debounceRef.current = setTimeout(() => {
+            fetchCourses(selectedCategory, selectedGrade, selectedMedium, searchTerm);
+        }, 400);
+        return () => {
+            if (debounceRef.current) clearTimeout(debounceRef.current);
+        };
+    }, [searchTerm]);
+
+    // courses is already filtered server-side; no client-side filter needed
+    const filteredCourses = courses;
 
     const activeFilters: Array<{ type: string; value: string; label: string }> = [];
     if (selectedCategory !== 'all') {

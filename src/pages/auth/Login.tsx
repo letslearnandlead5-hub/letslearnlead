@@ -23,7 +23,7 @@ const Login: React.FC = () => {
 
     useEffect(() => {
         if (isAuthenticated) {
-            navigate('/dashboard/');
+            navigate('/');
         }
     }, [isAuthenticated, navigate]);
 
@@ -42,7 +42,7 @@ const Login: React.FC = () => {
                 localStorage.removeItem('pendingCourseId');
                 navigate(`/courses/${pendingCourseId}/purchase/`);
             } else {
-                navigate('/dashboard/');
+                navigate('/');
             }
         } catch (err: any) {
             // Handle Single Device Login block mode specifically

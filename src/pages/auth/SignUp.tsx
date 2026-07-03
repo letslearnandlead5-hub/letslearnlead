@@ -25,7 +25,7 @@ const SignUp: React.FC = () => {
 
     useEffect(() => {
         if (isAuthenticated) {
-            navigate('/dashboard/');
+            navigate('/courses/');
         }
     }, [isAuthenticated, navigate]);
 
@@ -46,7 +46,7 @@ const SignUp: React.FC = () => {
         try {
             await signup(name, email, password);
             addToast({ type: 'success', message: 'Account created successfully!' });
-            navigate('/dashboard/');
+            navigate('/courses/');
         } catch (err: any) {
             setError(err.message || 'Signup failed. Please try again.');
             addToast({ type: 'error', message: err.message || 'Signup failed' });

@@ -1,8 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-    User,
     Moon,
     Sun,
     Menu,
@@ -17,10 +16,37 @@ import {
     GraduationCap,
     HelpCircle,
     FileQuestion,
+    User,
+    CreditCard,
+    Brain,
+    BookmarkCheck,
+    Award,
 } from 'lucide-react';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useThemeStore } from '../../store/useThemeStore';
 import Button from '../ui/Button';
+
+/** Returns the 1-2 uppercase initials from a full name */
+const getInitials = (name: string): string => {
+    const parts = name.trim().split(' ').filter(Boolean);
+    if (parts.length === 0) return '?';
+    if (parts.length === 1) return parts[0][0].toUpperCase();
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+};
+
+/** Deterministic gradient from a string (name) */
+const getAvatarGradient = (name: string) => {
+    const gradients = [
+        'from-violet-500 to-purple-600',
+        'from-blue-500 to-indigo-600',
+        'from-emerald-500 to-teal-600',
+        'from-orange-500 to-amber-600',
+        'from-pink-500 to-rose-600',
+        'from-cyan-500 to-blue-600',
+    ];
+    const idx = (name?.charCodeAt(0) ?? 0) % gradients.length;
+    return gradients[idx];
+};
 
 const Header: React.FC = () => {
     const { isAuthenticated, user, logout } = useAuthStore();
@@ -29,12 +55,48 @@ const Header: React.FC = () => {
     const [showUserMenu, setShowUserMenu] = useState(false);
     const [showMobileMenu, setShowMobileMenu] = useState(false);
     const [showMyLearning, setShowMyLearning] = useState(false);
+    const userMenuRef = useRef<HTMLDivElement>(null);
+    const myLearningRef = useRef<HTMLDivElement>(null);
+
+    // Close dropdowns on outside click
+    useEffect(() => {
+        const handleClickOutside = (e: MouseEvent) => {
+            if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+                setShowUserMenu(false);
+            }
+            if (myLearningRef.current && !myLearningRef.current.contains(e.target as Node)) {
+                setShowMyLearning(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
 
     const handleLogout = () => {
         setShowUserMenu(false);
         logout();
         navigate('/');
     };
+
+    const goToDashboardTab = (tab: string) => {
+        setShowUserMenu(false);
+        setShowMobileMenu(false);
+        navigate(`/dashboard/?tab=${tab}`);
+    };
+
+    const avatarGradient = user ? getAvatarGradient(user.name) : '';
+    const initials = user ? getInitials(user.name) : '';
+
+    /** Student quick-links shown in the profile dropdown */
+    const studentLinks = [
+        { tab: 'profile', label: 'My Profile', icon: User },
+        { tab: 'courses', label: 'My Courses', icon: BookOpen },
+        { tab: 'payments', label: 'My Payments', icon: CreditCard },
+        { tab: 'doubts', label: 'My Doubts', icon: HelpCircle },
+        { tab: 'quizzes', label: 'My Quizzes', icon: Brain },
+        { tab: 'my-notes', label: 'Notes Library', icon: BookmarkCheck },
+        { tab: 'certificates', label: 'Certificates', icon: Award },
+    ];
 
     return (
         <header className="sticky top-0 z-40 w-full border-b border-gray-200 dark:border-gray-800 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl">
@@ -108,10 +170,9 @@ const Header: React.FC = () => {
 
                         {/* My Learning Dropdown - For Students */}
                         {isAuthenticated && user?.role !== 'admin' && (
-                            <div className="relative">
+                            <div className="relative" ref={myLearningRef}>
                                 <button
                                     onClick={() => setShowMyLearning(!showMyLearning)}
-                                    onBlur={() => setTimeout(() => setShowMyLearning(false), 200)}
                                     className="flex items-center space-x-1 text-gray-700 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
                                 >
                                     <GraduationCap className="w-4 h-4" />
@@ -125,40 +186,18 @@ const Header: React.FC = () => {
                                             initial={{ opacity: 0, y: -10 }}
                                             animate={{ opacity: 1, y: 0 }}
                                             exit={{ opacity: 0, y: -10 }}
-                                            className="absolute left-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 py-2 z-50"
+                                            className="absolute left-0 mt-2 w-52 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 py-2 z-50"
                                         >
-                                            <Link
-                                                to="/dashboard"
-                                                onClick={() => setShowMyLearning(false)}
-                                                className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center space-x-2"
-                                            >
-                                                <BookOpen className="w-4 h-4" />
-                                                <span>My Courses</span>
-                                            </Link>
-                                            <Link
-                                                to="/my-quizzes"
-                                                onClick={() => setShowMyLearning(false)}
-                                                className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center space-x-2"
-                                            >
-                                                <FileQuestion className="w-4 h-4" />
-                                                <span>My Quizzes</span>
-                                            </Link>
-                                            <Link
-                                                to="/notes"
-                                                onClick={() => setShowMyLearning(false)}
-                                                className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center space-x-2"
-                                            >
-                                                <FileText className="w-4 h-4" />
-                                                <span>Notes Library</span>
-                                            </Link>
-                                            <Link
-                                                to="/doubts"
-                                                onClick={() => setShowMyLearning(false)}
-                                                className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center space-x-2"
-                                            >
-                                                <HelpCircle className="w-4 h-4" />
-                                                <span>My Doubts</span>
-                                            </Link>
+                                            {studentLinks.slice(1).map(({ tab, label, icon: Icon }) => (
+                                                <button
+                                                    key={tab}
+                                                    onClick={() => { goToDashboardTab(tab); setShowMyLearning(false); }}
+                                                    className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center space-x-2 transition-colors"
+                                                >
+                                                    <Icon className="w-4 h-4 text-primary-500" />
+                                                    <span>{label}</span>
+                                                </button>
+                                            ))}
                                         </motion.div>
                                     )}
                                 </AnimatePresence>
@@ -176,53 +215,110 @@ const Header: React.FC = () => {
                     </nav>
 
                     {/* Right side */}
-                    <div className="flex items-center space-x-4">
+                    <div className="flex items-center space-x-3">
                         {/* Theme Toggle */}
                         <button
                             onClick={toggleTheme}
-                            className="p-2 text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
+                            className="p-2 text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
                         >
                             {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
                         </button>
 
-                        {/* User Menu with Dropdown */}
+                        {/* User Avatar + Dropdown */}
                         {isAuthenticated ? (
-                            <div className="relative">
+                            <div className="relative" ref={userMenuRef}>
+                                {/* Avatar button */}
                                 <button
+                                    id="profile-avatar-btn"
                                     onClick={() => setShowUserMenu(!showUserMenu)}
-                                    className="flex items-center space-x-1 sm:space-x-2 px-2 sm:px-3 py-2 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                                    className="flex items-center space-x-2 rounded-full focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900 transition-all"
+                                    aria-label="Open profile menu"
                                 >
-                                    <User className="w-4 h-4" />
-                                    <span className="hidden sm:inline text-sm font-medium">{user?.name}</span>
-                                    <ChevronDown className={`w-4 h-4 transition-transform ${showUserMenu ? 'rotate-180' : ''}`} />
+                                    {user?.profilePicture || user?.avatar ? (
+                                        <img
+                                            src={user.profilePicture || user.avatar}
+                                            alt={user.name}
+                                            className="w-9 h-9 rounded-full object-cover ring-2 ring-white dark:ring-gray-800 shadow-md"
+                                        />
+                                    ) : (
+                                        <div className={`w-9 h-9 rounded-full bg-gradient-to-br ${avatarGradient} flex items-center justify-center text-white text-sm font-bold shadow-md ring-2 ring-white dark:ring-gray-800 select-none`}>
+                                            {initials}
+                                        </div>
+                                    )}
+                                    <ChevronDown className={`hidden sm:block w-4 h-4 text-gray-500 dark:text-gray-400 transition-transform ${showUserMenu ? 'rotate-180' : ''}`} />
                                 </button>
 
+                                {/* Rich dropdown panel */}
                                 <AnimatePresence>
                                     {showUserMenu && (
                                         <motion.div
-                                            initial={{ opacity: 0, y: -10 }}
-                                            animate={{ opacity: 1, y: 0 }}
-                                            exit={{ opacity: 0, y: -10 }}
-                                            className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 py-2 z-50"
+                                            initial={{ opacity: 0, scale: 0.95, y: -8 }}
+                                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                                            exit={{ opacity: 0, scale: 0.95, y: -8 }}
+                                            transition={{ duration: 0.15 }}
+                                            className="absolute right-0 mt-3 w-72 bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden z-50"
                                         >
-                                            <button
-                                                onClick={() => {
-                                                    setShowUserMenu(false);
-                                                    navigate('/dashboard/');
-                                                }}
-                                                className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center space-x-2"
-                                            >
-                                                <LayoutDashboard className="w-4 h-4" />
-                                                <span>Dashboard</span>
-                                            </button>
-                                            <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
-                                            <button
-                                                onClick={handleLogout}
-                                                className="w-full px-4 py-2 text-left text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center space-x-2"
-                                            >
-                                                <LogOut className="w-4 h-4" />
-                                                <span>Logout</span>
-                                            </button>
+                                            {/* User info header */}
+                                            <div className={`bg-gradient-to-r ${avatarGradient} p-4`}>
+                                                <div className="flex items-center space-x-3">
+                                                    {user?.profilePicture || user?.avatar ? (
+                                                        <img
+                                                            src={user.profilePicture || user.avatar}
+                                                            alt={user?.name}
+                                                            className="w-12 h-12 rounded-full object-cover ring-2 ring-white/50"
+                                                        />
+                                                    ) : (
+                                                        <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center text-white text-lg font-bold select-none">
+                                                            {initials}
+                                                        </div>
+                                                    )}
+                                                    <div className="min-w-0">
+                                                        <p className="font-semibold text-white truncate">{user?.name}</p>
+                                                        <p className="text-xs text-white/75 truncate">{user?.email}</p>
+                                                        <span className="inline-block mt-1 text-[10px] font-semibold px-2 py-0.5 bg-white/20 text-white rounded-full capitalize">
+                                                            🎓 {user?.role === 'admin' ? 'Admin' : 'Student'}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Quick links - only for students */}
+                                            {user?.role !== 'admin' && (
+                                                <div className="py-2">
+                                                    {studentLinks.map(({ tab, label, icon: Icon }) => (
+                                                        <button
+                                                            key={tab}
+                                                            onClick={() => goToDashboardTab(tab)}
+                                                            className="w-full px-4 py-2.5 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center space-x-3 transition-colors"
+                                                        >
+                                                            <Icon className="w-4 h-4 text-primary-500 flex-shrink-0" />
+                                                            <span>{label}</span>
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            )}
+
+                                            {/* Go to Dashboard */}
+                                            <div className="border-t border-gray-200 dark:border-gray-700 py-2">
+                                                <button
+                                                    onClick={() => { setShowUserMenu(false); navigate('/dashboard/'); }}
+                                                    className="w-full px-4 py-2.5 text-left text-sm font-medium text-primary-600 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-950 flex items-center space-x-3 transition-colors"
+                                                >
+                                                    <LayoutDashboard className="w-4 h-4 flex-shrink-0" />
+                                                    <span>{user?.role === 'admin' ? 'Go to Admin Dashboard' : 'Go to Student Dashboard'}</span>
+                                                </button>
+                                            </div>
+
+                                            {/* Logout */}
+                                            <div className="border-t border-gray-200 dark:border-gray-700 py-2">
+                                                <button
+                                                    onClick={handleLogout}
+                                                    className="w-full px-4 py-2.5 text-left text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center space-x-3 transition-colors"
+                                                >
+                                                    <LogOut className="w-4 h-4 flex-shrink-0" />
+                                                    <span>Logout</span>
+                                                </button>
+                                            </div>
                                         </motion.div>
                                     )}
                                 </AnimatePresence>
@@ -238,10 +334,10 @@ const Header: React.FC = () => {
                             </div>
                         )}
 
-                        {/* Mobile Menu */}
+                        {/* Mobile Menu Button */}
                         <button
                             onClick={() => setShowMobileMenu(!showMobileMenu)}
-                            className="md:hidden p-2 text-gray-600 dark:text-gray-400"
+                            className="md:hidden p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
                         >
                             <Menu className="w-5 h-5" />
                         </button>
@@ -257,11 +353,11 @@ const Header: React.FC = () => {
                             exit={{ opacity: 0, height: 0 }}
                             className="md:hidden border-t border-gray-200 dark:border-gray-800 py-4"
                         >
-                            <nav className="flex flex-col space-y-2">
+                            <nav className="flex flex-col space-y-1">
                                 <Link
                                     to="/"
                                     onClick={() => setShowMobileMenu(false)}
-                                    className="flex items-center space-x-2 px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
+                                    className="flex items-center space-x-2 px-4 py-2.5 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
                                 >
                                     <HomeIcon className="w-4 h-4" />
                                     <span>Home</span>
@@ -270,7 +366,7 @@ const Header: React.FC = () => {
                                 <Link
                                     to="/about"
                                     onClick={() => setShowMobileMenu(false)}
-                                    className="flex items-center space-x-2 px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
+                                    className="flex items-center space-x-2 px-4 py-2.5 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
                                 >
                                     <Info className="w-4 h-4" />
                                     <span>About Us</span>
@@ -281,7 +377,7 @@ const Header: React.FC = () => {
                                         <Link
                                             to="/dashboard"
                                             onClick={() => setShowMobileMenu(false)}
-                                            className="flex items-center space-x-2 px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
+                                            className="flex items-center space-x-2 px-4 py-2.5 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
                                         >
                                             <LayoutDashboard className="w-4 h-4" />
                                             <span>Dashboard</span>
@@ -289,70 +385,46 @@ const Header: React.FC = () => {
                                         <Link
                                             to="/courses"
                                             onClick={() => setShowMobileMenu(false)}
-                                            className="flex items-center space-x-2 px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
+                                            className="flex items-center space-x-2 px-4 py-2.5 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
                                         >
                                             <BookOpen className="w-4 h-4" />
                                             <span>Manage Courses</span>
                                         </Link>
                                     </>
                                 ) : (
-                                    <>
-                                        <Link
-                                            to="/courses"
-                                            onClick={() => setShowMobileMenu(false)}
-                                            className="flex items-center space-x-2 px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
-                                        >
-                                            <BookOpen className="w-4 h-4" />
-                                            <span>Courses</span>
-                                        </Link>
-                                    </>
+                                    <Link
+                                        to="/courses"
+                                        onClick={() => setShowMobileMenu(false)}
+                                        className="flex items-center space-x-2 px-4 py-2.5 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
+                                    >
+                                        <BookOpen className="w-4 h-4" />
+                                        <span>Courses</span>
+                                    </Link>
                                 )}
 
                                 {/* My Learning Section - Mobile */}
                                 {isAuthenticated && user?.role !== 'admin' && (
                                     <>
-                                        <div className="px-4 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                        <div className="px-4 pt-3 pb-1 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                             My Learning
                                         </div>
-                                        <Link
-                                            to="/dashboard"
-                                            onClick={() => setShowMobileMenu(false)}
-                                            className="flex items-center space-x-2 px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
-                                        >
-                                            <BookOpen className="w-4 h-4" />
-                                            <span>My Courses</span>
-                                        </Link>
-                                        <Link
-                                            to="/my-quizzes"
-                                            onClick={() => setShowMobileMenu(false)}
-                                            className="flex items-center space-x-2 px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
-                                        >
-                                            <FileQuestion className="w-4 h-4" />
-                                            <span>My Quizzes</span>
-                                        </Link>
-                                        <Link
-                                            to="/notes"
-                                            onClick={() => setShowMobileMenu(false)}
-                                            className="flex items-center space-x-2 px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
-                                        >
-                                            <FileText className="w-4 h-4" />
-                                            <span>Notes Library</span>
-                                        </Link>
-                                        <Link
-                                            to="/doubts"
-                                            onClick={() => setShowMobileMenu(false)}
-                                            className="flex items-center space-x-2 px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
-                                        >
-                                            <HelpCircle className="w-4 h-4" />
-                                            <span>My Doubts</span>
-                                        </Link>
+                                        {studentLinks.map(({ tab, label, icon: Icon }) => (
+                                            <button
+                                                key={tab}
+                                                onClick={() => goToDashboardTab(tab)}
+                                                className="flex items-center space-x-2 px-4 py-2.5 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg w-full text-left"
+                                            >
+                                                <Icon className="w-4 h-4 text-primary-500" />
+                                                <span>{label}</span>
+                                            </button>
+                                        ))}
                                     </>
                                 )}
 
                                 <Link
                                     to="/contact"
                                     onClick={() => setShowMobileMenu(false)}
-                                    className="flex items-center space-x-2 px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
+                                    className="flex items-center space-x-2 px-4 py-2.5 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
                                 >
                                     <Mail className="w-4 h-4" />
                                     <span>Contact</span>
@@ -360,21 +432,17 @@ const Header: React.FC = () => {
 
                                 {isAuthenticated ? (
                                     <>
-                                        <div className="border-t border-gray-200 dark:border-gray-700 my-2"></div>
-                                        <Link
-                                            to="/dashboard"
-                                            onClick={() => setShowMobileMenu(false)}
-                                            className="flex items-center space-x-2 px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
+                                        <div className="border-t border-gray-200 dark:border-gray-700 my-2" />
+                                        <button
+                                            onClick={() => { setShowMobileMenu(false); navigate('/dashboard/'); }}
+                                            className="flex items-center space-x-2 px-4 py-2.5 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg w-full text-left"
                                         >
                                             <LayoutDashboard className="w-4 h-4" />
                                             <span>Dashboard</span>
-                                        </Link>
+                                        </button>
                                         <button
-                                            onClick={() => {
-                                                setShowMobileMenu(false);
-                                                handleLogout();
-                                            }}
-                                            className="flex items-center space-x-2 px-4 py-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg w-full text-left"
+                                            onClick={() => { setShowMobileMenu(false); handleLogout(); }}
+                                            className="flex items-center space-x-2 px-4 py-2.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg w-full text-left"
                                         >
                                             <LogOut className="w-4 h-4" />
                                             <span>Logout</span>
@@ -382,22 +450,16 @@ const Header: React.FC = () => {
                                     </>
                                 ) : (
                                     <>
-                                        <div className="border-t border-gray-200 dark:border-gray-700 my-2"></div>
+                                        <div className="border-t border-gray-200 dark:border-gray-700 my-2" />
                                         <button
-                                            onClick={() => {
-                                                setShowMobileMenu(false);
-                                                navigate('/login/');
-                                            }}
-                                            className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg w-full text-left"
+                                            onClick={() => { setShowMobileMenu(false); navigate('/login/'); }}
+                                            className="px-4 py-2.5 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg w-full text-left"
                                         >
                                             Login
                                         </button>
                                         <button
-                                            onClick={() => {
-                                                setShowMobileMenu(false);
-                                                navigate('/signup/');
-                                            }}
-                                            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg w-full text-left"
+                                            onClick={() => { setShowMobileMenu(false); navigate('/signup/'); }}
+                                            className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg w-full text-left"
                                         >
                                             Sign Up
                                         </button>

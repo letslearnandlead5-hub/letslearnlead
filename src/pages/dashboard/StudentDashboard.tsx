@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import {
     BookOpen,
     Award,
@@ -12,6 +12,8 @@ import {
     Brain,
     BookmarkCheck,
     CreditCard,
+    Home,
+    ArrowLeft,
 } from 'lucide-react';
 import Button from '../../components/ui/Button';
 import Modal from '../../components/ui/Modal';
@@ -48,6 +50,15 @@ const StudentDashboard: React.FC = () => {
     const { logout, user } = useAuthStore();
     const { addToast } = useToastStore();
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
+
+    useEffect(() => {
+        const tabFromUrl = searchParams.get('tab');
+        const validTabs = ['courses', 'my-notes', 'quizzes', 'doubts', 'payments', 'profile', 'certificates'];
+        if (tabFromUrl && validTabs.includes(tabFromUrl)) {
+            setSelectedTab(tabFromUrl);
+        }
+    }, [searchParams]);
 
     useEffect(() => {
         fetchNotifications();
@@ -132,7 +143,14 @@ const StudentDashboard: React.FC = () => {
                 {/* Sidebar Navigation - Hidden on mobile, visible on lg+ */}
                 <div className={`fixed lg:sticky top-16 inset-y-0 left-0 z-40 w-64 bg-white dark:bg-gray-900 h-[calc(100vh-4rem)] border-r border-gray-200 dark:border-gray-800 flex flex-col transition-transform duration-300 ${showMobileSidebar ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
                     }`}>
-                    <div className="p-6 flex-shrink-0">
+                    <div className="p-6 flex-shrink-0 border-b border-gray-200 dark:border-gray-800">
+                        <Link
+                            to="/"
+                            className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors mb-4 group"
+                        >
+                            <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+                            <span>Back to Website</span>
+                        </Link>
                         <h1 className="text-xl font-bold text-gray-900 dark:text-white">My Dashboard</h1>
                     </div>
                     <nav className="flex-1 overflow-y-auto px-6 pb-6 space-y-2">

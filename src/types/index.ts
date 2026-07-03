@@ -15,6 +15,7 @@ export interface User {
     stream?: string;
     institution?: string;
     subjectInterests?: string[];
+    createdAt?: string;
 }
 
 // Course types

@@ -649,7 +649,7 @@ const Home: React.FC = () => {
                                         Get instant responses to your queries
                                     </p>
                                     <a
-                                        href="https://wa.me/919916312101"
+                                        href="https://wa.me/917019379476"
                                         target="_blank"
                                         rel="noopener noreferrer"
                                         className="inline-block"
@@ -660,7 +660,7 @@ const Home: React.FC = () => {
                                             className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white shadow-lg hover:shadow-xl transition-all"
                                         >
                                             <Phone className="w-5 h-5 mr-2" />
-                                            9916312101
+                                            7019379476
                                         </Button>
                                     </a>
                                     <p className="mt-4 text-sm text-gray-500 dark:text-gray-400">

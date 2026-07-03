@@ -78,7 +78,7 @@ const StudentFooter: React.FC = () => {
                             </li>
                             <li className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
                                 <Phone className="w-4 h-4" />
-                                <span>+91 1234567890</span>
+                                <span>+91 7019379476</span>
                             </li>
                             <li className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
                                 <MapPin className="w-4 h-4" />

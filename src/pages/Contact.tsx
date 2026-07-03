@@ -63,7 +63,7 @@ const Contact: React.FC = () => {
         {
             icon: Phone,
             title: 'Call Us',
-            content: '9916312101',
+            content: '7019379476',
             description: 'Mon-Fri from 8am to 6pm',
         },
         {

@@ -186,7 +186,7 @@ const AboutUs: React.FC = () => {
                                 Explore Courses
                             </a>
                             <a
-                                href="https://wa.me/919916312101"
+                                href="https://wa.me/917019379476"
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="px-8 py-3 bg-transparent border-2 border-white text-white font-semibold rounded-lg hover:bg-white hover:text-yellow-600 transition-colors"

@@ -21,26 +21,46 @@ jobs:
         script: |
           echo "🚀 Starting deployment..."
           cd /var/www/letslearnandlead
-          
+
           # Pull latest code
           echo "📥 Pulling from GitHub..."
           git pull origin main
-          
+
+          # ── Nginx config sync ──────────────────────────────────────────────
+          # Copy the repo nginx configs to the system location so that any
+          # setting changes (e.g. client_max_body_size) actually take effect.
+          echo "🔧 Syncing Nginx config..."
+          cp nginx-api.conf      /etc/nginx/sites-available/api.letslearnandlead.com
+          cp nginx-frontend.conf /etc/nginx/sites-available/letslearnandlead.com
+
+          # Validate — fail the deployment if there's a syntax error
+          echo "✅ Testing Nginx config syntax..."
+          nginx -t
+
+          # Zero-downtime reload (does NOT drop existing connections)
+          echo "🔄 Reloading Nginx..."
+          systemctl reload nginx
+          # ──────────────────────────────────────────────────────────────────
+
           # Build frontend
           echo "📦 Building frontend..."
           npm install
           npm run build
-          
+
+          # Copy frontend dist to the web root Nginx serves
+          echo "📂 Deploying frontend build..."
+          cp -r dist/* /var/www/letslearnandlead-frontend/
+
           # Build backend
           echo "🔨 Building backend..."
           cd server
           npm install --production
           npm run build
           cd ..
-          
-          # Restart PM2
+
+          # Restart PM2 process
           echo "🔄 Restarting server..."
-          pm2 restart letslearnandlead
-          
+          pm2 restart letslearn
+
           echo "✅ Deployment complete!"
           pm2 status

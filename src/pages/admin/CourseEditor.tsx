@@ -104,7 +104,7 @@ const CourseEditor: React.FC = () => {
                 return;
             }
 
-            // Validate file size (max 5MB)
+            // Validate file size (max 5MB original)
             if (file.size > 5 * 1024 * 1024) {
                 addToast({ type: 'error', message: 'Image size should be less than 5MB' });
                 e.target.value = '';
@@ -112,15 +112,15 @@ const CourseEditor: React.FC = () => {
             }
 
             // Compress + convert to base64 using canvas
-            // This keeps the payload small enough for the server (target: ~200KB base64)
+            // Target: ~40-60KB base64 output to stay well under the server limit
             const reader = new FileReader();
             reader.onloadend = () => {
                 const img = new Image();
                 img.onload = () => {
                     const canvas = document.createElement('canvas');
-                    // Max dimensions: 800×600 — sufficient for a course thumbnail
-                    const MAX_W = 800;
-                    const MAX_H = 600;
+                    // Max dimensions: 600×450 — sufficient for a course thumbnail card
+                    const MAX_W = 600;
+                    const MAX_H = 450;
                     let { width, height } = img;
                     if (width > MAX_W || height > MAX_H) {
                         const ratio = Math.min(MAX_W / width, MAX_H / height);
@@ -131,8 +131,15 @@ const CourseEditor: React.FC = () => {
                     canvas.height = height;
                     const ctx = canvas.getContext('2d')!;
                     ctx.drawImage(img, 0, 0, width, height);
-                    // Quality 0.8 → good visual quality with ~70–80% smaller file size
-                    const compressed = canvas.toDataURL('image/jpeg', 0.8);
+                    // Quality 0.72 → good visual quality, ~55-65KB base64 output
+                    const compressed = canvas.toDataURL('image/jpeg', 0.72);
+
+                    // Warn if still large after compression
+                    const sizeKB = Math.round((compressed.length * 3) / 4 / 1024);
+                    if (sizeKB > 300) {
+                        addToast({ type: 'warning', message: `Thumbnail is ${sizeKB}KB after compression. Consider using a simpler image to avoid upload issues.` });
+                    }
+
                     setFormData(prev => ({ ...prev, thumbnail: compressed }));
                 };
                 img.onerror = () => {
@@ -184,6 +191,10 @@ const CourseEditor: React.FC = () => {
                 paymentInstructions: formData.paymentInstructions,
             };
 
+            // Debug: log approximate payload size to help diagnose 413 errors
+            const payloadSize = new Blob([JSON.stringify(courseData)]).size;
+            console.log(`📊 Course payload size: ${(payloadSize / 1024).toFixed(1)} KB`);
+
             if (id) {
                 await courseAPI.update(id, courseData);
                 addToast({ type: 'success', message: 'Course updated successfully!' });
@@ -199,10 +210,25 @@ const CourseEditor: React.FC = () => {
             }, 100);
         } catch (error: any) {
             console.error('Error saving course:', error);
-            addToast({
-                type: 'error',
-                message: error.response?.data?.message || 'Failed to save course'
-            });
+
+            // Detect 413 Content Too Large — usually caused by a very large thumbnail or QR image
+            const status = error?.status || error?.response?.status;
+            const isToLarge = status === 413 ||
+                String(error).includes('413') ||
+                String(error?.message).includes('Too Large') ||
+                String(error?.message).includes('Content Too Large');
+
+            if (isToLarge) {
+                addToast({
+                    type: 'error',
+                    message: '📷 Course is too large to save. Please use a smaller thumbnail image (under 200KB) or reduce the QR code image size and try again.',
+                });
+            } else {
+                addToast({
+                    type: 'error',
+                    message: error?.message || error?.response?.data?.message || 'Failed to save course. Please try again.',
+                });
+            }
         } finally {
             setFormSubmitting(false);
         }

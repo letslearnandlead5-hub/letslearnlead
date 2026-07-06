@@ -56,7 +56,7 @@ const CourseManagement: React.FC = () => {
     const fetchCourses = async () => {
         try {
             setLoading(true);
-            const params: any = {};
+            const params: any = { noThumbnail: 'true' }; // Exclude base64 thumbnails — not needed in the table
             if (searchTerm) params.search = searchTerm;
             if (selectedCategory !== 'all') params.category = selectedCategory;
             if (selectedLevel !== 'all') params.level = selectedLevel;
@@ -290,11 +290,11 @@ const CourseManagement: React.FC = () => {
                                     <tr key={course._id} className="">
                                         <td className="px-6 py-4">
                                             <div className="flex items-center">
-                                                <img
-                                                    src={course.thumbnail}
-                                                    alt={course.title}
-                                                    className="w-16 h-16 rounded-lg object-cover mr-4"
-                                                />
+                                                {/* Thumbnail is not fetched in list view (saves ~90% payload size).
+                                                    It is visible in the Edit and View modal. */}
+                                                <div className="w-16 h-16 rounded-lg mr-4 bg-gray-100 dark:bg-gray-800 flex items-center justify-center flex-shrink-0">
+                                                    <BookOpen className="w-7 h-7 text-gray-400 dark:text-gray-500" />
+                                                </div>
                                                 <div>
                                                     <div className="text-sm font-medium text-gray-900 dark:text-white">
                                                         {course.title}

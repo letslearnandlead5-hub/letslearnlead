@@ -14,10 +14,10 @@ const router = Router();
 router.get('/', async (req: Request, res: Response, next) => {
     try {
         const startTime = Date.now();
-        const { category, level, search, medium, featured, grade, page = '1', limit = '100' } = req.query;
+        const { category, level, search, medium, featured, grade, page = '1', limit = '100', noThumbnail } = req.query;
 
         // Build a stable cache key from query params
-        const cacheKey = `courses:${category || ''}:${level || ''}:${search || ''}:${medium || ''}:${featured || ''}:${grade || ''}:${page}:${limit}`;
+        const cacheKey = `courses:${category || ''}:${level || ''}:${search || ''}:${medium || ''}:${featured || ''}:${grade || ''}:${page}:${limit}:${noThumbnail || ''}`;
 
         // Return cached result if still fresh (avoids DB hit on every page load)
         const cached = cache.get<any[]>(cacheKey);
@@ -62,11 +62,14 @@ router.get('/', async (req: Request, res: Response, next) => {
         const limitNum = parseInt(limit as string);
         const skip = (pageNum - 1) * limitNum;
 
-        // Use lean() for better performance and select only needed fields.
-        // studentsEnrolled is already maintained as a counter on the Course document
-        // — no need for a separate expensive User.aggregate() on every request.
+        // When noThumbnail=true (e.g. admin table), exclude the large base64 thumbnail
+        // field to keep the payload small. Thumbnails are only needed on course cards.
+        const selectFields = noThumbnail === 'true'
+            ? 'title description instructor price originalPrice rating studentsEnrolled duration category level medium grade featuredOnHome'
+            : 'title description instructor thumbnail price originalPrice rating studentsEnrolled duration category level medium grade featuredOnHome';
+
         const courses = await Course.find(filter)
-            .select('title description instructor thumbnail price originalPrice rating studentsEnrolled duration category level medium grade featuredOnHome')
+            .select(selectFields)
             .sort({ createdAt: -1 })
             .skip(skip)
             .limit(limitNum)

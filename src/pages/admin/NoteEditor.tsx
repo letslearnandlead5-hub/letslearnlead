@@ -16,6 +16,7 @@ const NoteEditor: React.FC = () => {
     const { logout } = useAuthStore();
     const [loading, setLoading] = useState(false);
     const [formSubmitting, setFormSubmitting] = useState(false);
+    const [uploadProgress, setUploadProgress] = useState(0); // 0-100 for file uploads
     const [showMobileSidebar, setShowMobileSidebar] = useState(false);
     const [courses, setCourses] = useState<any[]>([]);
     const [formInitialData, setFormInitialData] = useState<any>(null);
@@ -66,13 +67,24 @@ const NoteEditor: React.FC = () => {
 
     const handleFormSubmit = async (noteData: any) => {
         setFormSubmitting(true);
+        setUploadProgress(0);
 
         try {
+            const isFileUpload = noteData instanceof FormData && noteData.get('fileType') === 'file';
+
             if (id) {
-                await noteAPI.update(id, noteData);
+                if (isFileUpload) {
+                    await noteAPI.uploadUpdate(id, noteData, setUploadProgress);
+                } else {
+                    await noteAPI.update(id, noteData);
+                }
                 addToast({ type: 'success', message: 'Note updated successfully!' });
             } else {
-                await noteAPI.create(noteData);
+                if (isFileUpload) {
+                    await noteAPI.upload(noteData, setUploadProgress);
+                } else {
+                    await noteAPI.create(noteData);
+                }
                 addToast({ type: 'success', message: 'Note created successfully!' });
             }
 
@@ -83,12 +95,26 @@ const NoteEditor: React.FC = () => {
             }, 100);
         } catch (error: any) {
             console.error('Error saving note:', error);
-            addToast({
-                type: 'error',
-                message: error.response?.data?.message || error.message || 'Failed to save note'
-            });
+
+            const status = error?.status || error?.response?.status;
+            const isTooLarge = status === 413 ||
+                String(error).includes('413') ||
+                String(error?.message).includes('Too Large');
+
+            if (isTooLarge) {
+                addToast({
+                    type: 'error',
+                    message: '📄 File is too large for the server (max ~4MB). Please compress your PDF and try again, or contact the admin to increase the server upload limit.',
+                });
+            } else {
+                addToast({
+                    type: 'error',
+                    message: error?.response?.data?.message || error?.message || 'Failed to save note. Please try again.',
+                });
+            }
         } finally {
             setFormSubmitting(false);
+            setUploadProgress(0);
         }
     };
 
@@ -218,9 +244,25 @@ const NoteEditor: React.FC = () => {
                                     onSubmit={handleFormSubmit}
                                     onCancel={handleCancel}
                                     isLoading={formSubmitting}
+                                    uploadProgress={uploadProgress}
                                     isFullPage={true}
                                 />
                             </Card>
+                            {/* Upload progress bar */}
+                            {formSubmitting && uploadProgress > 0 && (
+                                <div className="mt-3">
+                                    <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400 mb-1">
+                                        <span>Uploading file...</span>
+                                        <span>{uploadProgress}%</span>
+                                    </div>
+                                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                                        <div
+                                            className="bg-primary-600 h-2 rounded-full transition-all duration-300"
+                                            style={{ width: `${uploadProgress}%` }}
+                                        />
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>

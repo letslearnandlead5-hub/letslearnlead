@@ -205,8 +205,30 @@ export const noteAPI = {
   getAll: (params?: any) => api.get("/notes", { params }),
   getById: (id: string) => api.get(`/notes/${id}`),
   getByCourse: (courseId: string) => api.get(`/notes/course/${courseId}`),
+  // For text/markdown notes (small payload) — use default 30s timeout
   create: (data: any) => api.post("/notes", data),
   update: (id: string, data: any) => api.put(`/notes/${id}`, data),
+  // For file uploads (PDF/TXT can be several MB) — use 120s timeout
+  upload: (data: FormData, onProgress?: (pct: number) => void) =>
+    api.post("/notes", data, {
+      timeout: 120000, // 2 minutes for large file uploads
+      headers: { 'Content-Type': 'multipart/form-data' },
+      onUploadProgress: (e) => {
+        if (onProgress && e.total) {
+          onProgress(Math.round((e.loaded * 100) / e.total));
+        }
+      },
+    }),
+  uploadUpdate: (id: string, data: FormData, onProgress?: (pct: number) => void) =>
+    api.put(`/notes/${id}`, data, {
+      timeout: 120000,
+      headers: { 'Content-Type': 'multipart/form-data' },
+      onUploadProgress: (e) => {
+        if (onProgress && e.total) {
+          onProgress(Math.round((e.loaded * 100) / e.total));
+        }
+      },
+    }),
   delete: (id: string) => api.delete(`/notes/${id}`),
 };
 

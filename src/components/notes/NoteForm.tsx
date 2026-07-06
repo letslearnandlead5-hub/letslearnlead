@@ -17,7 +17,8 @@ interface NoteFormProps {
     onSubmit: (noteData: any) => void;
     onCancel: () => void;
     isLoading?: boolean;
-    isFullPage?: boolean; // New prop to control layout
+    uploadProgress?: number; // 0-100, shown during file upload
+    isFullPage?: boolean;
 }
 
 const NoteForm: React.FC<NoteFormProps> = ({
@@ -26,6 +27,7 @@ const NoteForm: React.FC<NoteFormProps> = ({
     onSubmit,
     onCancel,
     isLoading = false,
+    uploadProgress = 0,
     isFullPage = false,
 }) => {
     const [formData, setFormData] = useState({
@@ -101,10 +103,16 @@ const NoteForm: React.FC<NoteFormProps> = ({
                 return;
             }
 
-            // Validate file size (max 10MB)
+            // Validate file size (max 10MB frontend / 5MB multer server limit)
             if (file.size > 10 * 1024 * 1024) {
                 alert('File size must be less than 10MB');
                 return;
+            }
+
+            // Warn if file is large — server Nginx limit is typically 1-50MB
+            const fileSizeMB = (file.size / (1024 * 1024)).toFixed(1);
+            if (file.size > 4 * 1024 * 1024) {
+                alert(`⚠️ This file is ${fileSizeMB}MB. Large files may fail to upload if the server has a size limit. Consider compressing the PDF before uploading.`);
             }
 
             setUploadedFile(file);
@@ -441,7 +449,11 @@ const NoteForm: React.FC<NoteFormProps> = ({
                     Cancel
                 </Button>
                 <Button type="submit" variant="primary" disabled={isLoading}>
-                    {isLoading ? 'Saving...' : initialData ? 'Update Note' : 'Create Note'}
+                    {isLoading && uploadProgress > 0
+                        ? `Uploading... ${uploadProgress}%`
+                        : isLoading
+                        ? 'Saving...'
+                        : initialData ? 'Update Note' : 'Create Note'}
                 </Button>
             </div>
         </form>

@@ -9,6 +9,7 @@ import bcrypt from 'bcryptjs';
 import { sendNewStudentNotification } from '../utils/emailService';
 import { validate } from '../middleware/validate';
 import { signupSchema } from '../validators/schemas';
+import { cache, TTL } from '../utils/cache';
 
 const router = Router();
 
@@ -50,26 +51,32 @@ router.get('/users', async (req: AuthRequest, res: Response, next) => {
             .sort({ createdAt: -1 })
             .lean();
 
-        // Fetch enrollments for each user
-        const usersWithEnrollments = await Promise.all(
-            users.map(async (user: any) => {
-                const enrollments = await Enrollment.find({
-                    userId: user._id,
-                    status: 'paid'
-                })
-                    .populate('courseId', 'title')
-                    .select('courseId enrolledAt')
-                    .lean();
+        // --- FIX: Single bulk query instead of N+1 per-user Enrollment queries ---
+        const userIds = users.map((u: any) => u._id);
+        const allEnrollments = await Enrollment.find({
+            userId: { $in: userIds },
+            status: 'paid',
+        })
+            .populate('courseId', 'title')
+            .select('userId courseId enrolledAt')
+            .lean();
 
-                return {
-                    ...user,
-                    enrollments: enrollments.map((e: any) => ({
-                        courseName: e.courseId?.title || 'Unknown Course',
-                        enrolledAt: e.enrolledAt
-                    }))
-                };
-            })
-        );
+        // Group enrollments by userId for O(1) lookup
+        const enrollmentsByUser = new Map<string, any[]>();
+        for (const e of allEnrollments) {
+            const key = (e.userId as any).toString();
+            if (!enrollmentsByUser.has(key)) enrollmentsByUser.set(key, []);
+            enrollmentsByUser.get(key)!.push({
+                courseName: (e.courseId as any)?.title || 'Unknown Course',
+                enrolledAt: (e as any).enrolledAt,
+            });
+        }
+
+        const usersWithEnrollments = users.map((user: any) => ({
+            ...user,
+            enrollments: enrollmentsByUser.get(user._id.toString()) || [],
+        }));
+        // -------------------------------------------------------------------------
 
         const total = await User.countDocuments(query);
 
@@ -219,78 +226,75 @@ router.post('/users/create-student', validate(signupSchema), async (req: AuthReq
 // @access  Private (Admin)
 router.get('/analytics/overview', async (req: AuthRequest, res: Response, next) => {
     try {
-        const totalUsers = await User.countDocuments();
-        const totalCourses = await Course.countDocuments();
-        const totalOrders = await Order.countDocuments();
+        const ANALYTICS_CACHE_KEY = 'admin:analytics:overview';
 
-        // Calculate revenue
-        const orders = await Order.find({ status: { $ne: 'cancelled' } });
+        // Serve from cache if available (5-minute TTL)
+        const cached = cache.get<any>(ANALYTICS_CACHE_KEY);
+        if (cached) {
+            return res.status(200).json({ success: true, data: cached, cached: true });
+        }
+
+        // Run all independent count/find queries in parallel
+        const [totalUsers, totalCourses, totalOrders, orders, recentUsers, recentOrders] =
+            await Promise.all([
+                User.countDocuments(),
+                Course.countDocuments(),
+                Order.countDocuments(),
+                Order.find({ status: { $ne: 'cancelled' } }).select('totalAmount createdAt').lean(),
+                User.find().sort({ createdAt: -1 }).limit(5).select('name email createdAt').lean(),
+                Order.find().sort({ createdAt: -1 }).limit(5).populate('userId', 'name email').lean(),
+            ]);
+
         const totalRevenue = orders.reduce((sum: number, order: any) => sum + order.totalAmount, 0);
 
-        // Get recent activity
-        const recentUsers = await User.find().sort({ createdAt: -1 }).limit(5).select('name email createdAt');
-        const recentOrders = await Order.find().sort({ createdAt: -1 }).limit(5).populate('userId', 'name email');
-
-        // Revenue data by month (last 6 months)
+        // Revenue data by month (last 6 months) — reuse already-fetched orders
         const sixMonthsAgo = new Date();
         sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
-
-        const recentOrders2 = await Order.find({
-            createdAt: { $gte: sixMonthsAgo },
-            status: { $ne: 'cancelled' },
-        });
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
         const revenueByMonth: any = {};
-        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-        recentOrders2.forEach((order: any) => {
-            const monthIndex = order.createdAt.getMonth();
-            const month = months[monthIndex];
-            if (!revenueByMonth[month]) {
-                revenueByMonth[month] = 0;
+        orders.forEach((order: any) => {
+            if (order.createdAt >= sixMonthsAgo) {
+                const month = months[new Date(order.createdAt).getMonth()];
+                revenueByMonth[month] = (revenueByMonth[month] || 0) + order.totalAmount;
             }
-            revenueByMonth[month] += order.totalAmount;
         });
+        const revenueData = Object.keys(revenueByMonth).map(month => ({ month, revenue: revenueByMonth[month] }));
 
-        const revenueData = Object.keys(revenueByMonth).map((month) => ({
-            month,
-            revenue: revenueByMonth[month],
-        }));
+        // Popular courses — single lightweight query
+        const [topCourses, allCourses] = await Promise.all([
+            Course.find().select('title studentsEnrolled').sort({ studentsEnrolled: -1 }).limit(5).lean(),
+            Course.find().select('category').lean(),
+        ]);
 
-        // Popular courses data
-        const courses = await Course.find().select('title studentsEnrolled').limit(5).sort({ studentsEnrolled: -1 });
-        const courseData = courses.map((course: any) => ({
+        const courseData = topCourses.map((course: any) => ({
             name: course.title.length > 20 ? course.title.substring(0, 20) + '...' : course.title,
             students: course.studentsEnrolled || 0,
         }));
 
-        // Category distribution data
+        // Category distribution
         const categoryCounts: any = {};
-        const allCourses = await Course.find().select('category');
         allCourses.forEach((course: any) => {
             const category = course.category || 'Uncategorized';
             categoryCounts[category] = (categoryCounts[category] || 0) + 1;
         });
+        const categoryData = Object.keys(categoryCounts).map(name => ({ name, value: categoryCounts[name] }));
 
-        const categoryData = Object.keys(categoryCounts).map((name) => ({
-            name,
-            value: categoryCounts[name],
-        }));
+        const responseData = {
+            stats: { totalUsers, totalCourses, totalOrders, totalRevenue },
+            recentUsers,
+            recentOrders,
+            revenueData,
+            courseData,
+            categoryData,
+        };
+
+        // Cache analytics for 5 minutes
+        cache.set(ANALYTICS_CACHE_KEY, responseData, 300);
 
         res.status(200).json({
             success: true,
-            data: {
-                stats: {
-                    totalUsers,
-                    totalCourses,
-                    totalOrders,
-                    totalRevenue,
-                },
-                recentUsers,
-                recentOrders,
-                revenueData,
-                courseData,
-                categoryData,
-            },
+            data: responseData,
         });
     } catch (error) {
         next(error);

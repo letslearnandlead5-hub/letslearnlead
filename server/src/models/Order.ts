@@ -88,4 +88,9 @@ const OrderSchema = new Schema<IOrder>(
     }
 );
 
+// Compound index: admin order list filters by status, sorted by newest
+OrderSchema.index({ status: 1, createdAt: -1 });
+// Per-user order lookup
+OrderSchema.index({ userId: 1, createdAt: -1 });
+
 export const Order = mongoose.models.Order || mongoose.model<IOrder>('Order', OrderSchema);

@@ -127,5 +127,9 @@ const UserSchema = new Schema<IUser>(
 
 // Add index for enrolledCourses to speed up aggregation queries
 UserSchema.index({ enrolledCourses: 1 });
+// Role index — used by admin panel to filter students/teachers/admins
+UserSchema.index({ role: 1 });
+// Compound: role filter + newest-first sort in admin panel
+UserSchema.index({ role: 1, createdAt: -1 });
 
 export const User = mongoose.models.User || mongoose.model<IUser>('User', UserSchema);

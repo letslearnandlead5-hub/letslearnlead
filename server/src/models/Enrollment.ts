@@ -74,9 +74,12 @@ const EnrollmentSchema = new Schema<IEnrollment>(
     }
 );
 
-// Index for faster queries
+// Indexes for faster queries
 EnrollmentSchema.index({ userId: 1, courseId: 1 });
 EnrollmentSchema.index({ razorpayOrderId: 1 });
 EnrollmentSchema.index({ razorpayPaymentId: 1 });
+// Status index — used heavily in admin queries (status: 'paid')
+EnrollmentSchema.index({ status: 1 });
+EnrollmentSchema.index({ userId: 1, status: 1 }); // Bulk user enrollment lookups
 
 export const Enrollment = mongoose.model<IEnrollment>('Enrollment', EnrollmentSchema);

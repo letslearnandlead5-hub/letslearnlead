@@ -19,38 +19,33 @@ router.get('/', async (req: Request, res: Response, next) => {
         // Build a stable cache key from query params
         const cacheKey = `courses:${category || ''}:${level || ''}:${search || ''}:${medium || ''}:${featured || ''}:${grade || ''}:${page}:${limit}`;
 
-        // TEMPORARILY DISABLE CACHE FOR DEBUGGING
         // Return cached result if still fresh (avoids DB hit on every page load)
-        // const cached = cache.get<any[]>(cacheKey);
-        // if (cached) {
-        //     console.log(`✅ Cache HIT for ${cacheKey} - ${Date.now() - startTime}ms`);
-        //     return res.status(200).json({
-        //         success: true,
-        //         count: cached.length,
-        //         data: cached,
-        //         cached: true,
-        //     });
-        // }
-
-        // Minimal logging - only log slow queries
-        // console.log(`⏳ Cache MISS for ${cacheKey} - Fetching from DB...`);
-        // console.log(`📋 Filter params:`, { category, level, search, medium, featured, grade });
+        const cached = cache.get<any[]>(cacheKey);
+        if (cached) {
+            return res.status(200).json({
+                success: true,
+                count: cached.length,
+                data: cached,
+                cached: true,
+            });
+        }
 
         const filter: any = {};
         if (category && category !== 'all') filter.category = category;
         if (level) filter.level = level;
         if (grade && grade !== 'All') filter.grade = grade;
-        
-        // Enhanced search: search in title, description, category, and instructor
+
+        // Use MongoDB $text search (uses existing text index on title+description)
+        // Falls back to targeted regex on category/instructor which ARE indexed fields.
         if (search) {
+            const searchStr = String(search);
             filter.$or = [
-                { title: { $regex: search, $options: 'i' } },
-                { description: { $regex: search, $options: 'i' } },
-                { category: { $regex: search, $options: 'i' } },
-                { instructor: { $regex: search, $options: 'i' } },
+                { $text: { $search: searchStr } },
+                { category: { $regex: searchStr, $options: 'i' } },
+                { instructor: { $regex: searchStr, $options: 'i' } },
             ];
         }
-        
+
         // medium filter: exact match only
         if (medium && medium !== 'all') {
             filter.medium = medium;
@@ -61,9 +56,6 @@ router.get('/', async (req: Request, res: Response, next) => {
         } else if (featured === 'false') {
             filter.featuredOnHome = false;
         }
-
-        // console.log(`🔍 MongoDB filter:`, JSON.stringify(filter));
-        // console.log(`🔍 Grade filter specifically:`, grade, '→', filter.grade);
 
         const dbStartTime = Date.now();
         const pageNum = parseInt(page as string);
@@ -82,17 +74,15 @@ router.get('/', async (req: Request, res: Response, next) => {
             .exec();
 
         const dbTime = Date.now() - dbStartTime;
-        // console.log(`📊 DB Query took ${dbTime}ms - Found ${courses.length} courses`);
-        // console.log(`📊 Courses returned:`, courses.map(c => ({ title: c.title, grade: c.grade, category: c.category, medium: c.medium })));
 
-        // Cache results for TTL seconds - TEMPORARILY DISABLED
-        // cache.set(cacheKey, courses, TTL.COURSES_LIST);
+        // Cache results to avoid hitting DB on every page load
+        cache.set(cacheKey, courses, TTL.COURSES_LIST);
 
         const totalTime = Date.now() - startTime;
-        
-        // Only log slow queries (> 100ms)
-        if (totalTime > 100) {
-            console.log(`⚠️ Slow query (${totalTime}ms): ${cacheKey}`);
+
+        // Log slow queries (> 200ms)
+        if (totalTime > 200) {
+            console.log(`⚠️ Slow query (${totalTime}ms, DB: ${dbTime}ms): ${cacheKey}`);
         }
 
         res.status(200).json({
@@ -133,6 +123,23 @@ router.get('/enrolled/my-courses', protect, async (req: AuthRequest, res: Respon
 // @access  Public
 router.get('/:id', async (req: Request, res: Response, next) => {
     try {
+        const singleCacheKey = `course:${req.params.id}`;
+
+        // Extract token once, up front
+        let token: string | undefined;
+        if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+            token = req.headers.authorization.split(' ')[1];
+        }
+
+        // Serve cached (redacted) response only for unauthenticated visitors to avoid
+        // leaking unredacted content to enrolled users who bypass the cache.
+        if (!token) {
+            const cachedCourse = cache.get<any>(singleCacheKey);
+            if (cachedCourse) {
+                return res.status(200).json({ success: true, data: cachedCourse, cached: true });
+            }
+        }
+
         const course = await Course.findById(req.params.id).populate('quizId');
 
         if (!course) {
@@ -141,18 +148,13 @@ router.get('/:id', async (req: Request, res: Response, next) => {
 
         let isAuthorized = false;
 
-        // Extract token if present
-        let token: string | undefined;
-        if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
-            token = req.headers.authorization.split(' ')[1];
-        }
-
         if (course.price === 0) {
             isAuthorized = true;
         } else if (token) {
             try {
                 const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { id: string };
-                const user = await User.findById(decoded.id);
+                // Only select the fields we need — avoids loading full user document
+                const user = await User.findById(decoded.id).select('role enrolledCourses');
                 if (user) {
                     if (user.role === 'admin' || user.role === 'teacher') {
                         isAuthorized = true;
@@ -197,6 +199,11 @@ router.get('/:id', async (req: Request, res: Response, next) => {
                     ...lesson,
                     videoUrl: '', // No isFree flag in legacy, hide by default
                 }));
+            }
+
+            // Cache the redacted public view for unauthenticated visitors
+            if (!token) {
+                cache.set(singleCacheKey, responseData, TTL.SINGLE_COURSE);
             }
         }
 

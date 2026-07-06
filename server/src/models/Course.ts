@@ -275,8 +275,14 @@ const CourseSchema = new Schema<ICourse>(
     }
 );
 
-// Add compound index for common query patterns
+// Compound indexes for common query patterns
 CourseSchema.index({ category: 1, level: 1 });
 CourseSchema.index({ title: 'text', description: 'text' }); // Text search index
+// Home page: featured courses sorted by newest first
+CourseSchema.index({ featuredOnHome: 1, createdAt: -1 });
+// Default listing: all courses sorted by newest
+CourseSchema.index({ createdAt: -1 });
+// Multi-filter compound index (covers category + medium + grade combinations)
+CourseSchema.index({ category: 1, medium: 1, grade: 1 });
 
 export const Course = mongoose.models.Course || mongoose.model<ICourse>('Course', CourseSchema);

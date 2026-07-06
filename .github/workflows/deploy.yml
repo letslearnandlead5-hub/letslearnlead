@@ -20,24 +20,30 @@ jobs:
         port: 22
         script: |
           echo "🚀 Starting deployment..."
-          cd /var/www/letslearnandlead
+          # Actual code location on server (confirmed via SSH)
+          cd ~/letslearnlead
 
           # Pull latest code
           echo "📥 Pulling from GitHub..."
           git pull origin main
 
           # ── Nginx config sync ──────────────────────────────────────────────
-          # Copy the repo nginx configs to the system location so that any
-          # setting changes (e.g. client_max_body_size) actually take effect.
+          # Sync the nginx site config (confirmed path from server)
           echo "🔧 Syncing Nginx config..."
-          cp nginx-api.conf      /etc/nginx/sites-available/api.letslearnandlead.com
-          cp nginx-frontend.conf /etc/nginx/sites-available/letslearnandlead.com
+          cp nginx-api.conf /etc/nginx/sites-available/letslearnandlead.com.conf
 
-          # Validate — fail the deployment if there's a syntax error
+          # Ensure global http block has the 50MB upload limit
+          # (idempotent: only adds if not already present)
+          if ! grep -q "client_max_body_size" /etc/nginx/nginx.conf; then
+            sed -i '/http {/a\\tclient_max_body_size 50M;' /etc/nginx/nginx.conf
+            echo "✅ Added client_max_body_size to nginx.conf"
+          else
+            echo "✅ client_max_body_size already set in nginx.conf"
+          fi
+
+          # Validate and reload (zero-downtime)
           echo "✅ Testing Nginx config syntax..."
           nginx -t
-
-          # Zero-downtime reload (does NOT drop existing connections)
           echo "🔄 Reloading Nginx..."
           systemctl reload nginx
           # ──────────────────────────────────────────────────────────────────
@@ -47,10 +53,6 @@ jobs:
           npm install
           npm run build
 
-          # Copy frontend dist to the web root Nginx serves
-          echo "📂 Deploying frontend build..."
-          cp -r dist/* /var/www/letslearnandlead-frontend/
-
           # Build backend
           echo "🔨 Building backend..."
           cd server
@@ -58,7 +60,7 @@ jobs:
           npm run build
           cd ..
 
-          # Restart PM2 process
+          # Restart PM2 process (name from ecosystem.config.cjs)
           echo "🔄 Restarting server..."
           pm2 restart letslearn
 

@@ -18,6 +18,11 @@ const CourseEditor: React.FC = () => {
     const [loading, setLoading] = useState(false);
     const [formSubmitting, setFormSubmitting] = useState(false);
     const [showMobileSidebar, setShowMobileSidebar] = useState(false);
+    // Track whether the admin actually changed the image fields.
+    // If not changed, we omit them from the PUT payload to avoid 413 errors
+    // (the existing images are already stored in the DB and don't need re-uploading).
+    const [thumbnailChanged, setThumbnailChanged] = useState(false);
+    const [qrImageChanged, setQrImageChanged] = useState(false);
 
     const [formData, setFormData] = useState({
         title: '',
@@ -77,6 +82,9 @@ const CourseEditor: React.FC = () => {
                 merchantName: course.merchantName || '',
                 paymentInstructions: course.paymentInstructions || 'Scan the QR using PhonePe, Google Pay, Paytm or any UPI app. After payment, enter your Transaction ID below.',
             });
+            // Reset change-tracking: existing images don't need to be re-uploaded
+            setThumbnailChanged(false);
+            setQrImageChanged(false);
         } catch (error) {
             console.error('Error loading course:', error);
             addToast({ type: 'error', message: 'Failed to load course' });
@@ -141,6 +149,7 @@ const CourseEditor: React.FC = () => {
                     }
 
                     setFormData(prev => ({ ...prev, thumbnail: compressed }));
+                    setThumbnailChanged(true); // Mark as changed so it gets included in the save
                 };
                 img.onerror = () => {
                     addToast({ type: 'error', message: 'Failed to process image' });
@@ -156,6 +165,7 @@ const CourseEditor: React.FC = () => {
 
     const handleDeleteThumbnail = () => {
         setFormData(prev => ({ ...prev, thumbnail: '' }));
+        setThumbnailChanged(true); // Explicitly clearing is also a change
         // Reset file input
         const fileInput = document.querySelector('input[name="thumbnail"]') as HTMLInputElement;
         if (fileInput) {
@@ -168,11 +178,11 @@ const CourseEditor: React.FC = () => {
         setFormSubmitting(true);
 
         try {
-            const courseData = {
+            // Build base payload — text fields only (always small)
+            const courseData: any = {
                 title: formData.title,
                 description: formData.description,
                 instructor: formData.instructor,
-                thumbnail: formData.thumbnail,
                 price: parseFloat(formData.price),
                 originalPrice: formData.originalPrice ? parseFloat(formData.originalPrice) : undefined,
                 duration: formData.duration,
@@ -182,18 +192,28 @@ const CourseEditor: React.FC = () => {
                 medium: formData.medium,
                 featuredOnHome: formData.featuredOnHome,
                 sections: formData.sections,
-                // Payment settings
+                // Payment text fields
                 paymentEnabled: formData.paymentEnabled,
                 paymentMethod: formData.paymentMethod,
-                qrImage: formData.qrImage,
                 upiId: formData.upiId,
                 merchantName: formData.merchantName,
                 paymentInstructions: formData.paymentInstructions,
             };
 
-            // Debug: log approximate payload size to help diagnose 413 errors
+            // Only include large base64 image fields if they were actually changed.
+            // For existing courses: if the admin didn't touch the image, MongoDB keeps
+            // the existing value — no need to re-upload it and blow up the payload.
+            const isNew = !id;
+            if (isNew || thumbnailChanged) {
+                courseData.thumbnail = formData.thumbnail;
+            }
+            if (isNew || qrImageChanged) {
+                courseData.qrImage = formData.qrImage;
+            }
+
+            // Debug: log approximate payload size
             const payloadSize = new Blob([JSON.stringify(courseData)]).size;
-            console.log(`📊 Course payload size: ${(payloadSize / 1024).toFixed(1)} KB`);
+            console.log(`📊 Course payload size: ${(payloadSize / 1024).toFixed(1)} KB (thumbnail ${thumbnailChanged ? 'included' : 'skipped'}, qr ${qrImageChanged ? 'included' : 'skipped'})`);
 
             if (id) {
                 await courseAPI.update(id, courseData);
@@ -213,15 +233,15 @@ const CourseEditor: React.FC = () => {
 
             // Detect 413 Content Too Large — usually caused by a very large thumbnail or QR image
             const status = error?.status || error?.response?.status;
-            const isToLarge = status === 413 ||
+            const isTooLarge = status === 413 ||
                 String(error).includes('413') ||
                 String(error?.message).includes('Too Large') ||
                 String(error?.message).includes('Content Too Large');
 
-            if (isToLarge) {
+            if (isTooLarge) {
                 addToast({
                     type: 'error',
-                    message: '📷 Course is too large to save. Please use a smaller thumbnail image (under 200KB) or reduce the QR code image size and try again.',
+                    message: '📷 Image is too large to save. Please upload a smaller thumbnail (under 200KB) and try again.',
                 });
             } else {
                 addToast({
@@ -667,7 +687,7 @@ const CourseEditor: React.FC = () => {
                                                         <img src={formData.qrImage} alt="QR Code" className="w-48 h-48 object-contain border-2 border-indigo-200 dark:border-indigo-800 rounded-xl p-2 bg-white" />
                                                         <button
                                                             type="button"
-                                                            onClick={() => setFormData(prev => ({ ...prev, qrImage: '' }))}
+                                                            onClick={() => { setFormData(prev => ({ ...prev, qrImage: '' })); setQrImageChanged(true); }}
                                                             className="absolute -top-2 -right-2 w-7 h-7 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors shadow"
                                                         >
                                                             <X className="w-3.5 h-3.5" />
@@ -706,6 +726,7 @@ const CourseEditor: React.FC = () => {
                                                                         canvas.getContext('2d')!.drawImage(img, 0, 0, width, height);
                                                                         const compressed = canvas.toDataURL('image/png', 0.9);
                                                                         setFormData(prev => ({ ...prev, qrImage: compressed }));
+                                                                        setQrImageChanged(true); // Mark QR as changed
                                                                     };
                                                                     img.src = reader.result as string;
                                                                 };

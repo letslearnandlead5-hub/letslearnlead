@@ -3,6 +3,8 @@ import mongoose, { Document, Schema } from 'mongoose';
 export interface IEnrollment extends Document {
     userId: mongoose.Types.ObjectId;
     courseId: mongoose.Types.ObjectId;
+    subjectId: mongoose.Types.ObjectId;  // Which subject was enrolled (required for subject-based courses)
+    subjectName?: string;                // Denormalized e.g. "Mathematics"
     razorpayOrderId: string;
     razorpayPaymentId?: string;
     razorpaySignature?: string;
@@ -11,6 +13,7 @@ export interface IEnrollment extends Document {
     status: 'pending' | 'paid' | 'failed';
     purchaseDate?: Date;
     completionPercentage?: number;
+    completedLessons?: string[];
     invoiceUrl?: string;
     invoiceNumber?: string;
     createdAt: Date;
@@ -28,6 +31,14 @@ const EnrollmentSchema = new Schema<IEnrollment>(
             type: Schema.Types.ObjectId,
             ref: 'Course',
             required: true,
+        },
+        subjectId: {
+            type: Schema.Types.ObjectId,
+            required: true, // Every enrollment must be for a specific subject
+        },
+        subjectName: {
+            type: String,
+            default: '',
         },
         razorpayOrderId: {
             type: String,
@@ -62,6 +73,10 @@ const EnrollmentSchema = new Schema<IEnrollment>(
             max: 100,
             default: 0,
         },
+        completedLessons: {
+            type: [String],
+            default: [],
+        },
         invoiceUrl: {
             type: String,
         },
@@ -76,10 +91,11 @@ const EnrollmentSchema = new Schema<IEnrollment>(
 
 // Indexes for faster queries
 EnrollmentSchema.index({ userId: 1, courseId: 1 });
+EnrollmentSchema.index({ userId: 1, courseId: 1, subjectId: 1 }, { unique: true }); // One enrollment per student per subject
+EnrollmentSchema.index({ userId: 1, subjectId: 1 });
 EnrollmentSchema.index({ razorpayOrderId: 1 });
 EnrollmentSchema.index({ razorpayPaymentId: 1 });
-// Status index — used heavily in admin queries (status: 'paid')
 EnrollmentSchema.index({ status: 1 });
-EnrollmentSchema.index({ userId: 1, status: 1 }); // Bulk user enrollment lookups
+EnrollmentSchema.index({ userId: 1, status: 1 });
 
 export const Enrollment = mongoose.model<IEnrollment>('Enrollment', EnrollmentSchema);

@@ -18,6 +18,18 @@ export interface User {
     createdAt?: string;
 }
 
+// Subject types — a subject inside a class-course (e.g., Mathematics in Class 9)
+export interface Subject {
+    _id: string;
+    name: string;           // e.g., "Mathematics", "Science"
+    description?: string;
+    icon?: string;          // Emoji e.g. "📐"
+    price: number;
+    originalPrice?: number;
+    order: number;
+    sections?: CourseSection[]; // Content (loaded on course detail page)
+}
+
 // Course types
 export interface Course {
     id: string;
@@ -32,8 +44,46 @@ export interface Course {
     duration: string;
     level: 'Beginner' | 'Intermediate' | 'Advanced';
     category: string;
+    grade?: string;
+    medium?: string;
+    paymentEnabled?: boolean;
+    paymentMethod?: string;
+    qrImage?: string;
+    upiId?: string;
+    merchantName?: string;
+    paymentInstructions?: string;
+    subjects: Subject[];    // Subject-based content (new structure)
     lessons: Lesson[];
     curriculum: CurriculumSection[];
+    featuredOnHome?: boolean;
+}
+
+export interface CourseSection {
+    _id?: string;
+    title: string;
+    description?: string;
+    order: number;
+    subsections?: CourseSubsection[];
+}
+
+export interface CourseSubsection {
+    _id?: string;
+    title: string;
+    description?: string;
+    order: number;
+    content?: CourseContentItem[];
+}
+
+export interface CourseContentItem {
+    _id: string;
+    type: 'video' | 'article' | 'quiz' | 'assignment';
+    title: string;
+    description?: string;
+    videoUrl?: string;
+    articleContent?: string;
+    duration?: string;
+    isFree: boolean;
+    order: number;
 }
 
 export interface Lesson {
@@ -64,6 +114,8 @@ export interface Note {
     id: string;
     title: string;
     courseId: string;
+    subjectId?: string;     // Subject within class-course
+    subjectName?: string;   // e.g. "Mathematics"
     fileName: string;
     fileUrl: string;
     fileSize: string;
@@ -175,6 +227,8 @@ export interface Quiz {
     description: string;
     courseId: string;
     courseName: string;
+    subjectId?: string;     // Subject within class-course
+    subjectName?: string;   // e.g. "Mathematics"
     totalQuestions: number;
     settings: QuizSettings;
     questions: QuizQuestion[];

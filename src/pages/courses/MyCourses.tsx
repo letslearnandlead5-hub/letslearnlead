@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
     BookOpen,
@@ -8,639 +8,371 @@ import {
     Award,
     TrendingUp,
     Search,
-    FileText,
-    Brain,
-    Video,
     CheckCircle,
-    Eye,
-    BookmarkPlus,
-    BookmarkCheck,
+    ChevronRight,
+    Layers,
+    FileText,
 } from 'lucide-react';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
-import Badge from '../../components/ui/Badge';
-import Modal from '../../components/ui/Modal';
 import { staggerContainer, staggerItem } from '../../utils/animations';
-import { courseAPI, noteAPI, userNoteAPI } from '../../services/api';
 import { useToastStore } from '../../store/useToastStore';
 import { useAuthStore } from '../../store/useAuthStore';
-import MarkdownViewer from '../../components/notes/MarkdownViewer';
-import ProtectedPDFViewer from '../../components/content/ProtectedPDFViewer';
 
-interface EnrolledCourse {
-    _id: string;
-    title: string;
-    thumbnail: string;
-    instructor: string;
-    progress: number;
+// ─── Types ────────────────────────────────────────────────────────────────────
+interface EnrolledSubjectCard {
+    enrollmentId: string;
+    subjectId: string;
+    subjectName: string;
+    subjectIcon: string;
+    courseId: string;
+    courseTitle: string;
+    courseThumbnail: string;
+    completionPercentage: number;
     totalLessons: number;
     completedLessons: number;
-    nextLesson: string;
-    firstLessonId: string; // Added for navigation
-    category: string;
-    enrolledDate: string;
-    duration: string;
-    level: string;
+    firstLessonId: string;
     status: 'ongoing' | 'completed';
-    hasQuizzes: boolean;
-    hasAssignments: boolean;
+    enrolledAt: string;
 }
 
+// ─── Circular progress ring ────────────────────────────────────────────────────
+const ProgressRing: React.FC<{ percent: number; size?: number }> = ({ percent, size = 56 }) => {
+    const r = (size - 8) / 2;
+    const circ = 2 * Math.PI * r;
+    const offset = circ - (percent / 100) * circ;
+    const isComplete = percent >= 100;
+    return (
+        <svg width={size} height={size} className="rotate-[-90deg]">
+            <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="currentColor"
+                className="text-gray-200 dark:text-gray-700" strokeWidth={6} />
+            <circle cx={size / 2} cy={size / 2} r={r} fill="none"
+                stroke={isComplete ? '#22c55e' : '#7c3aed'}
+                strokeWidth={6} strokeDasharray={circ} strokeDashoffset={offset}
+                strokeLinecap="round" className="transition-all duration-700" />
+        </svg>
+    );
+};
+
+// ─── Card gradient palette ─────────────────────────────────────────────────────
+const GRADIENTS = [
+    'from-violet-500 to-purple-700',
+    'from-blue-500 to-indigo-700',
+    'from-emerald-500 to-teal-700',
+    'from-rose-500 to-pink-700',
+    'from-amber-500 to-orange-700',
+    'from-cyan-500 to-sky-700',
+];
+
+// ─── Main Component ────────────────────────────────────────────────────────────
 const MyCourses: React.FC = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [filter, setFilter] = useState<'all' | 'in-progress' | 'completed'>('all');
-    const [courses, setCourses] = useState<EnrolledCourse[]>([]);
+    const [subjects, setSubjects] = useState<EnrolledSubjectCard[]>([]);
     const [loading, setLoading] = useState(true);
-    const [selectedCourse, setSelectedCourse] = useState<EnrolledCourse | null>(null);
-    const [isDetailsOpen, setIsDetailsOpen] = useState(false);
-    const [courseMaterials, setCourseMaterials] = useState<any[]>([]);
     const navigate = useNavigate();
-    const [savedNotes, setSavedNotes] = useState<Set<string>>(new Set());
-    const [loadingCourse, setLoadingCourse] = useState<string>('');
     const { addToast } = useToastStore();
     const { token } = useAuthStore();
 
     useEffect(() => {
-        fetchEnrolledCourses();
+        fetchEnrolledSubjects();
     }, []);
 
-    const fetchEnrolledCourses = async () => {
+    const fetchEnrolledSubjects = async () => {
         try {
-            // Fetch enrollments with progress data
             const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-            const enrollmentsResponse = await fetch(`${API_URL}/api/enrollment/my-enrollments`, {
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                },
+            const res = await fetch(`${API_URL}/api/enrollment/my-enrollments`, {
+                headers: { Authorization: `Bearer ${token}` },
             });
+            if (!res.ok) throw new Error('Failed to fetch enrollments');
+            const data = await res.json();
+            const enrollments: any[] = data.data || [];
 
-            if (!enrollmentsResponse.ok) {
-                throw new Error('Failed to fetch enrollments');
-            }
+            const cards: EnrolledSubjectCard[] = enrollments
+                .filter((e: any) => e.courseId)
+                .map((e: any) => {
+                    const course = e.courseId;
+                    const subjectData = course.subjects?.find(
+                        (s: any) => s._id?.toString() === e.subjectId?.toString()
+                    );
 
-            const enrollmentsData = await enrollmentsResponse.json();
-            const enrollments = enrollmentsData.data || [];
-
-            // Transform enrollments to include real progress
-            const transformedCourses = enrollments.map((enrollment: any) => {
-                const course = enrollment.courseId;
-                const completionPercentage = enrollment.completionPercentage || 0;
-
-                // Calculate total lessons from sections structure
-                let totalLessons = 0;
-                let firstLessonId = '';
-
-                if (course?.sections) {
-                    for (const section of course.sections) {
+                    let totalLessons = 0;
+                    let firstLessonId = '';
+                    for (const section of subjectData?.sections || []) {
                         for (const subsection of section.subsections || []) {
                             for (const item of subsection.content || []) {
-                                if (!firstLessonId && item._id) {
-                                    firstLessonId = item._id;
-                                }
+                                if (!firstLessonId && item._id) firstLessonId = item._id.toString();
                                 totalLessons++;
                             }
                         }
                     }
-                }
 
-                const completedLessons = Math.floor((completionPercentage / 100) * totalLessons);
+                    const pct = Math.round(e.completionPercentage || 0);
+                    return {
+                        enrollmentId: e._id || `${course._id}-${e.subjectId}`,
+                        subjectId: e.subjectId || '',
+                        subjectName: e.subjectName || subjectData?.name || 'Unknown Subject',
+                        subjectIcon: subjectData?.icon || '📚',
+                        courseId: course._id,
+                        courseTitle: course.title || 'Unknown Course',
+                        courseThumbnail: course.thumbnail || '',
+                        completionPercentage: pct,
+                        totalLessons,
+                        completedLessons: Math.floor((pct / 100) * totalLessons),
+                        firstLessonId,
+                        status: pct >= 100 ? 'completed' : 'ongoing',
+                        enrolledAt: e.createdAt || new Date().toISOString(),
+                    } as EnrolledSubjectCard;
+                });
 
-                return {
-                    _id: course?._id || enrollment._id,
-                    title: course?.title || 'Unknown Course',
-                    thumbnail: course?.thumbnail || '',
-                    instructor: course?.instructor || 'Unknown',
-                    progress: completionPercentage,
-                    totalLessons,
-                    completedLessons,
-                    nextLesson: completedLessons < totalLessons ? 'Continue Learning' : 'Course Complete',
-                    firstLessonId: firstLessonId || '',
-                    category: course?.category || '',
-                    enrolledDate: enrollment.createdAt || new Date().toISOString(),
-                    duration: course?.duration || '0 hours',
-                    level: course?.level || 'beginner',
-                    status: (completionPercentage >= 100 ? 'completed' : completionPercentage > 0 ? 'ongoing' : 'ongoing') as 'ongoing' | 'completed',
-                    hasQuizzes: !!course?.quizId,
-                    hasAssignments: false,
-                };
-            });
-
-            setCourses(transformedCourses);
-            setLoading(false);
-        } catch (error) {
-            console.error('Error fetching enrollments:', error);
-            addToast({ type: 'error', message: 'Failed to load courses' });
+            setSubjects(cards);
+        } catch (err) {
+            console.error(err);
+            addToast({ type: 'error', message: 'Failed to load your subjects' });
+        } finally {
             setLoading(false);
         }
     };
 
-    const fetchCourseMaterials = async (courseId: string) => {
-        try {
-            const response = await noteAPI.getByCourse(courseId);
-            setCourseMaterials(response.data || []);
-
-            // Check which notes are already saved
-            await checkSavedNotes(response.data || []);
-        } catch (error) {
-            console.error('Error fetching materials:', error);
-        }
-    };
-
-    const checkSavedNotes = async (notes: any[]) => {
-        try {
-            const savedSet = new Set<string>();
-            for (const note of notes) {
-                const response: any = await userNoteAPI.checkSaved(note._id);
-                if (response.isSaved) {
-                    savedSet.add(note._id);
-                }
-            }
-            setSavedNotes(savedSet);
-        } catch (error) {
-            console.error('Error checking saved notes:', error);
-        }
-    };
-
-    const handleSaveToLibrary = async (noteId: string) => {
-        try {
-            await userNoteAPI.save(noteId);
-            setSavedNotes(new Set(savedNotes).add(noteId));
-            addToast({ type: 'success', message: 'Note saved to your library!' });
-        } catch (error: any) {
-            console.error('Error saving note:', error);
-            addToast({
-                type: 'error',
-                message: error.message || 'Failed to save note'
-            });
-        }
-    };
-
-
-    const handleViewDetails = (course: EnrolledCourse) => {
-        setSelectedCourse(course);
-        fetchCourseMaterials(course._id);
-        setIsDetailsOpen(true);
-    };
-
-    // Smart Continue: fetch fresh course data → find first lesson → navigate to VideoPlayer
-    const handleContinueCourse = async (courseId: string, existingFirstLessonId: string) => {
-        // If we already have a firstLessonId, navigate immediately
-        if (existingFirstLessonId) {
-            navigate(`/video/${courseId}/${existingFirstLessonId}/`);
+    const handleContinue = (card: EnrolledSubjectCard) => {
+        if (card.firstLessonId) {
+            navigate(`/video/${card.courseId}/${card.firstLessonId}/`);
             return;
         }
 
-        // Fetch fresh course data (enrolled users get full sections)
-        try {
-            setLoadingCourse(courseId);
-            const response: any = await courseAPI.getById(courseId);
-            const courseData = response.data;
-
-            let firstLessonId = '';
-            for (const section of courseData?.sections || []) {
-                for (const subsection of section.subsections || []) {
-                    for (const item of subsection.content || []) {
-                        if (item._id) {
-                            firstLessonId = item._id.toString();
-                            break;
-                        }
-                    }
-                    if (firstLessonId) break;
-                }
-                if (firstLessonId) break;
-            }
-
-            if (firstLessonId) {
-                navigate(`/video/${courseId}/${firstLessonId}/`);
-            } else {
-                addToast({ type: 'warning', message: 'No lessons have been added to this course yet. Check back soon!' });
-            }
-        } catch (error) {
-            console.error('Error fetching course:', error);
-            addToast({ type: 'error', message: 'Failed to load course. Please try again.' });
-        } finally {
-            setLoadingCourse('');
-        }
+        navigate(`/courses/${card.courseId}/?subjectId=${card.subjectId}`);
     };
 
-    const filteredCourses = courses.filter((course) => {
-        const matchesSearch = course.title.toLowerCase().includes(searchTerm.toLowerCase());
-        const matchesFilter =
+    const handleViewNotes = (card: EnrolledSubjectCard) => {
+        navigate(`/dashboard/?tab=subject-notes&subjectId=${card.subjectId}`);
+    };
+
+    const filtered = subjects.filter((s) => {
+        const matchSearch =
+            s.subjectName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            s.courseTitle.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchFilter =
             filter === 'all' ||
-            (filter === 'in-progress' && course.progress > 0 && course.progress < 100) ||
-            (filter === 'completed' && course.progress >= 100);
-        return matchesSearch && matchesFilter;
+            (filter === 'in-progress' && s.status === 'ongoing') ||
+            (filter === 'completed' && s.status === 'completed');
+        return matchSearch && matchFilter;
     });
 
     const stats = {
-        total: courses.length,
-        inProgress: courses.filter((c) => c.progress < 100).length,
-        completed: courses.filter((c) => c.progress === 100).length,
-        totalHours: courses.reduce((sum, c) => sum + c.totalLessons, 0) * 0.5,
+        total: subjects.length,
+        inProgress: subjects.filter((s) => s.status === 'ongoing').length,
+        completed: subjects.filter((s) => s.status === 'completed').length,
+        avgProgress:
+            subjects.length > 0
+                ? Math.round(subjects.reduce((a, s) => a + s.completionPercentage, 0) / subjects.length)
+                : 0,
     };
 
     if (loading) {
         return (
             <div className="flex items-center justify-center h-96">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-violet-600" />
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-gray-50 dark:bg-gray-950 py-12">
-            <div className="container mx-auto px-4">
+        <div className="min-h-screen bg-gray-50 dark:bg-gray-950 py-10">
+            <div className="container mx-auto px-4 max-w-6xl">
+
                 {/* Header */}
-                <div className="mb-8">
-                    <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-2">My Courses</h1>
-                    <p className="text-gray-600 dark:text-gray-400">
-                        Continue your learning journey
-                    </p>
-                </div>
+                <motion.div initial={{ opacity: 0, y: -16 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
+                    <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-1">My Subjects</h1>
+                    <p className="text-gray-500 dark:text-gray-400">Continue learning your enrolled subjects</p>
+                </motion.div>
 
                 {/* Stats */}
-                <div className="grid md:grid-cols-4 gap-6 mb-8">
-                    <Card className="p-6">
-                        <div className="flex items-center gap-3">
-                            <div className="p-3 bg-blue-100 dark:bg-blue-900 rounded-lg">
-                                <BookOpen className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-                            </div>
-                            <div>
-                                <div className="text-sm text-gray-600 dark:text-gray-400">Total Courses</div>
-                                <div className="text-2xl font-bold text-gray-900 dark:text-white">{stats.total}</div>
-                            </div>
-                        </div>
-                    </Card>
-                    <Card className="p-6">
-                        <div className="flex items-center gap-3">
-                            <div className="p-3 bg-yellow-100 dark:bg-yellow-900 rounded-lg">
-                                <TrendingUp className="w-6 h-6 text-yellow-600 dark:text-yellow-400" />
-                            </div>
-                            <div>
-                                <div className="text-sm text-gray-600 dark:text-gray-400">In Progress</div>
-                                <div className="text-2xl font-bold text-gray-900 dark:text-white">{stats.inProgress}</div>
-                            </div>
-                        </div>
-                    </Card>
-                    <Card className="p-6">
-                        <div className="flex items-center gap-3">
-                            <div className="p-3 bg-green-100 dark:bg-green-900 rounded-lg">
-                                <Award className="w-6 h-6 text-green-600 dark:text-green-400" />
-                            </div>
-                            <div>
-                                <div className="text-sm text-gray-600 dark:text-gray-400">Completed</div>
-                                <div className="text-2xl font-bold text-gray-900 dark:text-white">{stats.completed}</div>
-                            </div>
-                        </div>
-                    </Card>
-                    <Card className="p-6">
-                        <div className="flex items-center gap-3">
-                            <div className="p-3 bg-purple-100 dark:bg-purple-900 rounded-lg">
-                                <Clock className="w-6 h-6 text-purple-600 dark:text-purple-400" />
-                            </div>
-                            <div>
-                                <div className="text-sm text-gray-600 dark:text-gray-400">Total Hours</div>
-                                <div className="text-2xl font-bold text-gray-900 dark:text-white">{stats.totalHours}</div>
-                            </div>
-                        </div>
-                    </Card>
-                </div>
-
-                {/* Filters */}
-                <Card className="p-4 mb-6">
-                    <div className="flex flex-col md:flex-row gap-4">
-                        <div className="flex-1 relative">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
-                            <input
-                                type="text"
-                                placeholder="Search your courses..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                            />
-                        </div>
-                        <div className="flex gap-2">
-                            <Button
-                                variant={filter === 'all' ? 'primary' : 'outline'}
-                                size="sm"
-                                onClick={() => setFilter('all')}
-                            >
-                                All
-                            </Button>
-                            <Button
-                                variant={filter === 'in-progress' ? 'primary' : 'outline'}
-                                size="sm"
-                                onClick={() => setFilter('in-progress')}
-                            >
-                                In Progress
-                            </Button>
-                            <Button
-                                variant={filter === 'completed' ? 'primary' : 'outline'}
-                                size="sm"
-                                onClick={() => setFilter('completed')}
-                            >
-                                Completed
-                            </Button>
-                        </div>
-                    </div>
-                </Card>
-
-                {/* Courses Grid */}
                 <motion.div
-                    variants={staggerContainer}
-                    initial="initial"
-                    animate="animate"
-                    className="grid md:grid-cols-2 lg:grid-cols-3 gap-6"
+                    initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}
+                    className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8"
                 >
-                    {filteredCourses.length === 0 ? (
-                        <div className="col-span-full text-center py-12">
-                            <BookOpen className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                            <p className="text-gray-500 dark:text-gray-400 text-lg">No courses found</p>
-                            <p className="text-gray-400 dark:text-gray-500 text-sm mt-2">Contact admin to get enrolled in courses</p>
+                    {[
+                        { label: 'Total Subjects', value: stats.total, icon: <Layers className="w-5 h-5" />, color: 'text-violet-600 bg-violet-100 dark:bg-violet-900/40' },
+                        { label: 'In Progress', value: stats.inProgress, icon: <TrendingUp className="w-5 h-5" />, color: 'text-amber-600 bg-amber-100 dark:bg-amber-900/40' },
+                        { label: 'Completed', value: stats.completed, icon: <Award className="w-5 h-5" />, color: 'text-emerald-600 bg-emerald-100 dark:bg-emerald-900/40' },
+                        { label: 'Avg Progress', value: `${stats.avgProgress}%`, icon: <CheckCircle className="w-5 h-5" />, color: 'text-blue-600 bg-blue-100 dark:bg-blue-900/40' },
+                    ].map((stat) => (
+                        <Card key={stat.label} className="p-5 flex items-center gap-4">
+                            <div className={`p-2.5 rounded-xl ${stat.color}`}>{stat.icon}</div>
+                            <div>
+                                <div className="text-xs text-gray-500 dark:text-gray-400">{stat.label}</div>
+                                <div className="text-2xl font-bold text-gray-900 dark:text-white">{stat.value}</div>
+                            </div>
+                        </Card>
+                    ))}
+                </motion.div>
+
+                {/* Search + Filter */}
+                <motion.div
+                    initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.1 }}
+                    className="flex flex-col sm:flex-row gap-3 mb-8"
+                >
+                    <div className="flex-1 relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+                        <input
+                            type="text"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            placeholder="Search subjects or courses..."
+                            className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-500 text-sm"
+                        />
+                    </div>
+                    <div className="flex gap-2 shrink-0">
+                        {(['all', 'in-progress', 'completed'] as const).map((f) => (
+                            <button
+                                key={f}
+                                onClick={() => setFilter(f)}
+                                className={`px-4 py-2 rounded-xl text-sm font-semibold transition-colors ${filter === f
+                                        ? 'bg-violet-600 text-white shadow-md'
+                                        : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'
+                                    }`}
+                            >
+                                {f === 'all' ? 'All' : f === 'in-progress' ? 'In Progress' : 'Completed'}
+                            </button>
+                        ))}
+                    </div>
+                </motion.div>
+
+                {/* Subject Cards */}
+                {filtered.length === 0 ? (
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+                        className="text-center py-24 bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800"
+                    >
+                        <div className="w-20 h-20 bg-violet-100 dark:bg-violet-900/30 rounded-full flex items-center justify-center mx-auto mb-5">
+                            <BookOpen className="w-10 h-10 text-violet-500" />
                         </div>
-                    ) : (
-                        filteredCourses.map((course) => (
-                            <motion.div key={course._id} variants={staggerItem}>
-                                <Card className="overflow-hidden hover:shadow-xl transition-shadow">
-                                    <div className="relative">
-                                        <img
-                                            src={course.thumbnail}
-                                            alt={course.title}
-                                            className="w-full h-48 object-cover"
-                                        />
-                                        <Badge
-                                            variant={course.status === 'completed' ? 'success' : 'warning'}
-                                            className="absolute top-3 right-3"
-                                        >
-                                            {course.status === 'completed' ? 'Completed' : 'Ongoing'}
-                                        </Badge>
-                                    </div>
-                                    <div className="p-6">
-                                        <div className="flex items-center gap-2 mb-2">
-                                            <Badge variant="secondary">
-                                                {course.category}
-                                            </Badge>
-                                            <Badge variant="primary">
-                                                {course.level}
-                                            </Badge>
+                        <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+                            {searchTerm || filter !== 'all' ? 'No subjects match your search' : 'No subjects enrolled yet'}
+                        </h3>
+                        <p className="text-gray-500 dark:text-gray-400 text-sm max-w-sm mx-auto">
+                            {searchTerm || filter !== 'all'
+                                ? 'Try adjusting your search or filters'
+                                : 'Browse our courses and enroll in subjects to start learning'}
+                        </p>
+                        {!searchTerm && filter === 'all' && (
+                            <Button variant="primary" className="mt-6 bg-violet-600 hover:bg-violet-700"
+                                onClick={() => navigate('/courses/')}>
+                                Browse Courses
+                            </Button>
+                        )}
+                    </motion.div>
+                ) : (
+                    <motion.div
+                        variants={staggerContainer}
+                        initial="initial"
+                        animate="animate"
+                        className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6"
+                    >
+                        {filtered.map((card, idx) => {
+                            const grad = GRADIENTS[idx % GRADIENTS.length];
+                            const isComplete = card.status === 'completed';
+                            return (
+                                <motion.div key={card.enrollmentId} variants={staggerItem} whileHover={{ y: -6 }}>
+                                    <div
+                                        onClick={() => handleContinue(card)}
+                                        className="rounded-2xl overflow-hidden shadow-md hover:shadow-2xl transition-all duration-300 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 flex flex-col h-full group cursor-pointer"
+                                    >
+                                        {/* Gradient header */}
+                                        <div className={`relative h-28 bg-gradient-to-br ${grad} flex items-center px-6 overflow-hidden`}>
+                                            {card.courseThumbnail && (
+                                                <img src={card.courseThumbnail} alt="" aria-hidden
+                                                    className="absolute inset-0 w-full h-full object-cover opacity-20 mix-blend-overlay" />
+                                            )}
+                                            <div className="relative z-10 text-5xl select-none drop-shadow-lg">
+                                                {card.subjectIcon}
+                                            </div>
+                                            <div className="absolute top-3 right-3 z-10">
+                                                {isComplete ? (
+                                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-500 text-white">
+                                                        <CheckCircle className="w-3 h-3" /> Completed
+                                                    </span>
+                                                ) : (
+                                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-white/20 text-white backdrop-blur-sm">
+                                                        <Play className="w-3 h-3" fill="white" /> Ongoing
+                                                    </span>
+                                                )}
+                                            </div>
                                         </div>
-                                        <h3 className="text-xl font-bold mb-2 text-gray-900 dark:text-white">
-                                            {course.title}
-                                        </h3>
-                                        <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
-                                            by {course.instructor}
-                                        </p>
 
-                                        {/* Course Info */}
-                                        <div className="flex items-center gap-4 mb-4 text-sm text-gray-600 dark:text-gray-400">
-                                            <div className="flex items-center gap-1">
-                                                <Clock className="w-4 h-4" />
-                                                <span>{course.duration}</span>
+                                        {/* Body */}
+                                        <div className="p-5 flex flex-col flex-1">
+                                            <div className="mb-3">
+                                                <h3 className="text-lg font-bold text-gray-900 dark:text-white leading-tight mb-1 group-hover:text-violet-600 dark:group-hover:text-violet-400 transition-colors">
+                                                    {card.subjectName}
+                                                </h3>
+                                                <p className="text-xs text-gray-400 dark:text-gray-500 font-medium uppercase tracking-wide">
+                                                    {card.courseTitle}
+                                                </p>
                                             </div>
-                                            <div className="flex items-center gap-1">
-                                                <Video className="w-4 h-4" />
-                                                <span>{course.totalLessons} lessons</span>
-                                            </div>
-                                        </div>
 
-                                        {/* Progress */}
-                                        <div className="mb-4">
-                                            <div className="flex items-center justify-between mb-2">
-                                                <span className="text-sm text-gray-600 dark:text-gray-400">
-                                                    Progress
-                                                </span>
-                                                <span className="text-sm font-semibold">{course.progress}%</span>
+                                            {/* Progress ring + meta */}
+                                            <div className="flex items-center gap-4 mb-4">
+                                                <div className="relative shrink-0">
+                                                    <ProgressRing percent={card.completionPercentage} size={56} />
+                                                    <span className="absolute inset-0 flex items-center justify-center text-xs font-bold text-gray-700 dark:text-gray-300">
+                                                        {card.completionPercentage}%
+                                                    </span>
+                                                </div>
+                                                <div className="flex-1 space-y-1.5">
+                                                    <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+                                                        <BookOpen className="w-3.5 h-3.5 shrink-0" />
+                                                        <span>{card.completedLessons}/{card.totalLessons || '—'} lessons</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+                                                        <Clock className="w-3.5 h-3.5 shrink-0" />
+                                                        <span>
+                                                            Enrolled {new Date(card.enrolledAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                                        </span>
+                                                    </div>
+                                                </div>
                                             </div>
-                                            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+
+                                            {/* Progress bar */}
+                                            <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-1.5 mb-4">
                                                 <div
-                                                    className="bg-primary-600 h-2 rounded-full transition-all"
-                                                    style={{ width: `${course.progress}%` }}
+                                                    className={`h-1.5 rounded-full transition-all duration-700 ${isComplete ? 'bg-emerald-500' : 'bg-violet-500'}`}
+                                                    style={{ width: `${card.completionPercentage}%` }}
                                                 />
                                             </div>
-                                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                                {course.completedLessons} of {course.totalLessons} lessons completed
-                                            </p>
-                                        </div>
 
-                                        {/* Quick Access Icons */}
-                                        <div className="flex items-center gap-2 mb-4">
-                                            {course.hasQuizzes && (
-                                                <div className="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400">
-                                                    <Brain className="w-4 h-4 text-blue-600" />
-                                                    <span>Quizzes</span>
-                                                </div>
-                                            )}
-                                            {course.hasAssignments && (
-                                                <div className="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400">
-                                                    <FileText className="w-4 h-4 text-green-600" />
-                                                    <span>Assignments</span>
-                                                </div>
-                                            )}
-                                            <div className="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400">
-                                                <BookmarkCheck className="w-4 h-4 text-purple-600" />
-                                                <span>Materials</span>
-                                            </div>
-                                        </div>
-
-                                        {/* Action Buttons */}
-                                        <div className="flex gap-2">
-                                            <Button
-                                                variant="primary"
-                                                className="flex-1"
-                                                leftIcon={loadingCourse === course._id ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Play className="w-4 h-4" />}
-                                                onClick={() => handleContinueCourse(course._id, course.firstLessonId)}
-                                                disabled={loadingCourse === course._id}
-                                            >
-                                                {loadingCourse === course._id ? 'Loading...' : course.status === 'completed' ? 'Review' : 'Continue'}
-                                            </Button>
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={() => handleViewDetails(course)}
-                                            >
-                                                <FileText className="w-4 h-4" />
-                                            </Button>
-                                        </div>
-                                    </div>
-                                </Card>
-                            </motion.div>
-                        ))
-                    )}
-                </motion.div>
-            </div>
-
-            {/* Course Details Modal */}
-            <Modal
-                isOpen={isDetailsOpen}
-                onClose={() => setIsDetailsOpen(false)}
-                title="Course Resources"
-                size="lg"
-            >
-                {selectedCourse && (
-                    <div className="p-6">
-                        <div className="mb-6">
-                            <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-                                {selectedCourse.title}
-                            </h3>
-                            <p className="text-gray-600 dark:text-gray-400">
-                                by {selectedCourse.instructor}
-                            </p>
-                        </div>
-
-                        {/* Quick Stats */}
-                        <div className="grid grid-cols-3 gap-4 mb-6">
-                            <div className="p-4 bg-blue-50 dark:bg-blue-950 rounded-lg">
-                                <div className="flex items-center gap-2 mb-1">
-                                    <Video className="w-4 h-4 text-blue-600" />
-                                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                                        Lessons
-                                    </span>
-                                </div>
-                                <p className="text-2xl font-bold text-blue-600">
-                                    {selectedCourse.completedLessons}/{selectedCourse.totalLessons}
-                                </p>
-                            </div>
-                            <div className="p-4 bg-green-50 dark:bg-green-950 rounded-lg">
-                                <div className="flex items-center gap-2 mb-1">
-                                    <CheckCircle className="w-4 h-4 text-green-600" />
-                                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                                        Progress
-                                    </span>
-                                </div>
-                                <p className="text-2xl font-bold text-green-600">
-                                    {selectedCourse.progress}%
-                                </p>
-                            </div>
-                            <div className="p-4 bg-purple-50 dark:bg-purple-950 rounded-lg">
-                                <div className="flex items-center gap-2 mb-1">
-                                    <Clock className="w-4 h-4 text-purple-600" />
-                                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                                        Duration
-                                    </span>
-                                </div>
-                                <p className="text-2xl font-bold text-purple-600">
-                                    {selectedCourse.duration}
-                                </p>
-                            </div>
-                        </div>
-
-                        {/* Study Materials */}
-                        <div className="mb-6">
-                            <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
-                                <FileText className="w-5 h-5" />
-                                Study Materials
-                            </h4>
-                            {courseMaterials.length === 0 ? (
-                                <p className="text-gray-600 dark:text-gray-400 text-sm">
-                                    No materials available yet
-                                </p>
-                            ) : (
-                                <div className="space-y-2">
-                                    {courseMaterials.map((material) => (
-                                        <div
-                                            key={material._id}
-                                            className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg"
-                                        >
-                                            <div className="flex items-center gap-3">
-                                                <FileText className="w-5 h-5 text-primary-600" />
-                                                <div>
-                                                    <p className="font-medium text-gray-900 dark:text-white">
-                                                        {material.title}
-                                                    </p>
-                                                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                                                        {material.fileType?.toUpperCase()}
-                                                    </p>
-                                                </div>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    onClick={() => navigate(`/notes/view/${material._id}`)}
+                                            {/* Action buttons */}
+                                            <div className="mt-auto grid grid-cols-1 gap-2">
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); handleContinue(card); }}
+                                                    className={`w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl font-semibold text-sm transition-all duration-200
+                                                    ${isComplete
+                                                            ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 border border-emerald-200 dark:border-emerald-800'
+                                                            : 'bg-violet-600 text-white hover:bg-violet-700 shadow-md hover:shadow-violet-500/30'
+                                                        }`}
                                                 >
-                                                    <Eye className="w-4 h-4" />
-                                                </Button>
-                                                {/* Save to Library Button */}
-                                                <Button
-                                                    variant={savedNotes.has(material._id) ? "secondary" : "outline"}
-                                                    size="sm"
-                                                    onClick={() => handleSaveToLibrary(material._id)}
-                                                    disabled={savedNotes.has(material._id)}
-                                                    leftIcon={savedNotes.has(material._id) ? <BookmarkCheck className="w-4 h-4" /> : <BookmarkPlus className="w-4 h-4" />}
+                                                    {isComplete ? (
+                                                        <><CheckCircle className="w-4 h-4" /> Review Subject</>
+                                                    ) : (
+                                                        <><Play className="w-4 h-4" fill="white" /> Continue Learning <ChevronRight className="w-4 h-4 ml-auto" /></>
+                                                    )}
+                                                </button>
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); handleViewNotes(card); }}
+                                                    className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl font-semibold text-sm transition-all duration-200 bg-white dark:bg-gray-800 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-800 hover:bg-violet-50 dark:hover:bg-violet-900/20"
                                                 >
-                                                    {savedNotes.has(material._id) ? 'Saved' : 'Save'}
-                                                </Button>
+                                                    <FileText className="w-4 h-4" />
+                                                    View Notes
+                                                </button>
                                             </div>
                                         </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Quizzes & Assignments */}
-                        <div className="grid md:grid-cols-2 gap-4 mb-6">
-                            {selectedCourse.hasQuizzes && (
-                                <div className="p-4 border-2 border-blue-200 dark:border-blue-800 rounded-lg">
-                                    <div className="flex items-center gap-2 mb-2">
-                                        <Brain className="w-5 h-5 text-blue-600" />
-                                        <h5 className="font-semibold text-gray-900 dark:text-white">
-                                            Quizzes Available
-                                        </h5>
                                     </div>
-                                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
-                                        Test your knowledge with course quizzes
-                                    </p>
-                                    <Link to="/dashboard/">
-                                        <Button variant="primary" size="sm" className="w-full">
-                                            Take Quiz
-                                        </Button>
-                                    </Link>
-                                </div>
-                            )}
-                            {selectedCourse.hasAssignments && (
-                                <div className="p-4 border-2 border-green-200 dark:border-green-800 rounded-lg">
-                                    <div className="flex items-center gap-2 mb-2">
-                                        <FileText className="w-5 h-5 text-green-600" />
-                                        <h5 className="font-semibold text-gray-900 dark:text-white">
-                                            Assignments
-                                        </h5>
-                                    </div>
-                                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
-                                        Complete assignments to practice
-                                    </p>
-                                    <Button variant="primary" size="sm" className="w-full">
-                                        View Assignments
-                                    </Button>
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Action Buttons */}
-                        <div className="flex gap-3">
-                            <Button
-                                variant="outline"
-                                onClick={() => setIsDetailsOpen(false)}
-                                className="flex-1"
-                            >
-                                Close
-                            </Button>
-                            <Button
-                                variant="primary"
-                                className="flex-1"
-                                onClick={() => {
-                                    setIsDetailsOpen(false);
-                                    handleContinueCourse(selectedCourse._id, selectedCourse.firstLessonId);
-                                }}
-                                disabled={loadingCourse === selectedCourse._id}
-                            >
-                                {selectedCourse.status === 'completed' ? 'Review Course' : 'Continue Learning'}
-                            </Button>
-                        </div>
-                    </div>
+                                </motion.div>
+                            );
+                        })}
+                    </motion.div>
                 )}
-            </Modal>
-
-
+            </div>
         </div>
     );
 };

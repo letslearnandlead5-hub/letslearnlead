@@ -24,7 +24,7 @@ import {
     Eye,
 } from 'lucide-react';
 import { createQuiz, getQuizById, updateQuiz } from '../../services/quizService';
-import type { Quiz, QuizQuestion, QuestionOption, MatchPair } from '../../types';
+import type { Quiz, QuizQuestion, QuestionOption, MatchPair, Subject } from '../../types';
 import toast from 'react-hot-toast';
 import AdminHeader from '../../components/admin/AdminHeader';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -72,6 +72,11 @@ const QuizEditor: React.FC = () => {
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
     const [courseId, setCourseId] = useState('');
+    const [subjectId, setSubjectId] = useState('');
+    const [subjectName, setSubjectName] = useState('');
+
+    // Derive subjects for the selected course
+    const selectedCourseSubjects: Subject[] = courses.find(c => c._id === courseId)?.subjects || [];
 
     // Quiz settings
     const [marksPerQuestion, setMarksPerQuestion] = useState(1);
@@ -119,6 +124,8 @@ const QuizEditor: React.FC = () => {
             setTitle(quiz.title);
             setDescription(quiz.description);
             setCourseId(quiz.courseId);
+            setSubjectId(quiz.subjectId || '');
+            setSubjectName(quiz.subjectName || '');
             setMarksPerQuestion(quiz.settings.marksPerQuestion);
             setNegativeMarking(quiz.settings.negativeMarking);
             setTimeLimit(quiz.settings.timeLimit);
@@ -327,6 +334,8 @@ const QuizEditor: React.FC = () => {
                 title,
                 description,
                 courseId,
+                subjectId: subjectId || undefined,
+                subjectName: subjectName || undefined,
                 settings: { marksPerQuestion, negativeMarking, timeLimit, passingPercentage, allowRetake, maxAttempts },
                 questions: questions as QuizQuestion[],
                 isPublished: publish,
@@ -474,11 +483,41 @@ const QuizEditor: React.FC = () => {
                                         </div>
                                         <div>
                                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Course *</label>
-                                            <select value={courseId} onChange={(e) => setCourseId(e.target.value)} className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white">
+                                            <select
+                                                value={courseId}
+                                                onChange={(e) => {
+                                                    setCourseId(e.target.value);
+                                                    setSubjectId('');
+                                                    setSubjectName('');
+                                                }}
+                                                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
+                                            >
                                                 <option value="">Select a course</option>
                                                 {courses.map((course) => (<option key={course._id} value={course._id}>{course.title}</option>))}
                                             </select>
                                         </div>
+                                        {/* Subject Selection */}
+                                        {selectedCourseSubjects.length > 0 && (
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Subject (Optional)</label>
+                                                <select
+                                                    value={subjectId}
+                                                    onChange={(e) => {
+                                                        const s = selectedCourseSubjects.find(sub => sub._id === e.target.value);
+                                                        setSubjectId(e.target.value);
+                                                        setSubjectName(s?.name || '');
+                                                    }}
+                                                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
+                                                >
+                                                    <option value="">All subjects (general quiz)</option>
+                                                    {selectedCourseSubjects.map((sub) => (
+                                                        <option key={sub._id} value={sub._id}>
+                                                            {sub.icon ? `${sub.icon} ` : ''}{sub.name}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                        )}
                                     </div>
                                 )}
 

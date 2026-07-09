@@ -31,6 +31,19 @@ export interface ISection {
     subsections: ISubsection[];
 }
 
+// Subject - A subject inside a class-course (e.g., Mathematics inside Class 9)
+// Admin creates subjects dynamically from the admin panel.
+export interface ISubject {
+    _id?: mongoose.Types.ObjectId;
+    name: string;           // e.g., "Mathematics", "Science", "Physics"
+    description?: string;
+    icon?: string;          // Emoji e.g. "📐", "🔬"
+    price: number;          // Price for this specific subject
+    originalPrice?: number; // Struck-through price for discount display
+    order: number;
+    sections: ISection[];   // Content: Section → Subsection → ContentItem
+}
+
 // Legacy Lesson interface (kept for backward compatibility)
 export interface ILesson {
     title: string;
@@ -41,11 +54,11 @@ export interface ILesson {
 }
 
 export interface ICourse extends Document {
-    title: string;
+    title: string;          // e.g., "Class 9", "Class 10"
     description: string;
     instructor: string;
     thumbnail: string;
-    price: number;
+    price?: number;          // Legacy top-level price (0 for subject-based courses)
     originalPrice?: number;
     currency: string;
     rating: number;
@@ -54,18 +67,20 @@ export interface ICourse extends Document {
     category: string;
     level: 'beginner' | 'intermediate' | 'advanced';
     medium: 'kannada' | 'english';
-    grade?: string; // e.g., "6th", "7th", "8th", "9th", "10th"
+    grade?: string;
     featuredOnHome: boolean;
-    // ── Payment Settings ────────────────────────────────────────────────
-    paymentEnabled: boolean;      // false = free, true = paid
-    paymentMethod: 'qr' | 'gateway' | 'both'; // future-proof
-    qrImage?: string;             // base64 encoded QR code image
+    // ── Subjects (admin-managed, each with own price) ────────────────────
+    subjects: ISubject[];
+    // ── Payment Settings (shared across all subjects) ────────────────────
+    paymentEnabled: boolean;
+    paymentMethod: 'qr' | 'gateway' | 'both';
+    qrImage?: string;
     upiId?: string;
     merchantName?: string;
     paymentInstructions?: string;
-    // ────────────────────────────────────────────────────────────────────
-    sections: ISection[]; // New hierarchical structure
-    lessons: ILesson[]; // Legacy field for backward compatibility
+    // ── Legacy fields ────────────────────────────────────────────────────
+    sections: ISection[];
+    lessons: ILesson[];
     quizId?: mongoose.Types.ObjectId;
     demoVideoUrl?: string;
     createdAt: Date;
@@ -148,6 +163,41 @@ const SectionSchema = new Schema<ISection>({
     subsections: [SubsectionSchema],
 });
 
+// Subject Schema — admin-created subject inside a class-course
+const SubjectSchema = new Schema<ISubject>({
+    name: {
+        type: String,
+        required: true,
+        trim: true,
+    },
+    description: {
+        type: String,
+        default: '',
+    },
+    icon: {
+        type: String,
+        default: '📚',
+    },
+    price: {
+        type: Number,
+        required: true,
+        min: 0,
+        default: 0,
+    },
+    originalPrice: {
+        type: Number,
+    },
+    order: {
+        type: Number,
+        required: true,
+        default: 0,
+    },
+    sections: {
+        type: [SectionSchema],
+        default: [],
+    },
+});
+
 // Legacy Lesson Schema (for backward compatibility)
 const LessonSchema = new Schema<ILesson>({
     title: { type: String, required: true },
@@ -224,6 +274,12 @@ const CourseSchema = new Schema<ICourse>(
             default: false,
             index: true, // Index for fast homepage queries
         },
+        // ── New: subjects (each with own price and content) ──────────────
+        subjects: {
+            type: [SubjectSchema],
+            default: [],
+        },
+        // ── Legacy: top-level sections (kept for backward compat) ─────────
         sections: {
             type: [SectionSchema],
             default: [],

@@ -33,6 +33,7 @@ interface Course {
     studentsEnrolled: number;
     duration: string;
     category: string;
+    subjects?: Array<{ _id: string; name: string; price: number; icon?: string }>;
 }
 
 interface Stats {
@@ -485,14 +486,29 @@ const Home: React.FC = () => {
                                             <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                                         </div>
 
-                                        {/* Course Content */}
+                                         {/* Course Content */}
                                         <div className="p-6 flex flex-col flex-1 relative">
-                                            <h3 className="font-bold text-lg mb-3 text-gray-900 dark:text-white min-h-[3.5rem] line-clamp-2 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                                            <h3 className="font-bold text-lg mb-2 text-gray-900 dark:text-white min-h-[3.5rem] line-clamp-2 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
                                                 {course.title}
                                             </h3>
-                                            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4 line-clamp-3 flex-1">
+                                            <p className="text-sm text-gray-600 dark:text-gray-400 mb-3 line-clamp-2 flex-1">
                                                 {course.description}
                                             </p>
+
+                                            {/* Subjects count + price info */}
+                                            {course.subjects && course.subjects.length > 0 ? (
+                                                <div className="mb-4 flex items-center justify-between">
+                                                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300">
+                                                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
+                                                        {course.subjects.length} Subject{course.subjects.length !== 1 ? 's' : ''}
+                                                    </span>
+                                                    <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400">
+                                                        From ₹{Math.min(...course.subjects.map(s => s.price)).toLocaleString()}
+                                                    </span>
+                                                </div>
+                                            ) : (
+                                                <div className="mb-4 h-7" />
+                                            )}
 
                                             <Button
                                                 variant="primary"
@@ -500,7 +516,7 @@ const Home: React.FC = () => {
                                                 onClick={() => navigate(`/courses/${course._id}/`)}
                                                 className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-lg hover:shadow-xl transition-all transform group-hover:scale-105 mt-auto"
                                             >
-                                                View Course
+                                                View Subjects →
                                             </Button>
                                         </div>
 

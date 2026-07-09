@@ -98,7 +98,8 @@ const Footer: React.FC = () => {
             links: [
                 { name: 'My Dashboard', path: '/dashboard/' },
                 { name: 'Enrolled Courses', path: '/dashboard/?tab=courses' },
-                { name: 'Notes Library', path: '/dashboard/?tab=my-notes' },
+                { name: 'Subject Notes', path: '/dashboard/?tab=subject-notes' },
+                { name: 'Saved Notes', path: '/dashboard/?tab=my-notes' },
                 { name: 'Quiz Progress', path: '/dashboard/?tab=quizzes' },
                 { name: 'Certificates', path: '/dashboard/?tab=certificates' },
             ]

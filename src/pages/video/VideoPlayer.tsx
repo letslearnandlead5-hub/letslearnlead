@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
@@ -33,14 +33,49 @@ const VideoPlayer: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [expandedSubsections, setExpandedSubsections] = useState<Set<string>>(new Set());
     const [currentLesson, setCurrentLesson] = useState<any>(null);
-    const [completedLessons, setCompletedLessons] = useState<Set<string>>(() => {
-        // Load from localStorage on mount
-        const saved = localStorage.getItem(`course-${courseId}-completed`);
-        return saved ? new Set(JSON.parse(saved)) : new Set();
-    });
+    const [completedLessons, setCompletedLessons] = useState<Set<string>>(new Set());
     const [youtubeWatchTime, setYoutubeWatchTime] = useState(0);
     const [youtubeDuration, setYoutubeDuration] = useState(0);
     const [isEnrolled, setIsEnrolled] = useState<boolean | null>(null);
+
+    const activeSubject = useMemo(() => {
+        if (!course?.subjects || !lessonId) return null;
+
+        return course.subjects.find((subject: any) =>
+            (subject.sections || []).some((section: any) =>
+                (section.subsections || []).some((subsection: any) =>
+                    (subsection.content || []).some((item: any) => item._id === lessonId)
+                )
+            )
+        ) || null;
+    }, [course, lessonId]);
+
+    const contentSections = useMemo(() => {
+        if (activeSubject?.sections?.length) return activeSubject.sections;
+        return course?.sections || [];
+    }, [activeSubject, course]);
+
+    const progressStorageKey = useMemo(() => {
+        return activeSubject?._id
+            ? `course-${courseId}-subject-${activeSubject._id}-completed`
+            : `course-${courseId}-completed`;
+    }, [activeSubject, courseId]);
+
+    const countCompletedInSections = (sections: any[], completedSet: Set<string>) => {
+        let totalLessons = 0;
+        let completedCount = 0;
+
+        for (const section of sections) {
+            for (const subsection of section.subsections || []) {
+                for (const item of subsection.content || []) {
+                    totalLessons++;
+                    if (completedSet.has(item._id)) completedCount++;
+                }
+            }
+        }
+
+        return { totalLessons, completedCount };
+    };
 
     // Verify enrollment before allowing access
     useEffect(() => {
@@ -97,7 +132,7 @@ const VideoPlayer: React.FC = () => {
         if (!course || !lessonId) return;
 
         let foundLesson = null;
-        for (const section of course.sections || []) {
+        for (const section of contentSections) {
             for (const subsection of section.subsections || []) {
                 for (const item of subsection.content || []) {
                     if (item._id === lessonId) {
@@ -110,7 +145,7 @@ const VideoPlayer: React.FC = () => {
             if (foundLesson) break;
         }
         setCurrentLesson(foundLesson);
-    }, [course, lessonId]);
+    }, [course, lessonId, contentSections]);
 
     // Sync progress to backend
     const syncProgressToBackend = async (newCompletedSet: Set<string>) => {
@@ -119,14 +154,14 @@ const VideoPlayer: React.FC = () => {
         console.log('   course exists:', !!course);
         console.log('   courseId:', courseId);
 
-        if (!course?.sections || !courseId) {
+        if (!contentSections.length || !courseId) {
             console.log('❌ Sync aborted - missing data');
             return;
         }
 
         // Calculate completion percentage
         let totalLessons = 0;
-        for (const section of course.sections) {
+        for (const section of contentSections) {
             for (const subsection of section.subsections || []) {
                 for (const item of subsection.content || []) {
                     totalLessons++;
@@ -134,7 +169,7 @@ const VideoPlayer: React.FC = () => {
             }
         }
 
-        const completedCount = newCompletedSet.size;
+        const completedCount = countCompletedInSections(contentSections, newCompletedSet).completedCount;
         const completionPercentage = totalLessons > 0 ? Math.round((completedCount / totalLessons) * 100) : 0;
 
         console.log(`   Total: ${totalLessons}, Completed: ${completedCount}, Progress: ${completionPercentage}%`);
@@ -148,8 +183,9 @@ const VideoPlayer: React.FC = () => {
                     'Authorization': `Bearer ${token}`,
                 },
                 body: JSON.stringify({
+                    subjectId: activeSubject?._id,
                     completionPercentage,
-                    completedLessons: completedCount,
+                    completedLessons: Array.from(newCompletedSet),
                 }),
             });
 
@@ -167,10 +203,11 @@ const VideoPlayer: React.FC = () => {
     // Load progress from backend and merge with localStorage
     useEffect(() => {
         const loadProgressFromBackend = async () => {
-            if (!course || !courseId) return;
+            if (!course || !courseId || !activeSubject?._id) return;
 
             try {
-                const response = await fetch(`${import.meta.env.VITE_API_URL}/api/enrollment/progress/${courseId}`, {
+                const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+                const response = await fetch(`${API_URL}/api/enrollment/progress/${courseId}?subjectId=${activeSubject._id}`, {
                     headers: {
                         'Authorization': `Bearer ${token}`,
                     },
@@ -181,17 +218,18 @@ const VideoPlayer: React.FC = () => {
                     const backendCompleted = new Set<string>(data.completedLessons || []);
 
                     // Merge backend progress with localStorage
-                    const localCompleted = new Set(completedLessons);
+                    const saved = localStorage.getItem(progressStorageKey);
+                    const localCompleted = saved ? new Set<string>(JSON.parse(saved)) : new Set<string>();
                     const merged = new Set([...backendCompleted, ...localCompleted]);
 
                     console.log('📥 Loaded progress from backend:', backendCompleted.size, 'lessons');
                     console.log('💾 Local progress:', localCompleted.size, 'lessons');
                     console.log('🔀 Merged progress:', merged.size, 'lessons');
 
-                    if (merged.size > completedLessons.size) {
-                        setCompletedLessons(merged);
-                        // Update localStorage with merged progress
-                        localStorage.setItem(`course-${courseId}-completed`, JSON.stringify(Array.from(merged)));
+                    setCompletedLessons(merged);
+                    localStorage.setItem(progressStorageKey, JSON.stringify(Array.from(merged)));
+                    if (merged.size > backendCompleted.size) {
+                        syncProgressToBackend(merged);
                     }
                 }
             } catch (error) {
@@ -200,15 +238,7 @@ const VideoPlayer: React.FC = () => {
         };
 
         loadProgressFromBackend();
-    }, [course, courseId, token]);
-
-    // Sync existing localStorage progress to backend on mount
-    useEffect(() => {
-        if (course && courseId && completedLessons.size > 0) {
-            // Sync existing progress from localStorage to backend
-            syncProgressToBackend(completedLessons);
-        }
-    }, [course, courseId, completedLessons]); // Run when course loads AND when completedLessons changes
+    }, [course, courseId, token, activeSubject, progressStorageKey]);
 
     // Mark non-video content as completed when viewed
     // Videos require 70% watch time (tracked separately below)
@@ -218,11 +248,11 @@ const VideoPlayer: React.FC = () => {
             newCompleted.add(lessonId);
             setCompletedLessons(newCompleted);
             // Save to localStorage
-            localStorage.setItem(`course-${courseId}-completed`, JSON.stringify(Array.from(newCompleted)));
+            localStorage.setItem(progressStorageKey, JSON.stringify(Array.from(newCompleted)));
             // Sync to backend
             syncProgressToBackend(newCompleted);
         }
-    }, [lessonId, courseId, currentLesson, completedLessons]);
+    }, [lessonId, courseId, currentLesson, completedLessons, progressStorageKey]);
 
     // Mark video as completed when 70% watched
     useEffect(() => {
@@ -244,7 +274,7 @@ const VideoPlayer: React.FC = () => {
                 const newCompleted = new Set(completedLessons);
                 newCompleted.add(lessonId);
                 setCompletedLessons(newCompleted);
-                localStorage.setItem(`course-${courseId}-completed`, JSON.stringify(Array.from(newCompleted)));
+                localStorage.setItem(progressStorageKey, JSON.stringify(Array.from(newCompleted)));
                 syncProgressToBackend(newCompleted); // Sync to backend
             }
         } else {
@@ -256,11 +286,11 @@ const VideoPlayer: React.FC = () => {
                 const newCompleted = new Set(completedLessons);
                 newCompleted.add(lessonId);
                 setCompletedLessons(newCompleted);
-                localStorage.setItem(`course-${courseId}-completed`, JSON.stringify(Array.from(newCompleted)));
+                localStorage.setItem(progressStorageKey, JSON.stringify(Array.from(newCompleted)));
                 syncProgressToBackend(newCompleted); // Sync to backend
             }
         }
-    }, [currentTime, duration, youtubeWatchTime, youtubeDuration, lessonId, courseId, currentLesson, completedLessons]);
+    }, [currentTime, duration, youtubeWatchTime, youtubeDuration, lessonId, courseId, currentLesson, completedLessons, progressStorageKey]);
 
     // YouTube video progress tracking with polling (more reliable than postMessage)
     useEffect(() => {
@@ -629,15 +659,27 @@ const VideoPlayer: React.FC = () => {
                             </Card>
                         ) : course ? (
                             <Card className="p-6 mt-6">
-                                <h1 className="text-2xl font-bold mb-2">
-                                    {course.title}
+                                {activeSubject && (
+                                    <div className="flex items-center gap-2 text-sm font-semibold text-primary-600 dark:text-primary-400 mb-2">
+                                        <span className="text-xl">{activeSubject.icon || '📚'}</span>
+                                        <span>{course.title}</span>
+                                    </div>
+                                )}
+                                <h1 className="text-2xl font-bold mb-2 text-gray-900 dark:text-white">
+                                    {activeSubject?.name || course.title}
                                 </h1>
+                                {currentLesson && (
+                                    <p className="text-base font-medium text-gray-800 dark:text-gray-200 mb-1">
+                                        {currentLesson.title}
+                                    </p>
+                                )}
                                 <p className="text-gray-600 dark:text-gray-400 mb-4">
-                                    {course.description}
+                                    {currentLesson?.description || activeSubject?.description || course.description}
                                 </p>
-                                <div className="flex gap-3">
+                                <div className="flex flex-wrap gap-3">
                                     <Badge variant="primary">{course.level || 'Beginner Friendly'}</Badge>
                                     <Badge variant="secondary">{course.duration || '24 Hours Content'}</Badge>
+                                    {activeSubject && <Badge variant="success">{activeSubject.name}</Badge>}
                                 </div>
                             </Card>
                         ) : (
@@ -650,7 +692,16 @@ const VideoPlayer: React.FC = () => {
                     {/* Chapters Sidebar */}
                     <div>
                         <Card className="p-6">
-                            <h2 className="text-xl font-bold mb-4">Course Content</h2>
+                            <div className="mb-4">
+                                <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                                    {activeSubject ? `${activeSubject.name} Content` : 'Course Content'}
+                                </h2>
+                                {activeSubject && (
+                                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                        {course?.title}
+                                    </p>
+                                )}
+                            </div>
                             {loading ? (
                                 <div className="space-y-2">
                                     {[1, 2, 3].map((i) => (
@@ -659,9 +710,9 @@ const VideoPlayer: React.FC = () => {
                                         </div>
                                     ))}
                                 </div>
-                            ) : course && course.sections && course.sections.length > 0 ? (
+                            ) : contentSections.length > 0 ? (
                                 <div className="space-y-2">
-                                    {course.sections.map((section: any, sectionIndex: number) => (
+                                    {contentSections.map((section: any, sectionIndex: number) => (
                                         <div key={section._id || sectionIndex}>
                                             <h3 className="font-semibold text-sm mb-2 text-gray-900 dark:text-white">
                                                 {section.title}
@@ -791,13 +842,13 @@ const VideoPlayer: React.FC = () => {
                                     <span className="text-sm font-semibold">Your Progress</span>
                                     <span className="text-sm text-gray-500">
                                         {(() => {
-                                            if (!course?.sections) return '0%';
+                                            if (!contentSections.length) return '0%';
 
                                             // Calculate total lessons and completed count
                                             let totalLessons = 0;
                                             let completedCount = 0;
 
-                                            for (const section of course.sections) {
+                                            for (const section of contentSections) {
                                                 for (const subsection of section.subsections || []) {
                                                     for (const item of subsection.content || []) {
                                                         totalLessons++;
@@ -819,13 +870,13 @@ const VideoPlayer: React.FC = () => {
                                         className="bg-primary-600 h-2 rounded-full transition-all duration-300"
                                         style={{
                                             width: (() => {
-                                                if (!course?.sections) return '0%';
+                                                if (!contentSections.length) return '0%';
 
                                                 // Calculate total lessons and completed count
                                                 let totalLessons = 0;
                                                 let completedCount = 0;
 
-                                                for (const section of course.sections) {
+                                                for (const section of contentSections) {
                                                     for (const subsection of section.subsections || []) {
                                                         for (const item of subsection.content || []) {
                                                             totalLessons++;

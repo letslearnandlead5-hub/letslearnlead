@@ -213,10 +213,10 @@ const MyNotesLibrary: React.FC = () => {
                 {/* Header */}
                 <div className="mb-8">
                     <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-2">
-                        My Notes Library
+                        Saved Notes
                     </h1>
                     <p className="text-gray-600 dark:text-gray-400">
-                        Your saved study materials - accessible anytime you're logged in
+                        Notes you saved from your purchased subjects
                     </p>
                 </div>
 

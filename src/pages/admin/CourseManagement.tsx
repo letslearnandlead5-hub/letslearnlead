@@ -169,17 +169,7 @@ const CourseManagement: React.FC = () => {
                         ))}
                     </select>
 
-                    {/* Level Filter */}
-                    <select
-                        value={selectedLevel}
-                        onChange={(e) => setSelectedLevel(e.target.value)}
-                        className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                    >
-                        <option value="all">All Levels</option>
-                        <option value="Beginner">Beginner</option>
-                        <option value="Intermediate">Intermediate</option>
-                        <option value="Advanced">Advanced</option>
-                    </select>
+
 
                     {activeFiltersCount > 0 && (
                         <Button variant="outline" size="sm" onClick={clearFilters} leftIcon={<X className="w-4 h-4" />}>
@@ -252,13 +242,7 @@ const CourseManagement: React.FC = () => {
                                     Category
                                 </th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                    Level
-                                </th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                     Students
-                                </th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                    Price
                                 </th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                     Status
@@ -271,7 +255,7 @@ const CourseManagement: React.FC = () => {
                         <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
                             {courses.length === 0 ? (
                                 <tr>
-                                    <td colSpan={7} className="px-6 py-12 text-center">
+                                    <td colSpan={5} className="px-6 py-12 text-center">
                                         <BookOpen className="w-12 h-12 text-gray-400 mx-auto mb-3" />
                                         <p className="text-gray-500 dark:text-gray-400">No courses found</p>
                                         <Button
@@ -308,19 +292,8 @@ const CourseManagement: React.FC = () => {
                                         <td className="px-6 py-4 text-sm text-gray-900 dark:text-white">
                                             {course.category}
                                         </td>
-                                        <td className="px-6 py-4">
-                                            <Badge variant={
-                                                course.level === 'Beginner' ? 'success' :
-                                                    course.level === 'Intermediate' ? 'warning' : 'danger'
-                                            }>
-                                                {course.level}
-                                            </Badge>
-                                        </td>
                                         <td className="px-6 py-4 text-sm text-gray-900 dark:text-white">
                                             {course.studentsEnrolled}
-                                        </td>
-                                        <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white">
-                                            {formatPrice(course.price)}
                                         </td>
                                         <td className="px-6 py-4">
                                             <Badge variant={course.status === 'published' ? 'success' : 'warning'}>
@@ -384,16 +357,8 @@ const CourseManagement: React.FC = () => {
                                 <p className="font-medium text-gray-900 dark:text-white">{selectedCourse.category}</p>
                             </div>
                             <div>
-                                <p className="text-sm text-gray-500 dark:text-gray-400">Level</p>
-                                <p className="font-medium text-gray-900 dark:text-white">{selectedCourse.level}</p>
-                            </div>
-                            <div>
                                 <p className="text-sm text-gray-500 dark:text-gray-400">Duration</p>
                                 <p className="font-medium text-gray-900 dark:text-white">{selectedCourse.duration} hours</p>
-                            </div>
-                            <div>
-                                <p className="text-sm text-gray-500 dark:text-gray-400">Price</p>
-                                <p className="font-medium text-gray-900 dark:text-white">{formatPrice(selectedCourse.price)}</p>
                             </div>
                             <div>
                                 <p className="text-sm text-gray-500 dark:text-gray-400">Students Enrolled</p>

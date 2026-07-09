@@ -6,6 +6,7 @@ import Badge from '../../components/ui/Badge';
 import Modal from '../../components/ui/Modal';
 import { adminAPI, courseAPI } from '../../services/api';
 import { useToastStore } from '../../store/useToastStore';
+import type { Subject } from '../../types';
 
 interface Student {
     _id: string;
@@ -28,10 +29,15 @@ const StudentManagement: React.FC = () => {
     const [isCreateStudentModalOpen, setIsCreateStudentModalOpen] = useState(false);
     const [courses, setCourses] = useState<any[]>([]);
     const [selectedCourseId, setSelectedCourseId] = useState('');
+    const [selectedSubjectId, setSelectedSubjectId] = useState('');
+    const [selectedSubjectName, setSelectedSubjectName] = useState('');
     const [enrolling, setEnrolling] = useState(false);
     const [creating, setCreating] = useState(false);
     const [newStudent, setNewStudent] = useState({ name: '', email: '', password: '' });
     const { addToast } = useToastStore();
+
+    // Derive subjects for the selected course
+    const selectedCourseSubjects: Subject[] = courses.find(c => c._id === selectedCourseId)?.subjects || [];
 
     useEffect(() => {
         fetchStudents();
@@ -91,6 +97,8 @@ const StudentManagement: React.FC = () => {
     const handleAddEnrollment = (student: Student) => {
         setSelectedStudent(student);
         setSelectedCourseId('');
+        setSelectedSubjectId('');
+        setSelectedSubjectName('');
         setIsAddEnrollmentModalOpen(true);
     };
 
@@ -100,9 +108,19 @@ const StudentManagement: React.FC = () => {
             return;
         }
 
+        if (selectedCourseSubjects.length > 0 && !selectedSubjectId) {
+            addToast({ type: 'error', message: 'Please select a subject' });
+            return;
+        }
+
         try {
             setEnrolling(true);
-            await adminAPI.enrollStudent(selectedStudent.email, selectedCourseId);
+            await adminAPI.enrollStudent(
+                selectedStudent.email,
+                selectedCourseId,
+                selectedSubjectId || undefined,
+                selectedSubjectName || undefined
+            );
             addToast({ type: 'success', message: 'Student enrolled successfully!' });
             setIsAddEnrollmentModalOpen(false);
             fetchStudents(); // Refresh student list
@@ -451,7 +469,11 @@ const StudentManagement: React.FC = () => {
                             </label>
                             <select
                                 value={selectedCourseId}
-                                onChange={(e) => setSelectedCourseId(e.target.value)}
+                                onChange={(e) => {
+                                    setSelectedCourseId(e.target.value);
+                                    setSelectedSubjectId('');
+                                    setSelectedSubjectName('');
+                                }}
                                 className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
                             >
                                 <option value="">-- Select a course --</option>
@@ -463,6 +485,31 @@ const StudentManagement: React.FC = () => {
                             </select>
                         </div>
 
+                        {/* Subject Selection (shown when selected course has subjects) */}
+                        {selectedCourseSubjects.length > 0 && (
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                    Select Subject
+                                </label>
+                                <select
+                                    value={selectedSubjectId}
+                                    onChange={(e) => {
+                                        const s = selectedCourseSubjects.find(sub => sub._id === e.target.value);
+                                        setSelectedSubjectId(e.target.value);
+                                        setSelectedSubjectName(s?.name || '');
+                                    }}
+                                    className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-violet-500"
+                                >
+                                    <option value="">-- Select a subject --</option>
+                                    {selectedCourseSubjects.map((sub) => (
+                                        <option key={sub._id} value={sub._id}>
+                                            {sub.icon ? `${sub.icon} ` : ''}{sub.name} (₹{sub.price})
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
+
                         <div className="flex gap-3 justify-end pt-4">
                             <Button
                                 variant="outline"
@@ -473,7 +520,7 @@ const StudentManagement: React.FC = () => {
                             <Button
                                 variant="primary"
                                 onClick={handleEnrollStudent}
-                                disabled={!selectedCourseId || enrolling}
+                                disabled={!selectedCourseId || (selectedCourseSubjects.length > 0 && !selectedSubjectId) || enrolling}
                                 leftIcon={<UserPlus className="w-4 h-4" />}
                             >
                                 {enrolling ? 'Enrolling...' : 'Enroll Student'}

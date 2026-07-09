@@ -20,6 +20,8 @@ interface Note {
     markdownContent?: string;
     tags?: string[];
     category?: string;
+    subjectId?: string;
+    subjectName?: string;
     courseId: { _id: string; title: string };
     uploadedBy: { _id: string; name: string };
     createdAt: string;
@@ -215,6 +217,9 @@ const NotesManagement: React.FC = () => {
                                     Course
                                 </th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                    Subject
+                                </th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                     Type
                                 </th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
@@ -231,7 +236,7 @@ const NotesManagement: React.FC = () => {
                         <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
                             {notes.length === 0 ? (
                                 <tr>
-                                    <td colSpan={6} className="px-6 py-12 text-center">
+                                    <td colSpan={7} className="px-6 py-12 text-center">
                                         <FileText className="w-12 h-12 text-gray-400 mx-auto mb-3" />
                                         <p className="text-gray-500 dark:text-gray-400">No notes found</p>
                                         <Button
@@ -263,6 +268,15 @@ const NotesManagement: React.FC = () => {
                                         </td>
                                         <td className="px-6 py-4 text-sm text-gray-900 dark:text-white">
                                             {note.courseId.title}
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            {note.subjectName ? (
+                                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300">
+                                                    📚 {note.subjectName}
+                                                </span>
+                                            ) : (
+                                                <span className="text-xs text-gray-400 dark:text-gray-500 italic">General</span>
+                                            )}
                                         </td>
                                         <td className="px-6 py-4">
                                             <Badge variant={note.fileType === 'pdf' ? 'danger' : 'primary'}>

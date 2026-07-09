@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, X, BookOpen, Users, FileText, MessageSquare, Brain, Settings, LogOut, TrendingUp, QrCode, Copy, CheckCircle } from 'lucide-react';
+import { ArrowLeft, X, BookOpen, Users, FileText, MessageSquare, Brain, Settings, LogOut, TrendingUp, QrCode, Plus, Trash2, ChevronDown, ChevronUp, BookMarked, DollarSign } from 'lucide-react';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import { courseAPI } from '../../services/api';
@@ -29,7 +29,7 @@ const CourseEditor: React.FC = () => {
         description: '',
         instructor: '',
         thumbnail: '',
-        price: '',
+        price: '0',
         originalPrice: '',
         duration: '',
         category: '',
@@ -37,7 +37,18 @@ const CourseEditor: React.FC = () => {
         level: 'beginner',
         medium: 'kannada',
         featuredOnHome: false,
-        sections: [] as ISection[],
+        sections: [] as any[],
+        // Subjects (new subject-based structure)
+        subjects: [] as Array<{
+            _id?: string;
+            name: string;
+            description: string;
+            icon: string;
+            price: number;
+            originalPrice?: number;
+            order: number;
+            sections: any[];
+        }>,
         // Payment settings
         paymentEnabled: false,
         paymentMethod: 'qr',
@@ -46,6 +57,15 @@ const CourseEditor: React.FC = () => {
         merchantName: '',
         paymentInstructions: 'Scan the QR using PhonePe, Google Pay, Paytm or any UPI app. After payment, enter your Transaction ID below.',
     });
+
+    // Subject form state for the add/edit modal
+    const [subjectForm, setSubjectForm] = useState({ name: '', description: '', icon: '\ud83d\udcda', price: '', originalPrice: '' });
+    const [editingSubjectIdx, setEditingSubjectIdx] = useState<number | null>(null);
+    const [showSubjectForm, setShowSubjectForm] = useState(false);
+    const [expandedSubject, setExpandedSubject] = useState<number | null>(null);
+
+    // Suggested icons for common subjects
+    const SUBJECT_ICONS = ['\ud83d\udcda','\ud83d\udcd0','\ud83d\udd2c','\ud83c\udf0d','\ud83d\udcdd','\ud83e\uddd1\u200d\ud83d\udcbb','\ud83e\uddea','\ud83d\udc69\u200d\ud83d\udd2c','\ud83d\udd22','\ud83c\udfa8','\ud83c\udfb5','\ud83c\udfc5','\u2696\ufe0f','\ud83c\udf31','\ud83d\udcb0','\ud83d\ude80','\ud83d\uddfa\ufe0f','\ud83e\udde0'];
 
     // Load course data if editing
     useEffect(() => {
@@ -65,7 +85,7 @@ const CourseEditor: React.FC = () => {
                 description: course.description,
                 instructor: course.instructor,
                 thumbnail: course.thumbnail,
-                price: course.price.toString(),
+                price: (course.price || 0).toString(),
                 originalPrice: course.originalPrice?.toString() || '',
                 duration: course.duration,
                 category: course.category,
@@ -74,6 +94,7 @@ const CourseEditor: React.FC = () => {
                 medium: course.medium || 'kannada',
                 featuredOnHome: course.featuredOnHome === true,
                 sections: course.sections || [],
+                subjects: (course.subjects || []).map((s: any, i: number) => ({ ...s, order: s.order ?? i })),
                 // Payment settings
                 paymentEnabled: course.paymentEnabled || false,
                 paymentMethod: course.paymentMethod || 'qr',
@@ -178,12 +199,12 @@ const CourseEditor: React.FC = () => {
         setFormSubmitting(true);
 
         try {
-            // Build base payload — text fields only (always small)
+            // Build base payload
             const courseData: any = {
                 title: formData.title,
                 description: formData.description,
                 instructor: formData.instructor,
-                price: parseFloat(formData.price),
+                price: parseFloat(formData.price) || 0,
                 originalPrice: formData.originalPrice ? parseFloat(formData.originalPrice) : undefined,
                 duration: formData.duration,
                 category: formData.category,
@@ -192,6 +213,7 @@ const CourseEditor: React.FC = () => {
                 medium: formData.medium,
                 featuredOnHome: formData.featuredOnHome,
                 sections: formData.sections,
+                subjects: formData.subjects.map((s, i) => ({ ...s, order: i })),
                 // Payment text fields
                 paymentEnabled: formData.paymentEnabled,
                 paymentMethod: formData.paymentMethod,
@@ -469,40 +491,6 @@ const CourseEditor: React.FC = () => {
                                             )}
                                         </div>
 
-                                        {/* Price and Original Price */}
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                                    Price (₹) *
-                                                </label>
-                                                <input
-                                                    type="number"
-                                                    name="price"
-                                                    value={formData.price}
-                                                    onChange={handleFormChange}
-                                                    required
-                                                    min="0"
-                                                    step="0.01"
-                                                    className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                                                    placeholder="999"
-                                                />
-                                            </div>
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                                    Original Price (₹)
-                                                </label>
-                                                <input
-                                                    type="number"
-                                                    name="originalPrice"
-                                                    value={formData.originalPrice}
-                                                    onChange={handleFormChange}
-                                                    min="0"
-                                                    step="0.01"
-                                                    className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                                                    placeholder="1999"
-                                                />
-                                            </div>
-                                        </div>
 
                                         {/* Duration, Category, and Grade */}
                                         <div className="grid grid-cols-3 gap-4">
@@ -532,16 +520,22 @@ const CourseEditor: React.FC = () => {
                                                     className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
                                                 >
                                                     <option value="">Select Category</option>
-                                                    <option value="science">🔬 Science</option>
-                                                    <option value="math">📐 Mathematics</option>
-                                                    <option value="english">📚 English</option>
-                                                    <option value="kannada">🗣️ Kannada</option>
-                                                    <option value="social">🌍 Social Studies</option>
-                                                    <option value="computer">💻 Computer Science</option>
-                                                    <option value="physics">⚛️ Physics</option>
-                                                    <option value="chemistry">🧪 Chemistry</option>
-                                                    <option value="biology">🧬 Biology</option>
-                                                    <option value="history">📜 History</option>
+                                                    <optgroup label="School">
+                                                        <option value="school-6-10">🏫 School — Class 6 to 10</option>
+                                                        <option value="school-puc">🎓 PUC — Class 11 &amp; 12</option>
+                                                    </optgroup>
+                                                    <optgroup label="Competitive Exams">
+                                                        <option value="neet">🩺 NEET Preparation</option>
+                                                        <option value="jee">⚙️ JEE Preparation</option>
+                                                        <option value="kcet">📋 KCET Preparation</option>
+                                                        <option value="upsc">🏛️ UPSC / Government Exams</option>
+                                                        <option value="competitive">📝 Other Competitive Exams</option>
+                                                    </optgroup>
+                                                    <optgroup label="Other">
+                                                        <option value="college">🎯 College / Degree</option>
+                                                        <option value="skills">💼 Skills &amp; Certification</option>
+                                                        <option value="other">📦 Other</option>
+                                                    </optgroup>
                                                 </select>
                                             </div>
                                             <div>
@@ -555,50 +549,42 @@ const CourseEditor: React.FC = () => {
                                                     className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
                                                 >
                                                     <option value="">Select Grade</option>
-                                                    <option value="6th">6th Standard</option>
-                                                    <option value="7th">7th Standard</option>
-                                                    <option value="8th">8th Standard</option>
-                                                    <option value="9th">9th Standard</option>
-                                                    <option value="10th">10th Standard</option>
-                                                    <option value="11th">11th Standard (PUC)</option>
-                                                    <option value="12th">12th Standard (PUC)</option>
+                                                    <optgroup label="School">
+                                                        <option value="6th">6th Standard</option>
+                                                        <option value="7th">7th Standard</option>
+                                                        <option value="8th">8th Standard</option>
+                                                        <option value="9th">9th Standard</option>
+                                                        <option value="10th">10th Standard (SSLC)</option>
+                                                        <option value="11th">11th Standard (PUC 1)</option>
+                                                        <option value="12th">12th Standard (PUC 2)</option>
+                                                    </optgroup>
+                                                    <optgroup label="Competitive / Other">
+                                                        <option value="neet">NEET</option>
+                                                        <option value="jee">JEE</option>
+                                                        <option value="kcet">KCET</option>
+                                                        <option value="upsc">UPSC</option>
+                                                        <option value="college">College / Degree</option>
+                                                        <option value="open">Open to All</option>
+                                                    </optgroup>
                                                 </select>
                                             </div>
                                         </div>
 
-                                        {/* Level + Medium */}
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                                    Level *
-                                                </label>
-                                                <select
-                                                    name="level"
-                                                    value={formData.level}
-                                                    onChange={handleFormChange}
-                                                    required
-                                                    className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                                                >
-                                                    <option value="beginner">Beginner</option>
-                                                    <option value="intermediate">Intermediate</option>
-                                                    <option value="advanced">Advanced</option>
-                                                </select>
-                                            </div>
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                                    Medium *
-                                                </label>
-                                                <select
-                                                    name="medium"
-                                                    value={formData.medium}
-                                                    onChange={handleFormChange}
-                                                    required
-                                                    className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                                                >
-                                                    <option value="kannada">🔵 Kannada Medium</option>
-                                                    <option value="english">🟢 English Medium</option>
-                                                </select>
-                                            </div>
+                                        {/* Medium */}
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                                Medium *
+                                            </label>
+                                            <select
+                                                name="medium"
+                                                value={formData.medium}
+                                                onChange={handleFormChange}
+                                                required
+                                                className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                            >
+                                                <option value="kannada">🔵 Kannada Medium</option>
+                                                <option value="english">🟢 English Medium</option>
+                                            </select>
                                         </div>
 
                                         {/* Show on Homepage Toggle */}
@@ -628,13 +614,242 @@ const CourseEditor: React.FC = () => {
                                     </div>
                                 </Card>
 
-                                {/* Course Content */}
+                                {/* ── Subjects Manager ─────────────────────────────────── */}
                                 <Card className="p-6 mb-6">
-                                    <CourseContentBuilder
-                                        sections={formData.sections}
-                                        onChange={(sections) => setFormData(prev => ({ ...prev, sections }))}
-                                    />
+                                    <div className="flex items-center justify-between mb-5">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 bg-violet-100 dark:bg-violet-950 rounded-xl flex items-center justify-center">
+                                                <BookMarked className="w-5 h-5 text-violet-600 dark:text-violet-400" />
+                                            </div>
+                                            <div>
+                                                <h3 className="font-bold text-gray-900 dark:text-white">Subjects</h3>
+                                                <p className="text-xs text-gray-500 dark:text-gray-400">Add subjects with individual pricing (e.g. Mathematics ₹999)</p>
+                                            </div>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => { setSubjectForm({ name: '', description: '', icon: '📚', price: '', originalPrice: '' }); setEditingSubjectIdx(null); setShowSubjectForm(true); }}
+                                            className="flex items-center gap-2 px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium rounded-xl transition-colors shadow-sm"
+                                        >
+                                            <Plus className="w-4 h-4" /> Add Subject
+                                        </button>
+                                    </div>
+
+                                    {/* Subject list */}
+                                    {formData.subjects.length === 0 ? (
+                                        <div className="text-center py-10 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-2xl">
+                                            <p className="text-4xl mb-3">📚</p>
+                                            <p className="text-gray-500 dark:text-gray-400 font-medium">No subjects yet</p>
+                                            <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">Click "Add Subject" to add Mathematics, Science, etc.</p>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-3">
+                                            {formData.subjects.map((subject, idx) => (
+                                                <div key={idx} className="border border-gray-200 dark:border-gray-700 rounded-2xl overflow-hidden">
+                                                    {/* Subject header row */}
+                                                    <div className="flex items-center gap-3 p-4 bg-gray-50 dark:bg-gray-800/60">
+                                                        <span className="text-2xl w-8 flex-shrink-0 text-center">{subject.icon}</span>
+                                                        <div className="flex-1 min-w-0">
+                                                            <p className="font-semibold text-gray-900 dark:text-white truncate">{subject.name}</p>
+                                                            <div className="flex items-center gap-3 mt-0.5">
+                                                                <span className="text-sm font-bold text-violet-600 dark:text-violet-400">₹{subject.price}</span>
+                                                                {subject.originalPrice && <span className="text-xs text-gray-400 line-through">₹{subject.originalPrice}</span>}
+                                                                {subject.description && <span className="text-xs text-gray-500 truncate">{subject.description}</span>}
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex items-center gap-1 flex-shrink-0">
+                                                            {/* Move up */}
+                                                            {idx > 0 && (
+                                                                <button type="button" onClick={() => {
+                                                                    const arr = [...formData.subjects];
+                                                                    [arr[idx - 1], arr[idx]] = [arr[idx], arr[idx - 1]];
+                                                                    setFormData(prev => ({ ...prev, subjects: arr }));
+                                                                }} className="p-1.5 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500">
+                                                                    <ChevronUp className="w-4 h-4" />
+                                                                </button>
+                                                            )}
+                                                            {/* Move down */}
+                                                            {idx < formData.subjects.length - 1 && (
+                                                                <button type="button" onClick={() => {
+                                                                    const arr = [...formData.subjects];
+                                                                    [arr[idx], arr[idx + 1]] = [arr[idx + 1], arr[idx]];
+                                                                    setFormData(prev => ({ ...prev, subjects: arr }));
+                                                                }} className="p-1.5 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500">
+                                                                    <ChevronDown className="w-4 h-4" />
+                                                                </button>
+                                                            )}
+                                                            <button type="button" onClick={() => {
+                                                                setSubjectForm({ name: subject.name, description: subject.description || '', icon: subject.icon || '📚', price: subject.price.toString(), originalPrice: subject.originalPrice?.toString() || '' });
+                                                                setEditingSubjectIdx(idx);
+                                                                setShowSubjectForm(true);
+                                                            }} className="px-3 py-1.5 text-xs font-medium text-violet-700 dark:text-violet-300 bg-violet-100 dark:bg-violet-900/40 rounded-lg hover:bg-violet-200 dark:hover:bg-violet-900/70 transition-colors">
+                                                                Edit
+                                                            </button>
+                                                            <button type="button" onClick={() => {
+                                                                setFormData(prev => ({ ...prev, subjects: prev.subjects.filter((_, i) => i !== idx) }));
+                                                                if (expandedSubject === idx) setExpandedSubject(null);
+                                                            }} className="p-1.5 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/40 text-red-500 transition-colors">
+                                                                <Trash2 className="w-4 h-4" />
+                                                            </button>
+                                                            <button type="button" onClick={() => setExpandedSubject(expandedSubject === idx ? null : idx)}
+                                                                className="p-1.5 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500">
+                                                                {expandedSubject === idx ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                                                            </button>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Expanded: subject sections builder */}
+                                                    {expandedSubject === idx && (
+                                                        <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+                                                            <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">Course Content for {subject.name}</p>
+                                                            <CourseContentBuilder
+                                                                sections={subject.sections || []}
+                                                                onChange={(sections) => {
+                                                                    const updated = [...formData.subjects];
+                                                                    updated[idx] = { ...updated[idx], sections };
+                                                                    setFormData(prev => ({ ...prev, subjects: updated }));
+                                                                }}
+                                                            />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    {/* Add / Edit subject inline form */}
+                                    {showSubjectForm && (
+                                        <div className="mt-4 p-5 bg-violet-50 dark:bg-violet-950/30 border border-violet-200 dark:border-violet-800 rounded-2xl">
+                                            <h4 className="font-semibold text-gray-900 dark:text-white mb-4">
+                                                {editingSubjectIdx !== null ? 'Edit Subject' : 'New Subject'}
+                                            </h4>
+                                            <div className="space-y-4">
+                                                {/* Icon picker */}
+                                                <div>
+                                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Icon</label>
+                                                    <div className="flex flex-wrap gap-2">
+                                                        {SUBJECT_ICONS.map(icon => (
+                                                            <button
+                                                                key={icon}
+                                                                type="button"
+                                                                onClick={() => setSubjectForm(prev => ({ ...prev, icon }))}
+                                                                className={`text-xl w-10 h-10 rounded-xl border-2 transition-all ${
+                                                                    subjectForm.icon === icon
+                                                                        ? 'border-violet-500 bg-violet-100 dark:bg-violet-900/60 scale-110'
+                                                                        : 'border-gray-200 dark:border-gray-700 hover:border-violet-300'
+                                                                }`}
+                                                            >{icon}</button>
+                                                        ))}
+                                                        <input
+                                                            type="text"
+                                                            placeholder="Custom"
+                                                            value={SUBJECT_ICONS.includes(subjectForm.icon) ? '' : subjectForm.icon}
+                                                            onChange={e => setSubjectForm(prev => ({ ...prev, icon: e.target.value }))}
+                                                            className="w-20 text-center px-2 py-1 text-sm rounded-xl border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 focus:outline-none focus:border-violet-500"
+                                                        />
+                                                    </div>
+                                                </div>
+
+                                                {/* Name */}
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Subject Name *</label>
+                                                        <input
+                                                            type="text"
+                                                            value={subjectForm.name}
+                                                            onChange={e => setSubjectForm(prev => ({ ...prev, name: e.target.value }))}
+                                                            className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+                                                            placeholder="e.g. Mathematics, Science"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
+                                                        <input
+                                                            type="text"
+                                                            value={subjectForm.description}
+                                                            onChange={e => setSubjectForm(prev => ({ ...prev, description: e.target.value }))}
+                                                            className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+                                                            placeholder="Short description (optional)"
+                                                        />
+                                                    </div>
+                                                </div>
+
+                                                {/* Price */}
+                                                <div className="grid grid-cols-2 gap-4">
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Price (₹) *</label>
+                                                        <div className="relative">
+                                                            <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                                                            <input
+                                                                type="number"
+                                                                min="0"
+                                                                value={subjectForm.price}
+                                                                onChange={e => setSubjectForm(prev => ({ ...prev, price: e.target.value }))}
+                                                                className="w-full pl-9 pr-4 py-2.5 border border-gray-300 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+                                                                placeholder="999"
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Original Price (₹)</label>
+                                                        <div className="relative">
+                                                            <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                                                            <input
+                                                                type="number"
+                                                                min="0"
+                                                                value={subjectForm.originalPrice}
+                                                                onChange={e => setSubjectForm(prev => ({ ...prev, originalPrice: e.target.value }))}
+                                                                className="w-full pl-9 pr-4 py-2.5 border border-gray-300 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+                                                                placeholder="1499 (optional)"
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Actions */}
+                                                <div className="flex items-center gap-3 pt-2">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            if (!subjectForm.name.trim()) { addToast({ type: 'error', message: 'Subject name is required' }); return; }
+                                                            if (!subjectForm.price || isNaN(parseFloat(subjectForm.price))) { addToast({ type: 'error', message: 'Price is required' }); return; }
+                                                            const newSubject = {
+                                                                name: subjectForm.name.trim(),
+                                                                description: subjectForm.description.trim(),
+                                                                icon: subjectForm.icon || '📚',
+                                                                price: parseFloat(subjectForm.price),
+                                                                originalPrice: subjectForm.originalPrice ? parseFloat(subjectForm.originalPrice) : undefined,
+                                                                order: editingSubjectIdx !== null ? editingSubjectIdx : formData.subjects.length,
+                                                                sections: editingSubjectIdx !== null ? formData.subjects[editingSubjectIdx].sections : [],
+                                                                _id: editingSubjectIdx !== null ? formData.subjects[editingSubjectIdx]._id : undefined,
+                                                            };
+                                                            if (editingSubjectIdx !== null) {
+                                                                const updated = [...formData.subjects];
+                                                                updated[editingSubjectIdx] = newSubject;
+                                                                setFormData(prev => ({ ...prev, subjects: updated }));
+                                                            } else {
+                                                                setFormData(prev => ({ ...prev, subjects: [...prev.subjects, newSubject] }));
+                                                            }
+                                                            setShowSubjectForm(false);
+                                                            setEditingSubjectIdx(null);
+                                                        }}
+                                                        className="px-5 py-2 bg-violet-600 hover:bg-violet-700 text-white text-sm font-semibold rounded-xl transition-colors"
+                                                    >
+                                                        {editingSubjectIdx !== null ? 'Update Subject' : 'Add Subject'}
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => { setShowSubjectForm(false); setEditingSubjectIdx(null); }}
+                                                        className="px-5 py-2 border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 text-sm font-medium rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                                                    >
+                                                        Cancel
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
                                 </Card>
+
 
                                 {/* Payment Settings */}
                                 <Card className="p-6 mb-6">
@@ -651,8 +866,10 @@ const CourseEditor: React.FC = () => {
                                     {/* Enable Payment Toggle */}
                                     <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-xl mb-4">
                                         <div>
-                                            <p className="font-medium text-gray-900 dark:text-white text-sm">Enable Paid Access</p>
-                                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Students must pay to access this course</p>
+                                            <p className="font-semibold text-gray-900 dark:text-white text-sm">Enable Paid Access (Per-Subject Purchase)</p>
+                                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                                                Enables QR/Gateway checkout. Students will purchase subjects individually based on each subject's price.
+                                            </p>
                                         </div>
                                         <button
                                             type="button"

@@ -2,6 +2,8 @@ import mongoose, { Document, Schema } from 'mongoose';
 
 export interface INote extends Document {
     courseId: mongoose.Types.ObjectId;
+    subjectId?: mongoose.Types.ObjectId; // Subject within the class-course
+    subjectName?: string;                // Denormalized e.g. "Mathematics"
     title: string;
     description: string;
     fileUrl?: string;
@@ -21,6 +23,14 @@ const NoteSchema = new Schema<INote>(
             type: Schema.Types.ObjectId,
             ref: 'Course',
             required: true,
+        },
+        subjectId: {
+            type: Schema.Types.ObjectId,
+            // References the embedded subject _id inside Course.subjects[]
+        },
+        subjectName: {
+            type: String,
+            default: '',
         },
         title: {
             type: String,

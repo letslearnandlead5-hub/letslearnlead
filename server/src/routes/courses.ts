@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { Course } from '../models/Course';
 import { User } from '../models/User';
+import { Enrollment } from '../models/Enrollment';
 import { protect, authorize, AuthRequest } from '../middleware/auth';
 import { AppError } from '../middleware/error';
 import { cache, TTL } from '../utils/cache';
@@ -63,10 +64,11 @@ router.get('/', async (req: Request, res: Response, next) => {
         const skip = (pageNum - 1) * limitNum;
 
         // When noThumbnail=true (e.g. admin table), exclude the large base64 thumbnail
-        // field to keep the payload small. Thumbnails are only needed on course cards.
+        // field to keep the payload small. For subjects, only include lightweight fields
+        // (name, icon, price) — not full sections — to keep the list payload small.
         const selectFields = noThumbnail === 'true'
-            ? 'title description instructor price originalPrice rating studentsEnrolled duration category level medium grade featuredOnHome'
-            : 'title description instructor thumbnail price originalPrice rating studentsEnrolled duration category level medium grade featuredOnHome';
+            ? '-thumbnail -sections -lessons -subjects.sections -qrImage'
+            : '-sections -lessons -subjects.sections -qrImage';
 
         const courses = await Course.find(filter)
             .select(selectFields)
@@ -149,34 +151,68 @@ router.get('/:id', async (req: Request, res: Response, next) => {
             throw new AppError('Course not found', 404);
         }
 
-        let isAuthorized = false;
+        let isAuthorizedAdmin = false;
+        const enrolledSubjectIds = new Set<string>();
 
-        if (course.price === 0) {
-            isAuthorized = true;
-        } else if (token) {
+        if (token) {
             try {
                 const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { id: string };
-                // Only select the fields we need — avoids loading full user document
-                const user = await User.findById(decoded.id).select('role enrolledCourses');
+                const user = await User.findById(decoded.id).select('role');
                 if (user) {
                     if (user.role === 'admin' || user.role === 'teacher') {
-                        isAuthorized = true;
+                        isAuthorizedAdmin = true;
                     } else {
-                        // Check if enrolled
-                        isAuthorized = user.enrolledCourses.some(
-                            (enrolledCourseId: any) => enrolledCourseId.toString() === course._id.toString()
-                        );
+                        // Fetch student enrollments for this specific course
+                        const enrollments = await Enrollment.find({
+                            userId: user._id,
+                            courseId: course._id,
+                            status: 'paid'
+                        }).select('subjectId');
+                        
+                        enrollments.forEach((e: any) => {
+                            if (e.subjectId) enrolledSubjectIds.add(e.subjectId.toString());
+                        });
                     }
                 }
             } catch (err) {
-                // Token verification failed or user not found, treat as guest/unauthorized
+                // Ignore token verification errors, treat as guest
             }
         }
 
         // Redact premium contents if not authorized
         let responseData = course.toObject();
-        if (!isAuthorized) {
-            // Redact new sections structure
+
+        // 1. Redact subjects
+        if (responseData.subjects) {
+            responseData.subjects = responseData.subjects.map((subject: any) => {
+                const subjectIdStr = subject._id ? subject._id.toString() : '';
+                const hasAccess = isAuthorizedAdmin || (subject.price === 0) || enrolledSubjectIds.has(subjectIdStr);
+
+                if (!hasAccess) {
+                    // Redact content of this subject
+                    return {
+                        ...subject,
+                        sections: (subject.sections || []).map((section: any) => ({
+                            ...section,
+                            subsections: (section.subsections || []).map((subsection: any) => ({
+                                ...subsection,
+                                content: (subsection.content || []).map((item: any) => {
+                                    if (!item.isFree) {
+                                        return { ...item, videoUrl: '', articleContent: '' };
+                                    }
+                                    return item;
+                                }),
+                            })),
+                        })),
+                    };
+                }
+                return subject; // Full access to this subject
+            });
+        }
+
+        // 2. Redact legacy sections & lessons (if course price > 0 and user is not admin/teacher and has no enrolled subjects)
+        const hasLegacyAccess = isAuthorizedAdmin || (course.price === 0) || (enrolledSubjectIds.size > 0);
+        if (!hasLegacyAccess) {
             if (responseData.sections) {
                 responseData.sections = responseData.sections.map((section: any) => ({
                     ...section,
@@ -184,30 +220,24 @@ router.get('/:id', async (req: Request, res: Response, next) => {
                         ...subsection,
                         content: (subsection.content || []).map((item: any) => {
                             if (!item.isFree) {
-                                return {
-                                    ...item,
-                                    videoUrl: '',
-                                    articleContent: '',
-                                };
+                                return { ...item, videoUrl: '', articleContent: '' };
                             }
                             return item;
                         }),
                     })),
                 }));
             }
-
-            // Redact legacy lessons
             if (responseData.lessons) {
                 responseData.lessons = responseData.lessons.map((lesson: any) => ({
                     ...lesson,
-                    videoUrl: '', // No isFree flag in legacy, hide by default
+                    videoUrl: '',
                 }));
             }
+        }
 
-            // Cache the redacted public view for unauthenticated visitors
-            if (!token) {
-                cache.set(singleCacheKey, responseData, TTL.SINGLE_COURSE);
-            }
+        // Cache the redacted public view for unauthenticated visitors
+        if (!token) {
+            cache.set(singleCacheKey, responseData, TTL.SINGLE_COURSE);
         }
 
         res.status(200).json({
@@ -309,62 +339,83 @@ router.post('/cache/clear', async (req: Request, res: Response) => {
 });
 
 // @route   POST /api/courses/:id/enroll
-// @desc    Enroll in a course (FREE COURSES ONLY - Use payment API for paid courses)
+// @desc    Enroll in a course subject (FREE SUBJECTS ONLY - Use payment API for paid subjects)
 // @access  Private (Student)
 router.post('/:id/enroll', protect, async (req: AuthRequest, res: Response, next) => {
     try {
+        const { subjectId } = req.body;
         const course = await Course.findById(req.params.id);
-        if (!course) {
-            throw new AppError('Course not found', 404);
-        }
+        if (!course) throw new AppError('Course not found', 404);
 
-        // Check if course is paid - redirect to payment
-        if (course.price > 0) {
-            throw new AppError('This is a paid course. Please use the payment endpoint to enroll.', 400);
+        // Find the subject
+        const subject = subjectId
+            ? course.subjects.find((s: any) => s._id.toString() === subjectId)
+            : null;
+
+        // If subjectId given and subject has a price, redirect to payment
+        if (subject && subject.price > 0) {
+            throw new AppError('This subject requires payment. Please use the payment endpoint.', 400);
         }
 
         const user = await User.findById(req.user?.id);
-        if (!user) {
-            throw new AppError('User not found', 404);
-        }
+        if (!user) throw new AppError('User not found', 404);
 
-        // Check if already enrolled
-        if (user.enrolledCourses.includes(course._id)) {
-            throw new AppError('Already enrolled in this course', 400);
+        // Add course to user's enrolled courses (course-level flag)
+        if (!user.enrolledCourses.some((id: any) => id.toString() === course._id.toString())) {
+            user.enrolledCourses.push(course._id);
+            await user.save();
         }
-
-        // Add course to user's enrolled courses (FREE COURSE)
-        user.enrolledCourses.push(course._id);
-        await user.save();
 
         // Create enrollment record for progress tracking
         const { Enrollment } = await import('../models/Enrollment');
         await Enrollment.create({
             userId: user._id,
             courseId: course._id,
-            status: 'paid', // Free course = automatically "paid"
+            subjectId: subject?._id || course._id, // fallback for legacy free courses
+            subjectName: subject?.name || 'General',
+            status: 'paid',
             completionPercentage: 0,
             purchaseDate: new Date(),
         });
 
-        // Increment students enrolled count
         course.studentsEnrolled += 1;
         await course.save();
 
-        // Create notification for successful enrollment
         const { Notification } = await import('../models/Notification');
         await Notification.create({
             userId: user._id,
-            title: 'Course Enrollment Successful!',
-            message: `You have successfully enrolled in "${course.title}". Start learning now!`,
+            title: 'Enrollment Successful!',
+            message: `You have successfully enrolled in "${subject?.name || course.title}". Start learning now!`,
             type: 'success',
             link: `/courses/${course._id}`,
         });
 
         res.status(200).json({
             success: true,
-            message: 'Successfully enrolled in course',
+            message: 'Successfully enrolled',
             data: course,
+        });
+    } catch (error) {
+        next(error);
+    }
+});
+
+// @route   GET /api/courses/:id/enrolled-subjects
+// @desc    Get which subjects a student is enrolled in for a given course
+// @access  Private (Student)
+router.get('/:id/enrolled-subjects', protect, async (req: AuthRequest, res: Response, next) => {
+    try {
+        const { Enrollment } = await import('../models/Enrollment');
+        const enrollments = await Enrollment.find({
+            userId: req.user?.id,
+            courseId: req.params.id,
+            status: 'paid',
+        }).select('subjectId subjectName').lean();
+
+        res.status(200).json({
+            success: true,
+            data: enrollments,
+            enrolledSubjectIds: enrollments.map((e: any) => e.subjectId?.toString()),
         });
     } catch (error) {
         next(error);

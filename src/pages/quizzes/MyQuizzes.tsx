@@ -170,10 +170,17 @@ const MyQuizzes: React.FC = () => {
                                         {quiz.title}
                                     </h3>
 
-                                    {/* Course Name */}
-                                    <p className="text-sm text-indigo-600 dark:text-indigo-400 mb-3">
-                                        {quiz.courseName}
-                                    </p>
+                                    {/* Course and Subject Names */}
+                                    <div className="flex flex-wrap gap-2 mb-3">
+                                        <span className="text-xs px-2.5 py-1 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 rounded-lg font-semibold">
+                                            {quiz.courseName}
+                                        </span>
+                                        {quiz.subjectName && (
+                                            <span className="text-xs px-2.5 py-1 bg-violet-50 dark:bg-violet-950/40 text-violet-600 dark:text-violet-400 rounded-lg font-semibold">
+                                                📚 {quiz.subjectName}
+                                            </span>
+                                        )}
+                                    </div>
 
                                     {/* Description */}
                                     <p className="text-gray-600 dark:text-gray-400 mb-4 line-clamp-2">

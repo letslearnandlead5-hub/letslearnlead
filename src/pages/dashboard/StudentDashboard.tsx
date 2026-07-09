@@ -14,6 +14,7 @@ import {
     CreditCard,
     Home,
     ArrowLeft,
+    FileText,
 } from 'lucide-react';
 import Button from '../../components/ui/Button';
 import Modal from '../../components/ui/Modal';
@@ -28,6 +29,7 @@ import MyCertificates from '../certificates/MyCertificates';
 import MyDoubts from '../doubts/MyDoubts';
 import MyQuizzes from '../quizzes/MyQuizzes';
 import MyNotesLibrary from '../notes/MyNotesLibrary';
+import SubjectNotes from '../notes/SubjectNotes';
 import MyPayments from '../payment/MyPayments';
 
 interface Notification {
@@ -54,7 +56,7 @@ const StudentDashboard: React.FC = () => {
 
     useEffect(() => {
         const tabFromUrl = searchParams.get('tab');
-        const validTabs = ['courses', 'my-notes', 'quizzes', 'doubts', 'payments', 'profile', 'certificates'];
+        const validTabs = ['courses', 'subject-notes', 'my-notes', 'quizzes', 'doubts', 'payments', 'profile', 'certificates'];
         if (tabFromUrl && validTabs.includes(tabFromUrl)) {
             setSelectedTab(tabFromUrl);
         }
@@ -87,7 +89,8 @@ const StudentDashboard: React.FC = () => {
 
     const tabs = [
         { id: 'courses', label: 'My Courses', icon: BookOpen },
-        { id: 'my-notes', label: 'My Notes Library', icon: BookmarkCheck },
+        { id: 'subject-notes', label: 'Subject Notes', icon: FileText },
+        { id: 'my-notes', label: 'Saved Notes', icon: BookmarkCheck },
         { id: 'quizzes', label: 'My Quizzes', icon: Brain },
         { id: 'doubts', label: 'My Doubts', icon: MessageSquare },
         { id: 'payments', label: 'My Payments', icon: CreditCard },
@@ -160,6 +163,7 @@ const StudentDashboard: React.FC = () => {
                                 onClick={() => {
                                     setSelectedTab(tab.id);
                                     setShowMobileSidebar(false);
+                                    navigate(`/dashboard/?tab=${tab.id}`);
                                 }}
                                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${selectedTab === tab.id
                                     ? 'bg-primary-100 dark:bg-primary-950 text-primary-600'
@@ -191,6 +195,8 @@ const StudentDashboard: React.FC = () => {
                 {/* Main Content */}
                 <div className="flex-1 min-h-[calc(100vh-64px)] overflow-y-auto">
                     {selectedTab === 'courses' && <MyCourses />}
+
+                    {selectedTab === 'subject-notes' && <SubjectNotes />}
 
                     {selectedTab === 'my-notes' && <MyNotesLibrary />}
 

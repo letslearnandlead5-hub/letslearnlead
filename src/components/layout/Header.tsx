@@ -88,7 +88,8 @@ const Header: React.FC = () => {
         { tab: 'payments', label: 'My Payments', icon: CreditCard },
         { tab: 'doubts', label: 'My Doubts', icon: HelpCircle },
         { tab: 'quizzes', label: 'My Quizzes', icon: Brain },
-        { tab: 'my-notes', label: 'Notes Library', icon: BookmarkCheck },
+        { tab: 'subject-notes', label: 'Subject Notes', icon: FileText },
+        { tab: 'my-notes', label: 'Saved Notes', icon: BookmarkCheck },
         { tab: 'certificates', label: 'Certificates', icon: Award },
     ];
 

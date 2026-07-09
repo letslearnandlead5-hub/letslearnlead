@@ -20,6 +20,8 @@ interface Note {
     markdownContent?: string;
     tags?: string[];
     category?: string;
+    subjectId?: string;
+    subjectName?: string;
     courseId: { _id: string; title: string };
     uploadedBy: { _id: string; name: string };
     createdAt: string;
@@ -380,6 +382,11 @@ const NotesLibrary: React.FC = () => {
                                             <p className="text-sm text-blue-600 dark:text-blue-400 font-medium">
                                                 📚 {note.courseId.title}
                                             </p>
+                                            {note.subjectName && (
+                                                <span className="inline-flex items-center gap-1 mt-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-violet-100 dark:bg-violet-900/50 text-violet-700 dark:text-violet-300">
+                                                    🔖 {note.subjectName}
+                                                </span>
+                                            )}
                                         </div>
                                     </div>
 

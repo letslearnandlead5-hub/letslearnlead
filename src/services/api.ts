@@ -193,8 +193,9 @@ export const authAPI = {
 export const courseAPI = {
   getAll: (params?: any) => api.get("/courses", { params }),
   getById: (id: string) => api.get(`/courses/${id}`),
-  enroll: (id: string) => api.post(`/courses/${id}/enroll`),
+  enroll: (id: string, subjectId?: string) => api.post(`/courses/${id}/enroll`, { subjectId }),
   getEnrolled: () => api.get("/courses/enrolled/my-courses"),
+  getEnrolledSubjects: (courseId: string) => api.get(`/courses/${courseId}/enrolled-subjects`),
   create: (data: any) => api.post("/courses", data),
   update: (id: string, data: any) => api.put(`/courses/${id}`, data),
   delete: (id: string) => api.delete(`/courses/${id}`),
@@ -275,8 +276,8 @@ export const adminAPI = {
   analytics: {
     overview: () => api.get("/admin/analytics/overview"),
   },
-  enrollStudent: (studentEmail: string, courseId: string) =>
-    api.post("/admin/enroll-student", { studentEmail, courseId }),
+  enrollStudent: (studentEmail: string, courseId: string, subjectId?: string, subjectName?: string) =>
+    api.post("/admin/enroll-student", { studentEmail, courseId, subjectId, subjectName }),
 };
 
 /* ================= USER NOTES (PERSONAL LIBRARY) ================= */
@@ -306,7 +307,8 @@ export const paymentAPI = {
   // Student
   submit: (data: any) => api.post("/payments/submit", data),
   getMyPayments: () => api.get("/payments/my"),
-  getStatus: (courseId: string) => api.get(`/payments/status/${courseId}`),
+  getStatus: (courseId: string, subjectId?: string) =>
+    api.get(`/payments/status/${courseId}`, { params: subjectId ? { subjectId } : undefined }),
   getCoursePaymentInfo: (courseId: string) => api.get(`/payments/course/${courseId}`),
   // Admin
   getAll: (params?: any) => api.get("/payments/admin", { params }),

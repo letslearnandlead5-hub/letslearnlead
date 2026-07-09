@@ -263,13 +263,32 @@ router.get('/available/my', protect, async (req: AuthRequest, res: Response, nex
             throw new AppError('User not found', 404);
         }
 
-        // Get all enrolled courses
+        // Get all enrolled courses & subjects
         const enrollments = await Enrollment.find({ userId: user._id, status: 'paid' });
-        const courseIds = enrollments.map((e) => e.courseId);
+        
+        if (enrollments.length === 0) {
+            return res.status(200).json({
+                success: true,
+                count: 0,
+                data: [],
+            });
+        }
 
-        // Get published quizzes for these courses
+        const queryConditions = enrollments.map((e) => {
+            const cond: any = { courseId: e.courseId };
+            if (e.subjectId) {
+                cond.$or = [
+                    { subjectId: e.subjectId },
+                    { subjectId: { $exists: false } },
+                    { subjectId: null }
+                ];
+            }
+            return cond;
+        });
+
+        // Get published quizzes matching the conditions
         const quizzes = await Quiz.find({
-            courseId: { $in: courseIds },
+            $or: queryConditions,
             isPublished: true,
         }).select('-questions'); // Don't send questions in list view
 
@@ -326,12 +345,16 @@ router.get('/:id/preview', protect, async (req: AuthRequest, res: Response, next
             throw new AppError('Quiz is not published yet', 403);
         }
 
-        // Check if user is enrolled in the course
-        const enrollment = await Enrollment.findOne({
+        // Check if user is enrolled in the course & subject (if quiz is subject-specific)
+        const enrollmentQuery: any = {
             userId: req.user?.id,
             courseId: quiz.courseId,
             status: 'paid',
-        });
+        };
+        if (quiz.subjectId) {
+            enrollmentQuery.subjectId = quiz.subjectId;
+        }
+        const enrollment = await Enrollment.findOne(enrollmentQuery);
 
         if (!enrollment) {
             throw new AppError('You must be enrolled in the course to access this quiz', 403);
@@ -383,12 +406,16 @@ router.post('/:id/start', protect, async (req: AuthRequest, res: Response, next)
             throw new AppError('User not found', 404);
         }
 
-        // Check enrollment
-        const enrollment = await Enrollment.findOne({
+        // Check enrollment (including subject check)
+        const enrollmentQuery: any = {
             userId: user._id,
             courseId: quiz.courseId,
             status: 'paid',
-        });
+        };
+        if (quiz.subjectId) {
+            enrollmentQuery.subjectId = quiz.subjectId;
+        }
+        const enrollment = await Enrollment.findOne(enrollmentQuery);
 
         if (!enrollment) {
             throw new AppError('You must be enrolled in the course to attempt this quiz', 403);

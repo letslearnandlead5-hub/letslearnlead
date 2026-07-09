@@ -8,12 +8,18 @@ interface NoteFormProps {
         title: string;
         description: string;
         courseId?: string;
+        subjectId?: string;
+        subjectName?: string;
         fileType: string;
         category?: string;
         tags?: string[];
         markdownContent?: string;
     };
-    courses?: Array<{ _id: string; title: string }>;
+    courses?: Array<{
+        _id: string;
+        title: string;
+        subjects?: Array<{ _id: string; name: string; icon?: string }>;
+    }>;
     onSubmit: (noteData: any) => void;
     onCancel: () => void;
     isLoading?: boolean;
@@ -34,10 +40,15 @@ const NoteForm: React.FC<NoteFormProps> = ({
         title: initialData?.title || '',
         description: initialData?.description || '',
         courseId: initialData?.courseId || '',
+        subjectId: initialData?.subjectId || '',
+        subjectName: initialData?.subjectName || '',
         fileType: initialData?.fileType || 'file',
         category: initialData?.category || '',
         tags: initialData?.tags || [],
     });
+
+    // Derive subjects for the selected course
+    const selectedCourseSubjects = courses.find(c => c._id === formData.courseId)?.subjects || [];
 
     const [tagInput, setTagInput] = useState('');
     const [uploadedFile, setUploadedFile] = useState<File | null>(null);
@@ -140,6 +151,10 @@ const NoteForm: React.FC<NoteFormProps> = ({
             formDataToSend.append('title', formData.title);
             formDataToSend.append('description', formData.description);
             formDataToSend.append('courseId', formData.courseId);
+            if (formData.subjectId) {
+                formDataToSend.append('subjectId', formData.subjectId);
+                formDataToSend.append('subjectName', formData.subjectName);
+            }
             formDataToSend.append('fileType', 'file');
             formDataToSend.append('category', formData.category);
             formDataToSend.append('tags', JSON.stringify(formData.tags));
@@ -167,6 +182,10 @@ const NoteForm: React.FC<NoteFormProps> = ({
             formDataToSend.append('title', formData.title);
             formDataToSend.append('description', formData.description);
             formDataToSend.append('courseId', formData.courseId);
+            if (formData.subjectId) {
+                formDataToSend.append('subjectId', formData.subjectId);
+                formDataToSend.append('subjectName', formData.subjectName);
+            }
             formDataToSend.append('fileType', 'html');
             formDataToSend.append('category', formData.category);
             formDataToSend.append('tags', JSON.stringify(formData.tags));
@@ -213,7 +232,12 @@ const NoteForm: React.FC<NoteFormProps> = ({
                             </label>
                             <select
                                 value={formData.courseId}
-                                onChange={(e) => handleChange('courseId', e.target.value)}
+                                onChange={(e) => {
+                                    handleChange('courseId', e.target.value);
+                                    // Reset subject when course changes
+                                    handleChange('subjectId', '');
+                                    handleChange('subjectName', '');
+                                }}
                                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
                                 required
                             >
@@ -224,6 +248,36 @@ const NoteForm: React.FC<NoteFormProps> = ({
                                     </option>
                                 ))}
                             </select>
+                        </div>
+                    )}
+
+                    {/* Subject Selection (shown when selected course has subjects) */}
+                    {selectedCourseSubjects.length > 0 && (
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                Subject <span className="text-gray-400 font-normal">(optional)</span>
+                            </label>
+                            <select
+                                value={formData.subjectId}
+                                onChange={(e) => {
+                                    const subject = selectedCourseSubjects.find(s => s._id === e.target.value);
+                                    handleChange('subjectId', e.target.value);
+                                    handleChange('subjectName', subject?.name || '');
+                                }}
+                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-violet-500"
+                            >
+                                <option value="">All subjects (general note)</option>
+                                {selectedCourseSubjects.map((sub) => (
+                                    <option key={sub._id} value={sub._id}>
+                                        {sub.icon ? `${sub.icon} ` : ''}{sub.name}
+                                    </option>
+                                ))}
+                            </select>
+                            {formData.subjectId && (
+                                <p className="mt-1 text-xs text-violet-600 dark:text-violet-400">
+                                    This note will be linked to: <strong>{formData.subjectName}</strong>
+                                </p>
+                            )}
                         </div>
                     )}
 

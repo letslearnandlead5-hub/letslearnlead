@@ -31,7 +31,8 @@ const NoteEditor: React.FC = () => {
 
     const fetchCourses = async () => {
         try {
-            const response = await courseAPI.getAll();
+            // noThumbnail=true keeps payload small but still includes subjects (names/prices)
+            const response = await courseAPI.getAll({ noThumbnail: true });
             setCourses(response.data || []);
         } catch (error) {
             console.error('Error fetching courses:', error);
@@ -49,6 +50,8 @@ const NoteEditor: React.FC = () => {
                 description: note.description,
                 markdownContent: note.markdownContent || '',
                 courseId: note.courseId?._id || note.courseId,
+                subjectId: note.subjectId || '',
+                subjectName: note.subjectName || '',
                 fileType: note.fileType,
                 category: note.category || '',
                 tags: note.tags || [],

@@ -25,14 +25,20 @@ router.post('/save', protect, async (req: any, res: Response, next) => {
             throw new AppError('Note not found', 404);
         }
 
-        // Verify user is enrolled in the course
-        const enrollment = await Enrollment.findOne({
+        // Verify user is enrolled in the course and, for subject notes, that exact subject.
+        const enrollmentQuery: any = {
             userId,
             courseId: note.courseId,
-        });
+            status: 'paid',
+        };
+        if (note.subjectId) {
+            enrollmentQuery.subjectId = note.subjectId;
+        }
+
+        const enrollment = await Enrollment.findOne(enrollmentQuery);
 
         if (!enrollment) {
-            throw new AppError('You must be enrolled in this course to save notes', 403);
+            throw new AppError('You must be enrolled in this subject to save notes', 403);
         }
 
         // Check if already saved

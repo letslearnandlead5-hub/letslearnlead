@@ -20,12 +20,12 @@ const router = Router();
 // ─────────────────────────────────────────────────────────────────────────────
 
 // @route   GET /api/payments/course/:courseId
-// @desc    Get public payment info for a course (QR, UPI, price, instructions)
+// @desc    Get public payment info for a course (QR, UPI, subjects/prices, instructions)
 // @access  Private (any logged-in user)
 router.get('/course/:courseId', protect, async (req: AuthRequest, res: Response, next) => {
     try {
         const course = await Course.findById(req.params.courseId)
-            .select('title price currency paymentEnabled paymentMethod upiId merchantName paymentInstructions qrImage thumbnail instructor');
+            .select('title currency paymentEnabled paymentMethod upiId merchantName paymentInstructions qrImage thumbnail instructor subjects');
 
         if (!course) throw new AppError('Course not found', 404);
         if (!course.paymentEnabled) throw new AppError('This course does not require payment', 400);
@@ -37,14 +37,19 @@ router.get('/course/:courseId', protect, async (req: AuthRequest, res: Response,
 });
 
 // @route   GET /api/payments/status/:courseId
-// @desc    Check student's payment status for a specific course
+// @desc    Check student's payment status for a specific course (or subject)
 // @access  Private (Student)
 router.get('/status/:courseId', protect, async (req: AuthRequest, res: Response, next) => {
     try {
-        const payment = await Payment.findOne({
+        const { subjectId } = req.query;
+        const filter: any = {
             studentId: req.user?.id,
             courseId: req.params.courseId,
-        }).sort({ createdAt: -1 });
+        };
+        // If subjectId provided, check per-subject status
+        if (subjectId) filter.subjectId = subjectId;
+
+        const payment = await Payment.findOne(filter).sort({ createdAt: -1 });
 
         if (!payment) {
             return res.status(200).json({ success: true, data: null, status: 'none' });
@@ -63,6 +68,7 @@ router.post('/submit', protect, async (req: AuthRequest, res: Response, next) =>
     try {
         const {
             courseId,
+            subjectId,       // NEW: which subject inside the class-course
             studentName,
             studentEmail,
             studentPhone,
@@ -72,8 +78,8 @@ router.post('/submit', protect, async (req: AuthRequest, res: Response, next) =>
         } = req.body;
 
         // Validation
-        if (!courseId || !studentName || !studentEmail || !studentPhone || !transactionId) {
-            throw new AppError('Please fill all required fields', 400);
+        if (!courseId || !subjectId || !studentName || !studentEmail || !studentPhone || !transactionId) {
+            throw new AppError('Please fill all required fields including subject selection', 400);
         }
 
         // Phone validation
@@ -88,7 +94,7 @@ router.post('/submit', protect, async (req: AuthRequest, res: Response, next) =>
             throw new AppError('Please enter a valid email address', 400);
         }
 
-        // Transaction ID validation - alphanumeric, 8-50 chars
+        // Transaction ID validation
         if (transactionId.length < 6 || transactionId.length > 100) {
             throw new AppError('Transaction ID must be between 6 and 100 characters', 400);
         }
@@ -98,28 +104,41 @@ router.post('/submit', protect, async (req: AuthRequest, res: Response, next) =>
             throw new AppError('Screenshot must be smaller than 5MB', 400);
         }
 
-        // Get course
+        // Get course and find the specific subject
         const course = await Course.findById(courseId);
         if (!course) throw new AppError('Course not found', 404);
         if (!course.paymentEnabled) throw new AppError('This course does not require payment', 400);
 
-        // Check if already enrolled
-        const user = await User.findById(req.user?.id);
-        if (user && user.enrolledCourses.some((id: any) => id.toString() === courseId)) {
-            throw new AppError('You are already enrolled in this course', 400);
+        // Find the subject inside the course
+        const subject = course.subjects.find((s: any) => s._id.toString() === subjectId);
+        if (!subject) throw new AppError('Subject not found in this course', 404);
+
+        const subjectPrice = subject.price;
+        const subjectName = subject.name;
+
+        // Check if already enrolled in this specific subject
+        const existingEnrollment = await Enrollment.findOne({
+            userId: req.user?.id,
+            courseId,
+            subjectId,
+            status: 'paid',
+        });
+        if (existingEnrollment) {
+            throw new AppError(`You are already enrolled in ${subjectName}`, 400);
         }
 
-        // Check for duplicate pending/approved payment for this course
+        // Check for duplicate pending/approved payment for this subject
         const existingPayment = await Payment.findOne({
             studentId: req.user?.id,
             courseId,
+            subjectId,
             paymentStatus: { $in: ['pending', 'approved'] },
         });
         if (existingPayment) {
             if (existingPayment.paymentStatus === 'approved') {
-                throw new AppError('Your payment has already been approved for this course', 400);
+                throw new AppError(`Your payment for ${subjectName} has already been approved`, 400);
             }
-            throw new AppError('You already have a pending payment for this course. Please wait for admin verification.', 400);
+            throw new AppError(`You already have a pending payment for ${subjectName}. Please wait for admin verification.`, 400);
         }
 
         // Create payment record
@@ -130,7 +149,9 @@ router.post('/submit', protect, async (req: AuthRequest, res: Response, next) =>
             studentPhone: studentPhone.trim(),
             courseId,
             courseName: course.title,
-            amount: course.price,
+            subjectId,
+            subjectName,
+            amount: subjectPrice,
             currency: course.currency || 'INR',
             paymentMethod: 'qr',
             transactionId: transactionId.trim(),
@@ -144,7 +165,7 @@ router.post('/submit', protect, async (req: AuthRequest, res: Response, next) =>
         await Notification.create({
             userId: req.user?.id,
             title: 'Payment Submitted Successfully',
-            message: `Your payment for "${course.title}" has been submitted. We'll notify you once it's verified.`,
+            message: `Your payment for "${subjectName}" (${course.title}) has been submitted. We'll notify you once it's verified.`,
             type: 'info',
             link: '/dashboard/',
         });
@@ -155,14 +176,14 @@ router.post('/submit', protect, async (req: AuthRequest, res: Response, next) =>
             Notification.create({
                 userId: admin._id,
                 title: 'New Payment Received',
-                message: `${studentName} submitted payment for "${course.title}" — Transaction ID: ${transactionId}`,
+                message: `${studentName} submitted payment for "${subjectName}" (${course.title}) — Transaction ID: ${transactionId}`,
                 type: 'info',
                 link: '/dashboard/',
             })
         ));
 
         // Send email notifications (non-blocking)
-        sendPaymentSubmittedEmail(studentEmail, studentName, course.title, transactionId, course.price)
+        sendPaymentSubmittedEmail(studentEmail, studentName, `${course.title} — ${subjectName}`, transactionId, subjectPrice)
             .catch((err) => console.error('Payment submitted email error:', err));
 
         res.status(201).json({
@@ -260,7 +281,7 @@ router.get('/admin', protect, authorize('admin'), async (req: AuthRequest, res: 
 });
 
 // @route   PUT /api/payments/approve/:id
-// @desc    Admin approves payment → auto-enroll student
+// @desc    Admin approves payment → auto-enroll student in specific subject
 // @access  Private (Admin)
 router.put('/approve/:id', protect, authorize('admin'), async (req: AuthRequest, res: Response, next) => {
     try {
@@ -277,23 +298,26 @@ router.put('/approve/:id', protect, authorize('admin'), async (req: AuthRequest,
         payment.adminRemark = adminRemark || '';
         await payment.save();
 
-        // Enroll student: add courseId to user's enrolledCourses
+        // Add courseId to user.enrolledCourses (course-level access flag, kept for compat)
         const user = await User.findById(payment.studentId);
         if (user && !user.enrolledCourses.some((id: any) => id.toString() === payment.courseId.toString())) {
             user.enrolledCourses.push(payment.courseId);
             await user.save();
         }
 
-        // Create or update Enrollment record
+        // Create per-SUBJECT Enrollment record (the real access control)
         const existingEnrollment = await Enrollment.findOne({
             userId: payment.studentId,
             courseId: payment.courseId,
+            subjectId: payment.subjectId,
         });
 
         if (!existingEnrollment) {
             await Enrollment.create({
                 userId: payment.studentId,
                 courseId: payment.courseId,
+                subjectId: payment.subjectId,
+                subjectName: payment.subjectName || '',
                 status: 'paid',
                 amount: payment.amount,
                 currency: payment.currency,
@@ -302,21 +326,26 @@ router.put('/approve/:id', protect, authorize('admin'), async (req: AuthRequest,
             });
         }
 
-        // Update course students count
+        // Increment course students count
         await Course.findByIdAndUpdate(payment.courseId, { $inc: { studentsEnrolled: 1 } });
 
         // In-app notification to student
+        const subjectLabel = payment.subjectName ? ` — ${payment.subjectName}` : '';
         await Notification.create({
             userId: payment.studentId,
             title: '🎉 Payment Approved!',
-            message: `Your payment for "${payment.courseName}" has been approved! You can now access the course.`,
+            message: `Your payment for "${payment.courseName}${subjectLabel}" has been approved! You can now access the content.`,
             type: 'success',
             link: '/dashboard/',
         });
 
         // Send approval email (non-blocking)
-        sendPaymentApprovedEmail(payment.studentEmail, payment.studentName, payment.courseName, adminRemark)
-            .catch((err) => console.error('Approval email error:', err));
+        sendPaymentApprovedEmail(
+            payment.studentEmail,
+            payment.studentName,
+            payment.subjectName ? `${payment.courseName} — ${payment.subjectName}` : payment.courseName,
+            adminRemark
+        ).catch((err) => console.error('Approval email error:', err));
 
         res.status(200).json({ success: true, message: 'Payment approved and student enrolled successfully' });
     } catch (error) {

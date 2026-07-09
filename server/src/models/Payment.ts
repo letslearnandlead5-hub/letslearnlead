@@ -7,11 +7,13 @@ export interface IPayment extends Document {
     studentPhone: string;
     courseId: mongoose.Types.ObjectId;
     courseName: string;
+    subjectId: mongoose.Types.ObjectId;  // Which subject the payment is for
+    subjectName?: string;                // e.g. "Mathematics"
     amount: number;
     currency: string;
     paymentMethod: 'qr' | 'gateway';
     transactionId: string;
-    paymentScreenshot?: string; // base64 encoded
+    paymentScreenshot?: string;
     paymentStatus: 'pending' | 'approved' | 'rejected';
     paymentDate: Date;
     verifiedBy?: mongoose.Types.ObjectId;
@@ -55,6 +57,15 @@ const PaymentSchema = new Schema<IPayment>(
         courseName: {
             type: String,
             required: true,
+        },
+        subjectId: {
+            type: Schema.Types.ObjectId,
+            required: true,
+            index: true,
+        },
+        subjectName: {
+            type: String,
+            default: '',
         },
         amount: {
             type: Number,

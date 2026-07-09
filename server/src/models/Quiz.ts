@@ -47,7 +47,9 @@ export interface IQuiz extends Document {
     title: string;
     description: string;
     courseId: mongoose.Types.ObjectId;
-    courseName: string; // Denormalized for easier querying
+    courseName: string;
+    subjectId?: mongoose.Types.ObjectId; // Subject within the class-course
+    subjectName?: string;                // e.g. "Mathematics"
     totalQuestions: number;
     settings: IQuizSettings;
     questions: IQuizQuestion[];
@@ -210,6 +212,13 @@ const QuizSchema = new Schema<IQuiz>(
             type: String,
             required: true,
         },
+        subjectId: {
+            type: Schema.Types.ObjectId,
+        },
+        subjectName: {
+            type: String,
+            default: '',
+        },
         totalQuestions: {
             type: Number,
             required: true,
@@ -240,6 +249,7 @@ const QuizSchema = new Schema<IQuiz>(
 
 // Indexes for better query performance
 QuizSchema.index({ courseId: 1, isPublished: 1 });
+QuizSchema.index({ courseId: 1, subjectId: 1, isPublished: 1 }); // Subject-filtered quiz lookup
 QuizSchema.index({ createdBy: 1 });
 QuizSchema.index({ title: 'text', description: 'text' });
 

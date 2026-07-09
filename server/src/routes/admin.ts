@@ -409,10 +409,10 @@ router.put('/orders/:id/status', async (req: AuthRequest, res: Response, next) =
 // @access  Private (Admin)
 router.post('/enroll-student', async (req: AuthRequest, res: Response, next) => {
     try {
-        const { studentEmail, courseId } = req.body;
+        const { studentEmail, courseId, subjectId, subjectName } = req.body;
 
-        if (!studentEmail || !courseId) {
-            throw new AppError('Student email and course ID are required', 400);
+        if (!studentEmail || !courseId || !subjectId) {
+            throw new AppError('Student email, course ID, and subject ID are required', 400);
         }
 
         // Find student by email
@@ -427,16 +427,17 @@ router.post('/enroll-student', async (req: AuthRequest, res: Response, next) => 
             throw new AppError('Course not found', 404);
         }
 
-        // Check if already enrolled
+        // Check if already enrolled in this specific subject
         const existingEnrollment = await Enrollment.findOne({
             userId: student._id,
             courseId: courseId,
+            subjectId: subjectId,
         });
 
         if (existingEnrollment) {
             return res.status(200).json({
                 success: true,
-                message: 'Student is already enrolled in this course',
+                message: `Student is already enrolled in ${subjectName || 'this subject'}`,
                 data: existingEnrollment,
             });
         }
@@ -445,12 +446,14 @@ router.post('/enroll-student', async (req: AuthRequest, res: Response, next) => 
         const enrollment = await Enrollment.create({
             userId: student._id,
             courseId: courseId,
+            subjectId: subjectId,
+            subjectName: subjectName || '',
             status: 'paid', // Free access granted by admin
             completionPercentage: 0,
             purchaseDate: new Date(),
         });
 
-        // Add course to user's enrolled courses
+        // Add course to user's enrolled courses list if not already there
         if (!student.enrolledCourses) {
             student.enrolledCourses = [];
         }
@@ -459,11 +462,11 @@ router.post('/enroll-student', async (req: AuthRequest, res: Response, next) => 
             await student.save();
         }
 
-        console.log(`✅ Admin enrolled student ${student.email} in course ${course.title}`);
+        console.log(`✅ Admin enrolled student ${student.email} in ${course.title} — ${subjectName || subjectId}`);
 
         res.status(201).json({
             success: true,
-            message: `Successfully enrolled ${student.name} in ${course.title}`,
+            message: `Successfully enrolled ${student.name} in ${course.title} — ${subjectName || 'Subject'}`,
             data: enrollment,
         });
     } catch (error) {

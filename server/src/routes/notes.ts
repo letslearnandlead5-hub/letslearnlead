@@ -2,7 +2,10 @@ import { Router, Request, Response } from 'express';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import jwt from 'jsonwebtoken';
 import { Note } from '../models/Note';
+import { User } from '../models/User';
+import { Enrollment } from '../models/Enrollment';
 import { protect, authorize } from '../middleware/auth';
 import { AppError } from '../middleware/error';
 import { validate } from '../middleware/validate';
@@ -56,15 +59,152 @@ const upload = multer({
     }
 });
 
+// Helper: resolve enrolled subject IDs for a student in a given course (or across all courses)
+// Returns null if the caller is an admin/teacher (no filtering needed)
+async function getEnrolledSubjectIds(
+    req: Request,
+    courseId?: string
+): Promise<Set<string> | null> {
+    const authHeader = req.headers.authorization;
+    if (!authHeader?.startsWith('Bearer ')) return null; // no token — unauthenticated
+    const token = authHeader.split(' ')[1];
+    try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { id: string };
+        const user = await User.findById(decoded.id).select('role');
+        if (!user) return null;
+        // Admin / teacher: no restriction
+        if (user.role === 'admin' || user.role === 'teacher') return null;
+        // Student: collect enrolled subjectIds
+        const query: any = { userId: decoded.id, status: 'paid' };
+        if (courseId) query.courseId = courseId;
+        const enrollments = await Enrollment.find(query);
+        const ids = new Set<string>();
+        enrollments.forEach((e: any) => {
+            if (e.subjectId) ids.add(e.subjectId.toString());
+        });
+        return ids;
+    } catch {
+        return null; // invalid token — treat as unauthenticated (public)
+    }
+}
+
+interface StudentNoteAccess {
+    courseIds: Set<string>;
+    subjectIds: Set<string>;
+}
+
+async function getRequestUser(req: Request): Promise<{ id: string; role: string } | null> {
+    const authHeader = req.headers.authorization;
+    if (!authHeader?.startsWith('Bearer ')) return null;
+
+    const token = authHeader.split(' ')[1];
+    try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { id: string };
+        const user = await User.findById(decoded.id).select('role');
+        if (!user) return null;
+        return { id: decoded.id, role: user.role };
+    } catch {
+        return null;
+    }
+}
+
+// Returns null for admin/teacher/guests, meaning no student-specific filtering is needed.
+async function getStudentNoteAccess(
+    req: Request,
+    courseId?: string
+): Promise<StudentNoteAccess | null> {
+    const requester = await getRequestUser(req);
+    if (!requester || requester.role === 'admin' || requester.role === 'teacher') return null;
+
+    const query: any = { userId: requester.id, status: 'paid' };
+    if (courseId) query.courseId = courseId;
+
+    const enrollments = await Enrollment.find(query).select('courseId subjectId');
+    return enrollments.reduce<StudentNoteAccess>(
+        (access, enrollment: any) => {
+            if (enrollment.courseId) access.courseIds.add(enrollment.courseId.toString());
+            if (enrollment.subjectId) access.subjectIds.add(enrollment.subjectId.toString());
+            return access;
+        },
+        { courseIds: new Set<string>(), subjectIds: new Set<string>() }
+    );
+}
+
+const generalNoteFilter = (courseIds: string[]) => ({
+    $and: [
+        { courseId: { $in: courseIds } },
+        {
+            $or: [
+                { subjectId: { $exists: false } },
+                { subjectId: null },
+            ],
+        },
+    ],
+});
+
+function buildNotesFilters(req: Request, forcedCourseId?: string) {
+    const { courseId, subjectId, fileType, category, search } = req.query;
+    const filters: any[] = [];
+
+    const resolvedCourseId = forcedCourseId || (courseId as string | undefined);
+    if (resolvedCourseId) filters.push({ courseId: resolvedCourseId });
+    if (subjectId && subjectId !== 'all') filters.push({ subjectId });
+    if (fileType && fileType !== 'all') filters.push({ fileType });
+    if (category && category !== 'all') filters.push({ category });
+    if (search) {
+        const searchRegex = new RegExp(String(search), 'i');
+        filters.push({
+            $or: [
+                { title: searchRegex },
+                { description: searchRegex },
+                { tags: searchRegex },
+                { subjectName: searchRegex },
+            ],
+        });
+    }
+
+    return filters;
+}
+
+async function getAccessibleNoteQuery(req: Request, forcedCourseId?: string) {
+    const filters = buildNotesFilters(req, forcedCourseId);
+    const studentAccess = await getStudentNoteAccess(req, forcedCourseId);
+
+    if (studentAccess) {
+        const accessFilters: any[] = [];
+        const subjectIds = Array.from(studentAccess.subjectIds);
+        const courseIds = Array.from(studentAccess.courseIds);
+
+        if (subjectIds.length > 0) accessFilters.push({ subjectId: { $in: subjectIds } });
+        if (courseIds.length > 0) accessFilters.push(generalNoteFilter(courseIds));
+
+        filters.push(accessFilters.length > 0 ? { $or: accessFilters } : { _id: { $exists: false } });
+    }
+
+    if (filters.length === 0) return {};
+    if (filters.length === 1) return filters[0];
+    return { $and: filters };
+}
+
+async function canAccessSingleNote(req: Request, note: any): Promise<boolean> {
+    const studentAccess = await getStudentNoteAccess(req, note.courseId?.toString());
+    if (!studentAccess) return true;
+
+    const noteCourseId = note.courseId?.toString();
+    const noteSubjectId = note.subjectId?.toString();
+
+    if (noteSubjectId) return studentAccess.subjectIds.has(noteSubjectId);
+    return noteCourseId ? studentAccess.courseIds.has(noteCourseId) : false;
+}
+
 // @route   GET /api/notes
-// @desc    Get all notes (optionally by courseId)
-// @access  Public
+// @desc    Get all notes (optionally by courseId). For students, only returns notes
+//          belonging to subjects they are enrolled in (or general notes with no subject).
+// @access  Public (content filtered for students)
 router.get('/', async (req: Request, res: Response, next) => {
     try {
-        const { courseId } = req.query;
-        const filter = courseId ? { courseId } : {};
-
-        const notes = await Note.find(filter).populate('uploadedBy', 'name').sort({ createdAt: -1 });
+        const query = await getAccessibleNoteQuery(req);
+        const notes = await Note.find(query).populate('uploadedBy', 'name').sort({ createdAt: -1 });
 
         res.status(200).json({
             success: true,
@@ -77,13 +217,14 @@ router.get('/', async (req: Request, res: Response, next) => {
 });
 
 // @route   GET /api/notes/course/:courseId
-// @desc    Get all notes for a specific course
-// @access  Public
+// @desc    Get all notes for a specific course. For students, only returns notes
+//          belonging to subjects they are enrolled in (or general notes with no subject).
+// @access  Public (content filtered for students)
 router.get('/course/:courseId', async (req: Request, res: Response, next) => {
     try {
-        const notes = await Note.find({ courseId: req.params.courseId })
-            .populate('uploadedBy', 'name')
-            .sort({ createdAt: -1 });
+        const { courseId } = req.params;
+        const query = await getAccessibleNoteQuery(req, courseId);
+        const notes = await Note.find(query).populate('uploadedBy', 'name').sort({ createdAt: -1 });
 
         res.status(200).json({
             success: true,
@@ -106,6 +247,11 @@ router.get('/:id', async (req: Request, res: Response, next) => {
             throw new AppError('Note not found', 404);
         }
 
+        const canAccess = await canAccessSingleNote(req, note);
+        if (!canAccess) {
+            throw new AppError('You are not enrolled in this subject', 403);
+        }
+
         res.status(200).json({
             success: true,
             data: note,
@@ -126,6 +272,8 @@ router.post('/', protect, authorize('admin', 'teacher'), fileUploadLimiter, uplo
             title: req.body.title,
             description: req.body.description,
             courseId: req.body.courseId,
+            subjectId: req.body.subjectId || null,
+            subjectName: req.body.subjectName || '',
             category: req.body.category || '',
             tags: req.body.tags ? (typeof req.body.tags === 'string' ? JSON.parse(req.body.tags) : req.body.tags) : [],
             uploadedBy: req.user._id,
@@ -180,6 +328,8 @@ router.put('/:id', protect, authorize('admin', 'teacher'), fileUploadLimiter, up
             title: req.body.title,
             description: req.body.description,
             courseId: req.body.courseId,
+            subjectId: req.body.subjectId || null,
+            subjectName: req.body.subjectName || '',
             category: req.body.category || '',
             tags: req.body.tags ? (typeof req.body.tags === 'string' ? JSON.parse(req.body.tags) : req.body.tags) : [],
         };

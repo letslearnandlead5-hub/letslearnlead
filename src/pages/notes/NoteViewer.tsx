@@ -27,6 +27,7 @@ const NoteViewer: React.FC = () => {
     const [note, setNote] = useState<Note | null>(null);
     const [loading, setLoading] = useState(true);
     const [isSaved, setIsSaved] = useState(false);
+    const [savedUserNoteId, setSavedUserNoteId] = useState<string | null>(null);
     const [saving, setSaving] = useState(false);
     const { addToast } = useToastStore();
     const { user } = useAuthStore();
@@ -55,7 +56,8 @@ const NoteViewer: React.FC = () => {
     const checkIfSaved = async () => {
         try {
             const response: any = await userNoteAPI.checkSaved(noteId!);
-            setIsSaved(response.data.saved);
+            setIsSaved(!!response.isSaved);
+            setSavedUserNoteId(response.data?._id || null);
         } catch (error) {
             console.error('Error checking saved status:', error);
         }
@@ -67,12 +69,18 @@ const NoteViewer: React.FC = () => {
         try {
             setSaving(true);
             if (isSaved) {
-                await userNoteAPI.remove(noteId);
+                if (!savedUserNoteId) {
+                    await checkIfSaved();
+                    return;
+                }
+                await userNoteAPI.remove(savedUserNoteId);
                 setIsSaved(false);
+                setSavedUserNoteId(null);
                 addToast({ type: 'success', message: 'Removed from your library' });
             } else {
-                await userNoteAPI.save(noteId);
+                const response: any = await userNoteAPI.save(noteId);
                 setIsSaved(true);
+                setSavedUserNoteId(response.data?._id || null);
                 addToast({ type: 'success', message: 'Saved to your library!' });
             }
         } catch (error: any) {

@@ -6,58 +6,50 @@ import { AppError } from '../middleware/error';
 const router = Router();
 
 // @route   GET /api/enrollment/my-enrollments
-// @desc    Get all enrollments for logged-in user with progress
+// @desc    Get all subject-level enrollments for the logged-in student
 // @access  Private
 router.get('/my-enrollments', protect, async (req: AuthRequest, res: Response, next) => {
     try {
-        const { User } = await import('../models/User');
-
-        // Get user with populated enrolledCourses
-        const user = await User.findById(req.user?.id).populate('enrolledCourses');
-
-        if (!user) {
-            throw new AppError('User not found', 404);
-        }
-
-        // Get all enrollment records (for payment info and completion tracking)
+        // Query per-subject Enrollment records directly (source of truth)
         const enrollments = await Enrollment.find({ userId: req.user?.id })
-            .sort({ createdAt: -1 });
+            .populate({
+                path: 'courseId',
+                select: 'title thumbnail instructor duration level category subjects grade',
+            })
+            .sort({ createdAt: -1 })
+            .lean();
 
-        // Create a map of courseId to enrollment data
-        const enrollmentMap = new Map();
-        enrollments.forEach((enrollment) => {
-            enrollmentMap.set(enrollment.courseId.toString(), enrollment);
-        });
+        const enriched = enrollments
+            .filter((e: any) => e.courseId)
+            .map((e: any) => {
+                const course = e.courseId;
+                const subjectMeta = (course.subjects || []).find(
+                    (s: any) => s._id?.toString() === e.subjectId?.toString()
+                );
 
-        // Transform user's enrolled courses to include enrollment data
-        const enrichedEnrollments = user.enrolledCourses.map((course: any) => {
-            const enrollment = enrollmentMap.get(course._id.toString());
-
-            return {
-                _id: enrollment?._id || course._id,
-                courseId: course,
-                userId: req.user?.id,
-                status: enrollment?.status || 'paid', // Default to 'paid' for free courses
-                purchaseDate: enrollment?.purchaseDate || course.createdAt,
-                completionPercentage: enrollment?.completionPercentage || 0,
-                createdAt: enrollment?.createdAt || course.createdAt,
-                updatedAt: enrollment?.updatedAt || course.updatedAt,
-                // Include payment details if available
-                ...(enrollment && {
-                    razorpayOrderId: enrollment.razorpayOrderId,
-                    razorpayPaymentId: enrollment.razorpayPaymentId,
-                    amount: enrollment.amount,
-                    currency: enrollment.currency,
-                    invoiceUrl: enrollment.invoiceUrl,
-                    invoiceNumber: enrollment.invoiceNumber,
-                }),
-            };
-        });
+                return {
+                    _id: e._id,
+                    courseId: course,
+                    userId: e.userId,
+                    subjectId: e.subjectId?.toString() || null,
+                    subjectName: e.subjectName || subjectMeta?.name || null,
+                    subjectIcon: subjectMeta?.icon || '\ud83d\udcda',
+                    status: e.status || 'paid',
+                    completionPercentage: e.completionPercentage || 0,
+                    purchaseDate: e.purchaseDate,
+                    amount: e.amount,
+                    currency: e.currency,
+                    invoiceUrl: e.invoiceUrl,
+                    invoiceNumber: e.invoiceNumber,
+                    createdAt: e.createdAt,
+                    updatedAt: e.updatedAt,
+                };
+            });
 
         res.status(200).json({
             success: true,
-            count: enrichedEnrollments.length,
-            data: enrichedEnrollments,
+            count: enriched.length,
+            data: enriched,
         });
     } catch (error) {
         next(error);
@@ -90,31 +82,41 @@ router.get('/:id', protect, async (req: AuthRequest, res: Response, next) => {
 });
 
 // @route   PUT /api/enrollment/progress/:courseId
-// @desc    Update course progress
+// @desc    Update course/subject progress
 // @access  Private
 router.put('/progress/:courseId', protect, async (req: AuthRequest, res: Response, next) => {
     try {
-        const { completionPercentage, completedLessons } = req.body;
+        const { completionPercentage, completedLessons, subjectId } = req.body;
         const { courseId } = req.params;
-
-        // Find or create enrollment
-        let enrollment = await Enrollment.findOne({
+        const enrollmentQuery: any = {
             userId: req.user?.id,
             courseId: courseId,
-        });
+        };
+        if (subjectId) enrollmentQuery.subjectId = subjectId;
+
+        // Find or create enrollment
+        let enrollment = await Enrollment.findOne(enrollmentQuery);
 
         if (!enrollment) {
             // Create new enrollment if doesn't exist (for free courses)
             enrollment = await Enrollment.create({
                 userId: req.user?.id,
                 courseId: courseId,
+                subjectId: subjectId || courseId,
                 status: 'paid',
                 completionPercentage: completionPercentage || 0,
+                completedLessons: Array.isArray(completedLessons) ? completedLessons : [],
                 purchaseDate: new Date(),
             });
         } else {
             // Update existing enrollment
-            enrollment.completionPercentage = completionPercentage || enrollment.completionPercentage;
+            enrollment.completionPercentage =
+                typeof completionPercentage === 'number'
+                    ? completionPercentage
+                    : enrollment.completionPercentage;
+            if (Array.isArray(completedLessons)) {
+                enrollment.completedLessons = completedLessons;
+            }
             enrollment.updatedAt = new Date();
             await enrollment.save();
         }
@@ -159,18 +161,20 @@ router.put('/progress/:courseId', protect, async (req: AuthRequest, res: Respons
 });
 
 // @route   GET /api/enrollment/progress/:courseId
-// @desc    Get course progress
+// @desc    Get course/subject progress
 // @access  Private
 router.get('/progress/:courseId', protect, async (req: AuthRequest, res: Response, next) => {
     try {
         const { courseId } = req.params;
-        const { User } = await import('../models/User');
-
-        // Find user's enrollment
-        const enrollment = await Enrollment.findOne({
+        const { subjectId } = req.query;
+        const enrollmentQuery: any = {
             userId: req.user?.id,
             courseId: courseId,
-        });
+        };
+        if (subjectId) enrollmentQuery.subjectId = subjectId;
+
+        // Find user's enrollment
+        const enrollment = await Enrollment.findOne(enrollmentQuery);
 
         if (!enrollment) {
             return res.status(200).json({
@@ -180,13 +184,9 @@ router.get('/progress/:courseId', protect, async (req: AuthRequest, res: Respons
             });
         }
 
-        // Get user to access completedLessons from their course progress
-        const user = await User.findById(req.user?.id);
-        const courseProgress = user?.courseProgress?.find((cp: any) => cp.courseId.toString() === courseId);
-
         res.status(200).json({
             success: true,
-            completedLessons: courseProgress?.completedLessons || [],
+            completedLessons: enrollment.completedLessons || [],
             completionPercentage: enrollment.completionPercentage || 0,
         });
     } catch (error) {

@@ -16,6 +16,7 @@ export interface User {
   institution?: string;
   subjectInterests?: string[];
   enrolledCourses?: string[];
+  medium?: string;
   isBlocked?: boolean;
   createdAt?: string;
 }

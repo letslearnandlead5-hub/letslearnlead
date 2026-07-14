@@ -12,6 +12,7 @@ export const ENDPOINTS = {
     CHANGE_PASSWORD: '/auth/change-password',
     FORGOT_PASSWORD: '/auth/forgot-password',
     DELETE_ACCOUNT: '/auth/delete-account',
+    LOGOUT: '/auth/logout',
   },
 
   // Courses

@@ -40,4 +40,9 @@ export const authService = {
     const { data } = await api.delete(ENDPOINTS.AUTH.DELETE_ACCOUNT);
     return data;
   },
+
+  logout: async (): Promise<ApiResponse<null>> => {
+    const { data } = await api.post(ENDPOINTS.AUTH.LOGOUT);
+    return data;
+  },
 };

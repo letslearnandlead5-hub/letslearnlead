@@ -149,6 +149,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const logout = useCallback(async () => {
+    try {
+      await authService.logout();
+    } catch (err) {
+      console.warn('Silent authService.logout error:', err);
+    }
     await Storage.clearAll();
     dispatch({ type: 'LOGOUT' });
   }, []);

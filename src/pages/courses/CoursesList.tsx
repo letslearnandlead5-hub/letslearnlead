@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Star, Clock, BookOpen, X, ChevronDown, RefreshCw } from 'lucide-react';
+import { Search, Star, Clock, BookOpen, X, ChevronDown, ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
 import Card from '../../components/ui/Card';
 import { staggerContainer, staggerItem } from '../../utils/animations';
 import { courseAPI } from '../../services/api';
@@ -24,17 +24,19 @@ interface Course {
     grade?: string;
 }
 
-// Category values MUST exactly match what's stored in MongoDB
-const CATEGORIES = [
-    { value: 'all',           label: 'All Courses',        icon: '📚' },
-    { value: '6th Standard',  label: '6th Standard',       icon: '6️⃣' },
-    { value: '7th Standard',  label: '7th Standard',       icon: '7️⃣' },
-    { value: '8th Standard',  label: '8th Standard',       icon: '8️⃣' },
-    { value: '9th Standard',  label: '9th Standard',       icon: '9️⃣' },
-    { value: '10th Standard', label: '10th Standard',      icon: '🔟' },
-    { value: 'science',       label: 'Science (NEET/JEE)', icon: '🔬' },
-    { value: 'Language',      label: 'Language',           icon: '📖' },
-    { value: 'Other',         label: 'Other Exams',        icon: '📋' },
+// Mapped tabs for categories and grades in alignment with CourseEditor model
+const FILTER_TABS = [
+    { value: 'all',          label: 'All Courses',        icon: '📚', type: 'all' },
+    { value: '6th',          label: '6th Standard',       icon: '6️⃣', type: 'grade' },
+    { value: '7th',          label: '7th Standard',       icon: '7️⃣', type: 'grade' },
+    { value: '8th',          label: '8th Standard',       icon: '8️⃣', type: 'grade' },
+    { value: '9th',          label: '9th Standard',       icon: '9️⃣', type: 'grade' },
+    { value: '10th',         label: '10th Standard',      icon: '🔟', type: 'grade' },
+    { value: 'school-puc',   label: 'PUC (11th/12th)',    icon: '🎓', type: 'category' },
+    { value: 'neet',         label: 'NEET',               icon: '🩺', type: 'category' },
+    { value: 'jee',          label: 'JEE',                icon: '⚙️', type: 'category' },
+    { value: 'kcet',         label: 'KCET',               icon: '📋', type: 'category' },
+    { value: 'competitive',  label: 'Govt / Comp Exams',  icon: '🏛️', type: 'category' },
 ];
 
 const CoursesList: React.FC = () => {
@@ -47,11 +49,60 @@ const CoursesList: React.FC = () => {
     const [searchParams] = useSearchParams();
     const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    const fetchCourses = async (category: string, med: string, search: string) => {
+    const scrollContainerRef = useRef<HTMLDivElement>(null);
+    const [showLeftArrow, setShowLeftArrow] = useState(false);
+    const [showRightArrow, setShowRightArrow] = useState(true);
+
+    const handleScroll = () => {
+        if (scrollContainerRef.current) {
+            const { scrollLeft, scrollWidth, clientWidth } = scrollContainerRef.current;
+            setShowLeftArrow(scrollLeft > 10);
+            setShowRightArrow(scrollLeft < scrollWidth - clientWidth - 10);
+        }
+    };
+
+    const handleContainerScroll = (direction: 'left' | 'right') => {
+        if (scrollContainerRef.current) {
+            const amount = 240;
+            scrollContainerRef.current.scrollBy({
+                left: direction === 'left' ? -amount : amount,
+                behavior: 'smooth',
+            });
+        }
+    };
+
+    useEffect(() => {
+        // Run scroll check after initial mount & layout
+        const timer = setTimeout(() => {
+            handleScroll();
+        }, 100);
+        
+        const el = scrollContainerRef.current;
+        if (el) {
+            el.addEventListener('scroll', handleScroll);
+            window.addEventListener('resize', handleScroll);
+        }
+        return () => {
+            clearTimeout(timer);
+            if (el) {
+                el.removeEventListener('scroll', handleScroll);
+            }
+            window.removeEventListener('resize', handleScroll);
+        };
+    }, [courses]);
+
+    const fetchCourses = async (categoryVal: string, med: string, search: string) => {
         try {
             setLoading(true);
             const params: any = {};
-            if (category !== 'all') params.category = category;
+            
+            const tab = FILTER_TABS.find(t => t.value === categoryVal) || FILTER_TABS[0];
+            if (tab.type === 'category') {
+                params.category = tab.value;
+            } else if (tab.type === 'grade') {
+                params.grade = tab.value;
+            }
+            
             if (med !== 'all') params.medium = med;
             if (search.trim()) params.search = search.trim();
             
@@ -109,7 +160,7 @@ const CoursesList: React.FC = () => {
 
     const activeFilters: Array<{ type: string; value: string; label: string }> = [];
     if (selectedCategory !== 'all') {
-        const cat = CATEGORIES.find(c => c.value === selectedCategory);
+        const cat = FILTER_TABS.find(c => c.value === selectedCategory);
         if (cat) activeFilters.push({ type: 'category', value: selectedCategory, label: `${cat.icon} ${cat.label}` });
     }
     if (selectedMedium !== 'all') {
@@ -179,15 +230,28 @@ const CoursesList: React.FC = () => {
                 </div>
 
                 {/* Horizontal Category Scrollable List */}
-                <div className="mb-6 relative">
+                <div className="mb-6 relative group/scroll">
+                    {/* Left Scroll Arrow */}
+                    {showLeftArrow && (
+                        <button
+                            type="button"
+                            onClick={() => handleContainerScroll('left')}
+                            className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-4 z-10 w-9 h-9 flex items-center justify-center rounded-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-md text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-all hover:scale-105 active:scale-95"
+                            aria-label="Scroll left"
+                        >
+                            <ChevronLeft className="w-5 h-5" />
+                        </button>
+                    )}
+
                     <div 
+                        ref={scrollContainerRef}
                         className="flex gap-2 overflow-x-auto pb-3 pt-1 scrollbar-none snap-x"
                         style={{
                             scrollbarWidth: 'none',
                             msOverflowStyle: 'none',
                         }}
                     >
-                        {CATEGORIES.map((cat) => (
+                        {FILTER_TABS.map((cat) => (
                             <button
                                 key={cat.value}
                                 onClick={() => setSelectedCategory(cat.value)}
@@ -202,6 +266,18 @@ const CoursesList: React.FC = () => {
                             </button>
                         ))}
                     </div>
+
+                    {/* Right Scroll Arrow */}
+                    {showRightArrow && (
+                        <button
+                            type="button"
+                            onClick={() => handleContainerScroll('right')}
+                            className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-4 z-10 w-9 h-9 flex items-center justify-center rounded-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-md text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-all hover:scale-105 active:scale-95"
+                            aria-label="Scroll right"
+                        >
+                            <ChevronRight className="w-5 h-5" />
+                        </button>
+                    )}
                     {/* Visual fade effect indicators for overflow */}
                     <div className="hidden lg:block absolute right-0 top-0 bottom-3 w-12 bg-gradient-to-l from-gray-50 to-transparent dark:from-gray-950 pointer-events-none" />
                 </div>
@@ -311,7 +387,7 @@ const CoursesList: React.FC = () => {
                                                 <div className="flex items-center justify-between">
                                                     <div>
                                                         <span className="text-xl font-bold text-primary-600 dark:text-primary-400">
-                                                            {formatPrice(course.price)}
+                                                            {course.price === 0 ? 'Free' : formatPrice(course.price)}
                                                         </span>
                                                         {course.originalPrice && (
                                                             <span className="text-xs text-gray-400 line-through ml-2">

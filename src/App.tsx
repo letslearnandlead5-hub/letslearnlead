@@ -16,6 +16,7 @@ import GoogleCallback from './pages/auth/GoogleCallback';
 import CoursesList from './pages/courses/CoursesList';
 import CourseDetails from './pages/courses/CourseDetails';
 import MyCourses from './pages/courses/MyCourses';
+import SubjectSelection from './pages/courses/SubjectSelection';
 import VideoPlayer from './pages/video/VideoPlayer';
 import NotesLibrary from './pages/notes/NotesLibrary';
 import CourseEditor from './pages/admin/CourseEditor';
@@ -216,6 +217,8 @@ function App() {
           <Route path="/courses/" element={<MainLayout><CoursesList /></MainLayout>} />
           <Route path="/courses/:id/" element={<MainLayout><CourseDetails /></MainLayout>} />
           <Route path="/video/:courseId/:lessonId/" element={<MainLayout><VideoPlayer /></MainLayout>} />
+          <Route path="/learn/:courseId/" element={<MainLayout><SubjectSelection /></MainLayout>} />
+
           <Route path="/notes/" element={<MainLayout><NotesLibrary /></MainLayout>} />
           <Route path="/notes/view/:noteId/" element={
             <ProtectedRoute>

@@ -405,14 +405,14 @@ router.put('/orders/:id/status', async (req: AuthRequest, res: Response, next) =
 // ==================== ENROLLMENT MANAGEMENT ====================
 
 // @route   POST /api/admin/enroll-student
-// @desc    Manually enroll a student in a course
+// @desc    Manually enroll a student in a course (course-level — all subjects unlocked)
 // @access  Private (Admin)
 router.post('/enroll-student', async (req: AuthRequest, res: Response, next) => {
     try {
-        const { studentEmail, courseId, subjectId, subjectName } = req.body;
+        const { studentEmail, courseId } = req.body;
 
-        if (!studentEmail || !courseId || !subjectId) {
-            throw new AppError('Student email, course ID, and subject ID are required', 400);
+        if (!studentEmail || !courseId) {
+            throw new AppError('Student email and course ID are required', 400);
         }
 
         // Find student by email
@@ -427,33 +427,34 @@ router.post('/enroll-student', async (req: AuthRequest, res: Response, next) => 
             throw new AppError('Course not found', 404);
         }
 
-        // Check if already enrolled in this specific subject
+        // Check if already enrolled at course level
         const existingEnrollment = await Enrollment.findOne({
             userId: student._id,
             courseId: courseId,
-            subjectId: subjectId,
+            subjectId: null,
         });
 
         if (existingEnrollment) {
             return res.status(200).json({
                 success: true,
-                message: `Student is already enrolled in ${subjectName || 'this subject'}`,
+                message: `Student is already enrolled in ${course.title}`,
                 data: existingEnrollment,
             });
         }
 
-        // Create enrollment
+        // Create course-level enrollment (subjectId=null → all subjects unlocked)
         const enrollment = await Enrollment.create({
             userId: student._id,
             courseId: courseId,
-            subjectId: subjectId,
-            subjectName: subjectName || '',
-            status: 'paid', // Free access granted by admin
+            subjectId: null,
+            subjectName: '',
+            status: 'paid',
+            amount: 0,
             completionPercentage: 0,
             purchaseDate: new Date(),
         });
 
-        // Add course to user's enrolled courses list if not already there
+        // Add course to user.enrolledCourses if not already there
         if (!student.enrolledCourses) {
             student.enrolledCourses = [];
         }
@@ -462,11 +463,11 @@ router.post('/enroll-student', async (req: AuthRequest, res: Response, next) => 
             await student.save();
         }
 
-        console.log(`✅ Admin enrolled student ${student.email} in ${course.title} — ${subjectName || subjectId}`);
+        console.log(`✅ Admin enrolled student ${student.email} in ${course.title} (course-level)`);
 
         res.status(201).json({
             success: true,
-            message: `Successfully enrolled ${student.name} in ${course.title} — ${subjectName || 'Subject'}`,
+            message: `Successfully enrolled ${student.name} in ${course.title} — all subjects are now unlocked`,
             data: enrollment,
         });
     } catch (error) {

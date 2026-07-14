@@ -1,55 +1,125 @@
 import { Router, Response } from 'express';
 import { Enrollment } from '../models/Enrollment';
+import { Course } from '../models/Course';
 import { protect, AuthRequest } from '../middleware/auth';
 import { AppError } from '../middleware/error';
 
 const router = Router();
 
 // @route   GET /api/enrollment/my-enrollments
-// @desc    Get all subject-level enrollments for the logged-in student
+// @desc    Get all course-level enrollments for the logged-in student (one card per course)
 // @access  Private
 router.get('/my-enrollments', protect, async (req: AuthRequest, res: Response, next) => {
     try {
-        // Query per-subject Enrollment records directly (source of truth)
         const enrollments = await Enrollment.find({ userId: req.user?.id })
             .populate({
                 path: 'courseId',
-                select: 'title thumbnail instructor duration level category subjects grade',
+                select: 'title thumbnail instructor duration level category subjects grade price paymentEnabled',
             })
             .sort({ createdAt: -1 })
             .lean();
 
-        const enriched = enrollments
-            .filter((e: any) => e.courseId)
-            .map((e: any) => {
-                const course = e.courseId;
-                const subjectMeta = (course.subjects || []).find(
-                    (s: any) => s._id?.toString() === e.subjectId?.toString()
-                );
+        // Group by courseId — return one card per course
+        const courseMap = new Map<string, any>();
 
-                return {
-                    _id: e._id,
-                    courseId: course,
-                    userId: e.userId,
-                    subjectId: e.subjectId?.toString() || null,
-                    subjectName: e.subjectName || subjectMeta?.name || null,
-                    subjectIcon: subjectMeta?.icon || '\ud83d\udcda',
-                    status: e.status || 'paid',
-                    completionPercentage: e.completionPercentage || 0,
-                    purchaseDate: e.purchaseDate,
-                    amount: e.amount,
-                    currency: e.currency,
-                    invoiceUrl: e.invoiceUrl,
-                    invoiceNumber: e.invoiceNumber,
-                    createdAt: e.createdAt,
-                    updatedAt: e.updatedAt,
-                };
+        enrollments
+            .filter((e: any) => e.courseId)
+            .forEach((e: any) => {
+                const course = e.courseId;
+                const courseIdStr = course._id.toString();
+
+                if (!courseMap.has(courseIdStr)) {
+                    courseMap.set(courseIdStr, {
+                        _id: e._id,
+                        courseId: course,
+                        userId: e.userId,
+                        isCourseLevelEnrolled: false,
+                        enrolledSubjectIds: [] as string[],
+                        subjects: course.subjects || [],
+                        status: e.status || 'paid',
+                        completionPercentage: 0,
+                        completedLessons: [] as string[],
+                        amount: e.amount,
+                        currency: e.currency,
+                        purchaseDate: e.purchaseDate,
+                        createdAt: e.createdAt,
+                        updatedAt: e.updatedAt,
+                    });
+                }
+
+                const card = courseMap.get(courseIdStr);
+
+                // Collect all completed lessons across matching enrollments
+                if (e.completedLessons && Array.isArray(e.completedLessons)) {
+                    for (const lId of e.completedLessons) {
+                        if (!card.completedLessons.includes(lId)) {
+                            card.completedLessons.push(lId);
+                        }
+                    }
+                }
+
+                if (!e.subjectId) {
+                    // Course-level enrollment: unlock all subjects
+                    card.isCourseLevelEnrolled = true;
+                    card.enrolledSubjectIds = (course.subjects || [])
+                        .map((s: any) => s._id?.toString())
+                        .filter(Boolean);
+                } else {
+                    // Old per-subject record (backward compat)
+                    const sid = e.subjectId.toString();
+                    if (!card.enrolledSubjectIds.includes(sid)) {
+                        card.enrolledSubjectIds.push(sid);
+                    }
+                }
             });
+
+        // Compute true dynamic progress for each course card
+        courseMap.forEach((card) => {
+            const course = card.courseId;
+            const completedSet = new Set(card.completedLessons || []);
+            let totalLessons = 0;
+            let completedInCourse = 0;
+
+            if (course.subjects && Array.isArray(course.subjects)) {
+                for (const subject of course.subjects) {
+                    for (const section of subject.sections || []) {
+                        for (const subsection of section.subsections || []) {
+                            for (const item of subsection.content || []) {
+                                totalLessons++;
+                                if (item._id && completedSet.has(item._id.toString())) {
+                                    completedInCourse++;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Also support direct legacy sections/lessons on course if any
+            if (course.sections && Array.isArray(course.sections)) {
+                for (const section of course.sections) {
+                    for (const subsection of section.subsections || []) {
+                        for (const item of subsection.content || []) {
+                            totalLessons++;
+                            if (item._id && completedSet.has(item._id.toString())) {
+                                completedInCourse++;
+                            }
+                        }
+                    }
+                }
+            }
+
+            card.completionPercentage = totalLessons > 0
+                ? Math.round((completedInCourse / totalLessons) * 100)
+                : 0;
+        });
+
+        const data = Array.from(courseMap.values());
 
         res.status(200).json({
             success: true,
-            count: enriched.length,
-            data: enriched,
+            count: data.length,
+            data,
         });
     } catch (error) {
         next(error);
@@ -98,25 +168,103 @@ router.put('/progress/:courseId', protect, async (req: AuthRequest, res: Respons
         let enrollment = await Enrollment.findOne(enrollmentQuery);
 
         if (!enrollment) {
-            // Create new enrollment if doesn't exist (for free courses)
+            // Fallback: find course-level enrollment
+            enrollment = await Enrollment.findOne({ userId: req.user?.id, courseId, subjectId: null });
+        }
+
+        if (!enrollment) {
+            const course: any = await Course.findById(courseId).select('subjects sections').lean();
+            const completedList = Array.isArray(completedLessons) ? completedLessons : [];
+            let totalCourseLessons = 0;
+            let completedCourseLessons = 0;
+            const completedSet = new Set(completedList);
+
+            if (course && course.subjects) {
+                for (const subject of course.subjects) {
+                    for (const section of subject.sections || []) {
+                        for (const subsection of section.subsections || []) {
+                            for (const item of subsection.content || []) {
+                                totalCourseLessons++;
+                                if (item._id && completedSet.has(item._id.toString())) {
+                                    completedCourseLessons++;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if (course && course.sections) {
+                for (const section of course.sections) {
+                    for (const subsection of section.subsections || []) {
+                        for (const item of subsection.content || []) {
+                            totalCourseLessons++;
+                            if (item._id && completedSet.has(item._id.toString())) {
+                                completedCourseLessons++;
+                            }
+                        }
+                    }
+                }
+            }
+
+            const overallPct = totalCourseLessons > 0 ? Math.round((completedCourseLessons / totalCourseLessons) * 100) : 0;
+
             enrollment = await Enrollment.create({
                 userId: req.user?.id,
                 courseId: courseId,
-                subjectId: subjectId || courseId,
+                subjectId: null,
                 status: 'paid',
-                completionPercentage: completionPercentage || 0,
-                completedLessons: Array.isArray(completedLessons) ? completedLessons : [],
+                completionPercentage: overallPct,
+                completedLessons: completedList,
                 purchaseDate: new Date(),
             });
         } else {
-            // Update existing enrollment
-            enrollment.completionPercentage =
-                typeof completionPercentage === 'number'
-                    ? completionPercentage
-                    : enrollment.completionPercentage;
             if (Array.isArray(completedLessons)) {
                 enrollment.completedLessons = completedLessons;
             }
+
+            if (enrollment.subjectId) {
+                // Legacy per-subject enrollment
+                enrollment.completionPercentage =
+                    typeof completionPercentage === 'number'
+                        ? completionPercentage
+                        : enrollment.completionPercentage;
+            } else {
+                // Course-level enrollment: compute overall course progress
+                const course: any = await Course.findById(courseId).select('subjects sections').lean();
+                const completedList = enrollment.completedLessons || [];
+                let totalCourseLessons = 0;
+                let completedCourseLessons = 0;
+                const completedSet = new Set(completedList);
+
+                if (course && course.subjects) {
+                    for (const subject of course.subjects) {
+                        for (const section of subject.sections || []) {
+                            for (const subsection of section.subsections || []) {
+                                for (const item of subsection.content || []) {
+                                    totalCourseLessons++;
+                                    if (item._id && completedSet.has(item._id.toString())) {
+                                        completedCourseLessons++;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                if (course && course.sections) {
+                    for (const section of course.sections) {
+                        for (const subsection of section.subsections || []) {
+                            for (const item of subsection.content || []) {
+                                totalCourseLessons++;
+                                if (item._id && completedSet.has(item._id.toString())) {
+                                    completedCourseLessons++;
+                                }
+                            }
+                        }
+                    }
+                }
+                enrollment.completionPercentage = totalCourseLessons > 0 ? Math.round((completedCourseLessons / totalCourseLessons) * 100) : 0;
+            }
+
             enrollment.updatedAt = new Date();
             await enrollment.save();
         }
@@ -127,17 +275,14 @@ router.put('/progress/:courseId', protect, async (req: AuthRequest, res: Respons
             const user = await User.findById(req.user?.id);
 
             if (user) {
-                // Find or create course progress entry
                 const courseProgressIndex = user.courseProgress?.findIndex(
                     (cp: any) => cp.courseId.toString() === courseId
                 );
 
                 if (courseProgressIndex !== undefined && courseProgressIndex >= 0) {
-                    // Update existing progress
                     user.courseProgress[courseProgressIndex].completedLessons = completedLessons;
                     user.courseProgress[courseProgressIndex].lastAccessed = new Date();
                 } else {
-                    // Create new progress entry
                     if (!user.courseProgress) user.courseProgress = [];
                     user.courseProgress.push({
                         courseId: courseId,
@@ -173,8 +318,12 @@ router.get('/progress/:courseId', protect, async (req: AuthRequest, res: Respons
         };
         if (subjectId) enrollmentQuery.subjectId = subjectId;
 
-        // Find user's enrollment
-        const enrollment = await Enrollment.findOne(enrollmentQuery);
+        let enrollment = await Enrollment.findOne(enrollmentQuery);
+
+        // Fallback to course-level enrollment
+        if (!enrollment) {
+            enrollment = await Enrollment.findOne({ userId: req.user?.id, courseId, subjectId: null });
+        }
 
         if (!enrollment) {
             return res.status(200).json({
@@ -202,20 +351,17 @@ router.get('/verify/:courseId', protect, async (req: AuthRequest, res: Response,
         const { courseId } = req.params;
         const { User } = await import('../models/User');
 
-        // Check if user is enrolled in the course
         const user = await User.findById(req.user?.id);
 
         if (!user) {
             throw new AppError('User not found', 404);
         }
 
-        // Check if course is in user's enrolledCourses
         const isEnrolled = user.enrolledCourses.some(
             (enrolledCourseId: any) => enrolledCourseId.toString() === courseId
         );
 
         if (!isEnrolled) {
-            // Log unauthorized access attempt
             console.log(`🚫 Unauthorized access attempt:`, {
                 userId: req.user?.id,
                 email: user.email,
@@ -231,7 +377,6 @@ router.get('/verify/:courseId', protect, async (req: AuthRequest, res: Response,
             });
         }
 
-        // Log successful video access
         console.log(`✅ Video access granted:`, {
             userId: req.user?.id,
             email: user.email,

@@ -168,10 +168,21 @@ router.get('/:id', async (req: Request, res: Response, next) => {
                             courseId: course._id,
                             status: 'paid'
                         }).select('subjectId');
-                        
-                        enrollments.forEach((e: any) => {
-                            if (e.subjectId) enrolledSubjectIds.add(e.subjectId.toString());
-                        });
+
+                        // Check for course-level enrollment (subjectId=null → all subjects unlocked)
+                        const hasCourseLevelEnrollment = enrollments.some((e: any) => !e.subjectId);
+
+                        if (hasCourseLevelEnrollment) {
+                            // Grant access to every subject
+                            (course.subjects || []).forEach((s: any) => {
+                                if (s._id) enrolledSubjectIds.add(s._id.toString());
+                            });
+                        } else {
+                            // Old per-subject records (backward compat)
+                            enrollments.forEach((e: any) => {
+                                if (e.subjectId) enrolledSubjectIds.add(e.subjectId.toString());
+                            });
+                        }
                     }
                 }
             } catch (err) {
@@ -339,44 +350,42 @@ router.post('/cache/clear', async (req: Request, res: Response) => {
 });
 
 // @route   POST /api/courses/:id/enroll
-// @desc    Enroll in a course subject (FREE SUBJECTS ONLY - Use payment API for paid subjects)
+// @desc    Free enroll in a course (course-level). For paid courses, use payment API.
 // @access  Private (Student)
 router.post('/:id/enroll', protect, async (req: AuthRequest, res: Response, next) => {
     try {
-        const { subjectId } = req.body;
         const course = await Course.findById(req.params.id);
         if (!course) throw new AppError('Course not found', 404);
 
-        // Find the subject
-        const subject = subjectId
-            ? course.subjects.find((s: any) => s._id.toString() === subjectId)
-            : null;
-
-        // If subjectId given and subject has a price, redirect to payment
-        if (subject && subject.price > 0) {
-            throw new AppError('This subject requires payment. Please use the payment endpoint.', 400);
+        // Paid courses must go through payment flow
+        if (course.paymentEnabled && course.price > 0) {
+            throw new AppError('This course requires payment. Please use the payment endpoint.', 400);
         }
 
         const user = await User.findById(req.user?.id);
         if (!user) throw new AppError('User not found', 404);
 
-        // Add course to user's enrolled courses (course-level flag)
+        // Add course to user.enrolledCourses (compat flag)
         if (!user.enrolledCourses.some((id: any) => id.toString() === course._id.toString())) {
             user.enrolledCourses.push(course._id);
             await user.save();
         }
 
-        // Create enrollment record for progress tracking
+        // Create course-level enrollment (subjectId = null → all subjects unlocked)
         const { Enrollment } = await import('../models/Enrollment');
-        await Enrollment.create({
-            userId: user._id,
-            courseId: course._id,
-            subjectId: subject?._id || course._id, // fallback for legacy free courses
-            subjectName: subject?.name || 'General',
-            status: 'paid',
-            completionPercentage: 0,
-            purchaseDate: new Date(),
-        });
+        const existing = await Enrollment.findOne({ userId: user._id, courseId: course._id, subjectId: null });
+        if (!existing) {
+            await Enrollment.create({
+                userId: user._id,
+                courseId: course._id,
+                subjectId: null,
+                subjectName: '',
+                status: 'paid',
+                amount: 0,
+                completionPercentage: 0,
+                purchaseDate: new Date(),
+            });
+        }
 
         course.studentsEnrolled += 1;
         await course.save();
@@ -385,16 +394,12 @@ router.post('/:id/enroll', protect, async (req: AuthRequest, res: Response, next
         await Notification.create({
             userId: user._id,
             title: 'Enrollment Successful!',
-            message: `You have successfully enrolled in "${subject?.name || course.title}". Start learning now!`,
+            message: `You have successfully enrolled in "${course.title}". Start learning now!`,
             type: 'success',
             link: `/courses/${course._id}`,
         });
 
-        res.status(200).json({
-            success: true,
-            message: 'Successfully enrolled',
-            data: course,
-        });
+        res.status(200).json({ success: true, message: 'Successfully enrolled', data: course });
     } catch (error) {
         next(error);
     }
@@ -406,16 +411,29 @@ router.post('/:id/enroll', protect, async (req: AuthRequest, res: Response, next
 router.get('/:id/enrolled-subjects', protect, async (req: AuthRequest, res: Response, next) => {
     try {
         const { Enrollment } = await import('../models/Enrollment');
+        const course = await Course.findById(req.params.id).select('subjects').lean();
+        if (!course) throw new AppError('Course not found', 404);
+
         const enrollments = await Enrollment.find({
             userId: req.user?.id,
             courseId: req.params.id,
             status: 'paid',
         }).select('subjectId subjectName').lean();
 
+        // Course-level enrollment (subjectId=null) → return all subject IDs
+        const hasCourseLevelEnrollment = enrollments.some((e: any) => !e.subjectId);
+        const allSubjectIds = ((course as any).subjects || []).map((s: any) => s._id?.toString()).filter(Boolean);
+
+
+        const enrolledSubjectIds = hasCourseLevelEnrollment
+            ? allSubjectIds
+            : enrollments.map((e: any) => e.subjectId?.toString()).filter(Boolean);
+
         res.status(200).json({
             success: true,
             data: enrollments,
-            enrolledSubjectIds: enrollments.map((e: any) => e.subjectId?.toString()),
+            enrolledSubjectIds,
+            isCourseLevelEnrolled: hasCourseLevelEnrollment,
         });
     } catch (error) {
         next(error);

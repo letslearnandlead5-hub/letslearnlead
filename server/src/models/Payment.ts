@@ -7,7 +7,7 @@ export interface IPayment extends Document {
     studentPhone: string;
     courseId: mongoose.Types.ObjectId;
     courseName: string;
-    subjectId: mongoose.Types.ObjectId;  // Which subject the payment is for
+    subjectId: mongoose.Types.ObjectId | null;  // null = course-level payment
     subjectName?: string;                // e.g. "Mathematics"
     amount: number;
     currency: string;
@@ -60,7 +60,8 @@ const PaymentSchema = new Schema<IPayment>(
         },
         subjectId: {
             type: Schema.Types.ObjectId,
-            required: true,
+            required: false,   // null = course-level payment (all subjects unlocked)
+            default: null,
             index: true,
         },
         subjectName: {

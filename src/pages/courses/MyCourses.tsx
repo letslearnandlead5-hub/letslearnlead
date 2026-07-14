@@ -11,7 +11,6 @@ import {
     CheckCircle,
     ChevronRight,
     Layers,
-    FileText,
 } from 'lucide-react';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
@@ -20,11 +19,8 @@ import { useToastStore } from '../../store/useToastStore';
 import { useAuthStore } from '../../store/useAuthStore';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-interface EnrolledSubjectCard {
+interface EnrolledCourseCard {
     enrollmentId: string;
-    subjectId: string;
-    subjectName: string;
-    subjectIcon: string;
     courseId: string;
     courseTitle: string;
     courseThumbnail: string;
@@ -34,6 +30,9 @@ interface EnrolledSubjectCard {
     firstLessonId: string;
     status: 'ongoing' | 'completed';
     enrolledAt: string;
+    isCourseLevelEnrolled: boolean;
+    enrolledSubjectIds: string[];
+    subjects: Array<{ _id: string; name: string; icon: string; sections?: any[] }>;
 }
 
 // ─── Circular progress ring ────────────────────────────────────────────────────
@@ -68,17 +67,17 @@ const GRADIENTS = [
 const MyCourses: React.FC = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [filter, setFilter] = useState<'all' | 'in-progress' | 'completed'>('all');
-    const [subjects, setSubjects] = useState<EnrolledSubjectCard[]>([]);
+    const [courses, setCourses] = useState<EnrolledCourseCard[]>([]);
     const [loading, setLoading] = useState(true);
     const navigate = useNavigate();
     const { addToast } = useToastStore();
     const { token } = useAuthStore();
 
     useEffect(() => {
-        fetchEnrolledSubjects();
+        fetchEnrolledCourses();
     }, []);
 
-    const fetchEnrolledSubjects = async () => {
+    const fetchEnrolledCourses = async () => {
         try {
             const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
             const res = await fetch(`${API_URL}/api/enrollment/my-enrollments`, {
@@ -88,83 +87,88 @@ const MyCourses: React.FC = () => {
             const data = await res.json();
             const enrollments: any[] = data.data || [];
 
-            const cards: EnrolledSubjectCard[] = enrollments
+            const cards: EnrolledCourseCard[] = enrollments
                 .filter((e: any) => e.courseId)
                 .map((e: any) => {
                     const course = e.courseId;
-                    const subjectData = course.subjects?.find(
-                        (s: any) => s._id?.toString() === e.subjectId?.toString()
+                    const enrolledSubjectIds: string[] = e.enrolledSubjectIds || [];
+
+                    // Compute total lessons across all enrolled subjects
+                    let totalLessons = 0;
+                    let completedLessonsCount = 0;
+                    let firstLessonId = '';
+
+                    const enrolledSubjects = (course.subjects || []).filter(
+                        (s: any) => enrolledSubjectIds.includes(s._id?.toString())
                     );
 
-                    let totalLessons = 0;
-                    let firstLessonId = '';
-                    for (const section of subjectData?.sections || []) {
-                        for (const subsection of section.subsections || []) {
-                            for (const item of subsection.content || []) {
-                                if (!firstLessonId && item._id) firstLessonId = item._id.toString();
-                                totalLessons++;
+                    const dbCompletedSet = new Set<string>(e.completedLessons || []);
+
+                    for (const subject of enrolledSubjects) {
+                        for (const section of subject.sections || []) {
+                            for (const subsection of section.subsections || []) {
+                                for (const item of subsection.content || []) {
+                                    if (!firstLessonId && item._id) firstLessonId = item._id.toString();
+                                    totalLessons++;
+                                    if (item._id && dbCompletedSet.has(item._id.toString())) {
+                                        completedLessonsCount++;
+                                    }
+                                }
                             }
                         }
                     }
 
                     const pct = Math.round(e.completionPercentage || 0);
                     return {
-                        enrollmentId: e._id || `${course._id}-${e.subjectId}`,
-                        subjectId: e.subjectId || '',
-                        subjectName: e.subjectName || subjectData?.name || 'Unknown Subject',
-                        subjectIcon: subjectData?.icon || '📚',
+                        enrollmentId: e._id || course._id,
                         courseId: course._id,
                         courseTitle: course.title || 'Unknown Course',
                         courseThumbnail: course.thumbnail || '',
                         completionPercentage: pct,
                         totalLessons,
-                        completedLessons: Math.floor((pct / 100) * totalLessons),
+                        completedLessons: completedLessonsCount,
                         firstLessonId,
                         status: pct >= 100 ? 'completed' : 'ongoing',
                         enrolledAt: e.createdAt || new Date().toISOString(),
-                    } as EnrolledSubjectCard;
+                        isCourseLevelEnrolled: e.isCourseLevelEnrolled || false,
+                        enrolledSubjectIds,
+                        subjects: (course.subjects || []).map((s: any) => ({
+                            _id: s._id?.toString(),
+                            name: s.name || 'Subject',
+                            icon: s.icon || '📚',
+                        })),
+                    } as EnrolledCourseCard;
                 });
 
-            setSubjects(cards);
+            setCourses(cards);
         } catch (err) {
             console.error(err);
-            addToast({ type: 'error', message: 'Failed to load your subjects' });
+            addToast({ type: 'error', message: 'Failed to load your courses' });
         } finally {
             setLoading(false);
         }
     };
 
-    const handleContinue = (card: EnrolledSubjectCard) => {
-        if (card.firstLessonId) {
-            navigate(`/video/${card.courseId}/${card.firstLessonId}/`);
-            return;
-        }
-
-        navigate(`/courses/${card.courseId}/?subjectId=${card.subjectId}`);
+    const handleContinue = (card: EnrolledCourseCard) => {
+        navigate(`/learn/${card.courseId}/`);
     };
 
-    const handleViewNotes = (card: EnrolledSubjectCard) => {
-        navigate(`/dashboard/?tab=subject-notes&subjectId=${card.subjectId}`);
-    };
-
-    const filtered = subjects.filter((s) => {
-        const matchSearch =
-            s.subjectName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            s.courseTitle.toLowerCase().includes(searchTerm.toLowerCase());
+    const filtered = courses.filter((c) => {
+        const matchSearch = c.courseTitle.toLowerCase().includes(searchTerm.toLowerCase());
         const matchFilter =
             filter === 'all' ||
-            (filter === 'in-progress' && s.status === 'ongoing') ||
-            (filter === 'completed' && s.status === 'completed');
+            (filter === 'in-progress' && c.status === 'ongoing') ||
+            (filter === 'completed' && c.status === 'completed');
         return matchSearch && matchFilter;
     });
 
     const stats = {
-        total: subjects.length,
-        inProgress: subjects.filter((s) => s.status === 'ongoing').length,
-        completed: subjects.filter((s) => s.status === 'completed').length,
+        total: courses.length,
+        inProgress: courses.filter((c) => c.status === 'ongoing').length,
+        completed: courses.filter((c) => c.status === 'completed').length,
         avgProgress:
-            subjects.length > 0
-                ? Math.round(subjects.reduce((a, s) => a + s.completionPercentage, 0) / subjects.length)
+            courses.length > 0
+                ? Math.round(courses.reduce((a, c) => a + c.completionPercentage, 0) / courses.length)
                 : 0,
     };
 
@@ -182,8 +186,8 @@ const MyCourses: React.FC = () => {
 
                 {/* Header */}
                 <motion.div initial={{ opacity: 0, y: -16 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
-                    <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-1">My Subjects</h1>
-                    <p className="text-gray-500 dark:text-gray-400">Continue learning your enrolled subjects</p>
+                    <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-1">My Courses</h1>
+                    <p className="text-gray-500 dark:text-gray-400">Continue learning your enrolled courses</p>
                 </motion.div>
 
                 {/* Stats */}
@@ -192,7 +196,7 @@ const MyCourses: React.FC = () => {
                     className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8"
                 >
                     {[
-                        { label: 'Total Subjects', value: stats.total, icon: <Layers className="w-5 h-5" />, color: 'text-violet-600 bg-violet-100 dark:bg-violet-900/40' },
+                        { label: 'Total Courses', value: stats.total, icon: <Layers className="w-5 h-5" />, color: 'text-violet-600 bg-violet-100 dark:bg-violet-900/40' },
                         { label: 'In Progress', value: stats.inProgress, icon: <TrendingUp className="w-5 h-5" />, color: 'text-amber-600 bg-amber-100 dark:bg-amber-900/40' },
                         { label: 'Completed', value: stats.completed, icon: <Award className="w-5 h-5" />, color: 'text-emerald-600 bg-emerald-100 dark:bg-emerald-900/40' },
                         { label: 'Avg Progress', value: `${stats.avgProgress}%`, icon: <CheckCircle className="w-5 h-5" />, color: 'text-blue-600 bg-blue-100 dark:bg-blue-900/40' },
@@ -218,7 +222,7 @@ const MyCourses: React.FC = () => {
                             type="text"
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            placeholder="Search subjects or courses..."
+                            placeholder="Search courses..."
                             className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-500 text-sm"
                         />
                     </div>
@@ -238,7 +242,7 @@ const MyCourses: React.FC = () => {
                     </div>
                 </motion.div>
 
-                {/* Subject Cards */}
+                {/* Course Cards */}
                 {filtered.length === 0 ? (
                     <motion.div
                         initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
@@ -248,12 +252,12 @@ const MyCourses: React.FC = () => {
                             <BookOpen className="w-10 h-10 text-violet-500" />
                         </div>
                         <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
-                            {searchTerm || filter !== 'all' ? 'No subjects match your search' : 'No subjects enrolled yet'}
+                            {searchTerm || filter !== 'all' ? 'No courses match your search' : 'No courses enrolled yet'}
                         </h3>
                         <p className="text-gray-500 dark:text-gray-400 text-sm max-w-sm mx-auto">
                             {searchTerm || filter !== 'all'
                                 ? 'Try adjusting your search or filters'
-                                : 'Browse our courses and enroll in subjects to start learning'}
+                                : 'Browse our courses and enroll to start learning'}
                         </p>
                         {!searchTerm && filter === 'all' && (
                             <Button variant="primary" className="mt-6 bg-violet-600 hover:bg-violet-700"
@@ -278,14 +282,17 @@ const MyCourses: React.FC = () => {
                                         onClick={() => handleContinue(card)}
                                         className="rounded-2xl overflow-hidden shadow-md hover:shadow-2xl transition-all duration-300 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 flex flex-col h-full group cursor-pointer"
                                     >
-                                        {/* Gradient header */}
-                                        <div className={`relative h-28 bg-gradient-to-br ${grad} flex items-center px-6 overflow-hidden`}>
+                                        {/* Gradient header with thumbnail */}
+                                        <div className={`relative h-36 bg-gradient-to-br ${grad} flex items-center px-6 overflow-hidden`}>
                                             {card.courseThumbnail && (
-                                                <img src={card.courseThumbnail} alt="" aria-hidden
-                                                    className="absolute inset-0 w-full h-full object-cover opacity-20 mix-blend-overlay" />
+                                                <img src={card.courseThumbnail} alt=""
+                                                    className="absolute inset-0 w-full h-full object-cover opacity-30 mix-blend-overlay" />
                                             )}
-                                            <div className="relative z-10 text-5xl select-none drop-shadow-lg">
-                                                {card.subjectIcon}
+                                            <div className="relative z-10">
+                                                <p className="text-white/70 text-xs font-semibold uppercase tracking-wider mb-1">Course</p>
+                                                <h3 className="text-white font-bold text-xl leading-tight line-clamp-2 drop-shadow">
+                                                    {card.courseTitle}
+                                                </h3>
                                             </div>
                                             <div className="absolute top-3 right-3 z-10">
                                                 {isComplete ? (
@@ -302,14 +309,31 @@ const MyCourses: React.FC = () => {
 
                                         {/* Body */}
                                         <div className="p-5 flex flex-col flex-1">
-                                            <div className="mb-3">
-                                                <h3 className="text-lg font-bold text-gray-900 dark:text-white leading-tight mb-1 group-hover:text-violet-600 dark:group-hover:text-violet-400 transition-colors">
-                                                    {card.subjectName}
-                                                </h3>
-                                                <p className="text-xs text-gray-400 dark:text-gray-500 font-medium uppercase tracking-wide">
-                                                    {card.courseTitle}
-                                                </p>
-                                            </div>
+
+                                            {/* Subject pills */}
+                                            {card.subjects.length > 0 && (
+                                                <div className="mb-4">
+                                                    <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">Subjects</p>
+                                                    <div className="flex flex-wrap gap-1.5">
+                                                        {card.subjects.map((sub) => {
+                                                            const enrolled = card.enrolledSubjectIds.includes(sub._id);
+                                                            return (
+                                                                <span
+                                                                    key={sub._id}
+                                                                    className={`inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full font-medium ${
+                                                                        enrolled
+                                                                            ? 'bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300'
+                                                                            : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400'
+                                                                    }`}
+                                                                >
+                                                                    {sub.icon} {sub.name}
+                                                                    {enrolled && <CheckCircle className="w-2.5 h-2.5" />}
+                                                                </span>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+                                            )}
 
                                             {/* Progress ring + meta */}
                                             <div className="flex items-center gap-4 mb-4">
@@ -341,8 +365,8 @@ const MyCourses: React.FC = () => {
                                                 />
                                             </div>
 
-                                            {/* Action buttons */}
-                                            <div className="mt-auto grid grid-cols-1 gap-2">
+                                            {/* Continue button */}
+                                            <div className="mt-auto">
                                                 <button
                                                     onClick={(e) => { e.stopPropagation(); handleContinue(card); }}
                                                     className={`w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl font-semibold text-sm transition-all duration-200
@@ -352,17 +376,10 @@ const MyCourses: React.FC = () => {
                                                         }`}
                                                 >
                                                     {isComplete ? (
-                                                        <><CheckCircle className="w-4 h-4" /> Review Subject</>
+                                                        <><CheckCircle className="w-4 h-4" /> Review Course</>
                                                     ) : (
                                                         <><Play className="w-4 h-4" fill="white" /> Continue Learning <ChevronRight className="w-4 h-4 ml-auto" /></>
                                                     )}
-                                                </button>
-                                                <button
-                                                    onClick={(e) => { e.stopPropagation(); handleViewNotes(card); }}
-                                                    className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl font-semibold text-sm transition-all duration-200 bg-white dark:bg-gray-800 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-800 hover:bg-violet-50 dark:hover:bg-violet-900/20"
-                                                >
-                                                    <FileText className="w-4 h-4" />
-                                                    View Notes
                                                 </button>
                                             </div>
                                         </div>

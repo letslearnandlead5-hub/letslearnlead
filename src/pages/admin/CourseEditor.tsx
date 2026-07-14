@@ -652,8 +652,6 @@ const CourseEditor: React.FC = () => {
                                                         <div className="flex-1 min-w-0">
                                                             <p className="font-semibold text-gray-900 dark:text-white truncate">{subject.name}</p>
                                                             <div className="flex items-center gap-3 mt-0.5">
-                                                                <span className="text-sm font-bold text-violet-600 dark:text-violet-400">₹{subject.price}</span>
-                                                                {subject.originalPrice && <span className="text-xs text-gray-400 line-through">₹{subject.originalPrice}</span>}
                                                                 {subject.description && <span className="text-xs text-gray-500 truncate">{subject.description}</span>}
                                                             </div>
                                                         </div>
@@ -679,7 +677,7 @@ const CourseEditor: React.FC = () => {
                                                                 </button>
                                                             )}
                                                             <button type="button" onClick={() => {
-                                                                setSubjectForm({ name: subject.name, description: subject.description || '', icon: subject.icon || '📚', price: subject.price.toString(), originalPrice: subject.originalPrice?.toString() || '' });
+                                                                setSubjectForm({ name: subject.name, description: subject.description || '', icon: subject.icon || '📚', price: '0', originalPrice: '' });
                                                                 setEditingSubjectIdx(idx);
                                                                 setShowSubjectForm(true);
                                                             }} className="px-3 py-1.5 text-xs font-medium text-violet-700 dark:text-violet-300 bg-violet-100 dark:bg-violet-900/40 rounded-lg hover:bg-violet-200 dark:hover:bg-violet-900/70 transition-colors">
@@ -774,37 +772,6 @@ const CourseEditor: React.FC = () => {
                                                     </div>
                                                 </div>
 
-                                                {/* Price */}
-                                                <div className="grid grid-cols-2 gap-4">
-                                                    <div>
-                                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Price (₹) *</label>
-                                                        <div className="relative">
-                                                            <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                                                            <input
-                                                                type="number"
-                                                                min="0"
-                                                                value={subjectForm.price}
-                                                                onChange={e => setSubjectForm(prev => ({ ...prev, price: e.target.value }))}
-                                                                className="w-full pl-9 pr-4 py-2.5 border border-gray-300 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
-                                                                placeholder="999"
-                                                            />
-                                                        </div>
-                                                    </div>
-                                                    <div>
-                                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Original Price (₹)</label>
-                                                        <div className="relative">
-                                                            <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                                                            <input
-                                                                type="number"
-                                                                min="0"
-                                                                value={subjectForm.originalPrice}
-                                                                onChange={e => setSubjectForm(prev => ({ ...prev, originalPrice: e.target.value }))}
-                                                                className="w-full pl-9 pr-4 py-2.5 border border-gray-300 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
-                                                                placeholder="1499 (optional)"
-                                                            />
-                                                        </div>
-                                                    </div>
-                                                </div>
 
                                                 {/* Actions */}
                                                 <div className="flex items-center gap-3 pt-2">
@@ -812,13 +779,12 @@ const CourseEditor: React.FC = () => {
                                                         type="button"
                                                         onClick={() => {
                                                             if (!subjectForm.name.trim()) { addToast({ type: 'error', message: 'Subject name is required' }); return; }
-                                                            if (!subjectForm.price || isNaN(parseFloat(subjectForm.price))) { addToast({ type: 'error', message: 'Price is required' }); return; }
                                                             const newSubject = {
                                                                 name: subjectForm.name.trim(),
                                                                 description: subjectForm.description.trim(),
                                                                 icon: subjectForm.icon || '📚',
-                                                                price: parseFloat(subjectForm.price),
-                                                                originalPrice: subjectForm.originalPrice ? parseFloat(subjectForm.originalPrice) : undefined,
+                                                                price: 0,
+                                                                originalPrice: undefined,
                                                                 order: editingSubjectIdx !== null ? editingSubjectIdx : formData.subjects.length,
                                                                 sections: editingSubjectIdx !== null ? formData.subjects[editingSubjectIdx].sections : [],
                                                                 _id: editingSubjectIdx !== null ? formData.subjects[editingSubjectIdx]._id : undefined,
@@ -866,9 +832,9 @@ const CourseEditor: React.FC = () => {
                                     {/* Enable Payment Toggle */}
                                     <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-xl mb-4">
                                         <div>
-                                            <p className="font-semibold text-gray-900 dark:text-white text-sm">Enable Paid Access (Per-Subject Purchase)</p>
+                                            <p className="font-semibold text-gray-900 dark:text-white text-sm">Enable Paid Access (Course-Level Payment)</p>
                                             <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                                                Enables QR/Gateway checkout. Students will purchase subjects individually based on each subject's price.
+                                                Students pay once for the whole course and get access to ALL subjects. Set price to ₹0 for free courses.
                                             </p>
                                         </div>
                                         <button
@@ -882,6 +848,32 @@ const CourseEditor: React.FC = () => {
 
                                     {formData.paymentEnabled && (
                                         <div className="space-y-4">
+                                            {/* Course Price — prominent, first field */}
+                                            <div className="p-4 bg-indigo-50 dark:bg-indigo-950/50 border-2 border-indigo-200 dark:border-indigo-800 rounded-xl">
+                                                <label className="block text-sm font-bold text-indigo-700 dark:text-indigo-300 mb-1">
+                                                    Course Price (₹) <span className="text-red-500">*</span>
+                                                </label>
+                                                <p className="text-xs text-indigo-600 dark:text-indigo-400 mb-2">
+                                                    This is the amount students pay to enroll in the entire course. Set to 0 for a free course.
+                                                </p>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-lg font-bold text-indigo-600 dark:text-indigo-400">₹</span>
+                                                    <input
+                                                        type="number"
+                                                        min="0"
+                                                        value={formData.price}
+                                                        onChange={e => setFormData(prev => ({ ...prev, price: e.target.value }))}
+                                                        className="flex-1 px-4 py-2.5 border-2 border-indigo-300 dark:border-indigo-700 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-lg font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                                        placeholder="e.g. 1499"
+                                                    />
+                                                </div>
+                                                {formData.originalPrice && (
+                                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                                                        Original price (crossed-out): ₹{formData.originalPrice}
+                                                    </p>
+                                                )}
+                                            </div>
+
                                             {/* Payment Method */}
                                             <div>
                                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Payment Method</label>

@@ -74,10 +74,10 @@ const CourseDetails: React.FC = () => {
     const [course, setCourse] = useState<Course | null>(null);
     const [loading, setLoading] = useState(true);
 
-    // Per-subject state
+    // Course-level enrollment state
     const [selectedSubject, setSelectedSubject] = useState<Subject | null>(null);
     const [enrolledSubjectIds, setEnrolledSubjectIds] = useState<string[]>([]);
-    const [subjectPaymentStatuses, setSubjectPaymentStatuses] = useState<Record<string, string>>({});
+    const [coursePaymentStatus, setCoursePaymentStatus] = useState<string>('none'); // course-level status
     const [showPaymentModal, setShowPaymentModal] = useState(false);
     const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
 
@@ -95,7 +95,7 @@ const CourseDetails: React.FC = () => {
             const courseData: Course = response.data;
             setCourse(courseData);
 
-            // Default to query param subject or first subject
+            // Pre-select subject from query param or default to first
             if (courseData.subjects && courseData.subjects.length > 0) {
                 const params = new URLSearchParams(window.location.search);
                 const querySubId = params.get('subjectId');
@@ -107,25 +107,17 @@ const CourseDetails: React.FC = () => {
 
             if (user) {
                 try {
-                    if (courseData.subjects && courseData.subjects.length > 0) {
-                        // Get enrolled subjects
-                        const enrollRes: any = await courseAPI.getEnrolledSubjects(id!);
-                        setEnrolledSubjectIds(enrollRes.enrolledSubjectIds || []);
+                    // Get enrolled subjects (course-level enrollment returns all subjects)
+                    const enrollRes: any = await courseAPI.getEnrolledSubjects(id!);
+                    setEnrolledSubjectIds(enrollRes.enrolledSubjectIds || []);
 
-                        // Get payment status per subject
-                        if (courseData.paymentEnabled) {
-                            const statuses: Record<string, string> = {};
-                            await Promise.all(
-                                (courseData.subjects || []).map(async (sub) => {
-                                    try {
-                                        const st: any = await paymentAPI.getStatus(id!, sub._id);
-                                        statuses[sub._id] = st.status || 'none';
-                                    } catch {
-                                        statuses[sub._id] = 'none';
-                                    }
-                                })
-                            );
-                            setSubjectPaymentStatuses(statuses);
+                    // Get course-level payment status (one status check)
+                    if (courseData.paymentEnabled) {
+                        try {
+                            const st: any = await paymentAPI.getStatus(id!);
+                            setCoursePaymentStatus(st.status || 'none');
+                        } catch {
+                            setCoursePaymentStatus('none');
                         }
                     }
                 } catch {
@@ -151,8 +143,8 @@ const CourseDetails: React.FC = () => {
         return null;
     };
 
+    const isCourseEnrolled = enrolledSubjectIds.length > 0;
     const isSubjectEnrolled = (subjectId: string) => enrolledSubjectIds.includes(subjectId);
-    const getSubjectPaymentStatus = (subjectId: string) => subjectPaymentStatuses[subjectId] || 'none';
 
     if (loading) {
         return (
@@ -210,34 +202,96 @@ const CourseDetails: React.FC = () => {
                                 </div>
                             </div>
 
+                        {/* Enroll CTA badge */}
                             {hasSubjects && (
-                                <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-sm rounded-full border border-white/20 text-sm">
-                                    <BookOpen className="w-4 h-4 text-indigo-300" />
-                                    <span className="text-white font-medium">{course.subjects!.length} subjects available</span>
+                                <div className="flex flex-wrap items-center gap-3 mt-4">
+                                    <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-sm rounded-full border border-white/20 text-sm">
+                                        <BookOpen className="w-4 h-4 text-indigo-300" />
+                                        <span className="text-white font-medium">{course.subjects!.length} subjects included</span>
+                                    </div>
+                                    {!isCourseEnrolled && course.paymentEnabled && course.price > 0 && (
+                                        <span className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-sm rounded-full border border-white/20 text-sm">
+                                            <span className="text-white font-bold">₹{course.price.toLocaleString()}</span>
+                                            <span className="text-gray-300 text-xs">one-time</span>
+                                        </span>
+                                    )}
                                 </div>
                             )}
                         </div>
 
-                        {/* Thumbnail + quick subject list */}
+                        {/* Thumbnail + Enroll Now card */}
                         <Card className="p-4 h-fit">
                             <div className="aspect-video bg-gray-200 dark:bg-gray-700 rounded-xl overflow-hidden">
                                 <img src={course.thumbnail} alt={course.title} className="w-full h-full object-cover" />
                             </div>
-                            {hasSubjects && (
-                                <div className="mt-4 space-y-1">
-                                    <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Subjects in this class</p>
-                                    {course.subjects!.map((sub) => (
-                                        <div key={sub._id} className="flex items-center justify-between py-1.5 border-b border-gray-100 dark:border-gray-800 last:border-0">
-                                            <span className="text-sm text-gray-800 dark:text-gray-200 flex items-center gap-2">
-                                                <span>{sub.icon || '📚'}</span> {sub.name}
-                                            </span>
-                                            <span className="text-sm font-bold text-indigo-600 dark:text-indigo-400">
-                                                {sub.price === 0 ? 'Free' : `₹${sub.price.toLocaleString()}`}
-                                            </span>
+                            <div className="mt-4 space-y-3">
+                                {isCourseEnrolled ? (
+                                    <div className="flex items-center gap-2 px-4 py-3 bg-green-50 dark:bg-green-950/50 border border-green-200 dark:border-green-800 rounded-xl">
+                                        <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400" />
+                                        <div>
+                                            <p className="text-sm font-semibold text-green-800 dark:text-green-300">You're Enrolled!</p>
+                                            <p className="text-xs text-green-600 dark:text-green-400">All subjects are unlocked</p>
                                         </div>
-                                    ))}
-                                </div>
-                            )}
+                                    </div>
+                                ) : coursePaymentStatus === 'pending' ? (
+                                    <div className="px-4 py-3 bg-amber-50 dark:bg-amber-950 border border-amber-300 dark:border-amber-700 rounded-xl">
+                                        <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">⏳ Payment Pending Verification</p>
+                                        <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">Usually verified within 24 hours</p>
+                                    </div>
+                                ) : coursePaymentStatus === 'rejected' ? (
+                                    <>
+                                        <div className="px-4 py-2 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-xl">
+                                            <p className="text-xs font-semibold text-red-700 dark:text-red-300">Previous payment rejected. Please try again.</p>
+                                        </div>
+                                        <button
+                                            onClick={() => user ? setShowPaymentModal(true) : navigate('/login/')}
+                                            className="w-full flex items-center justify-center gap-2 px-5 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-semibold rounded-xl transition-all shadow-lg"
+                                        >
+                                            <QrCode className="w-5 h-5" />
+                                            Try Again
+                                        </button>
+                                    </>
+                                ) : course.paymentEnabled && course.price > 0 ? (
+                                    <button
+                                        onClick={() => user ? setShowPaymentModal(true) : navigate('/login/')}
+                                        className="w-full flex items-center justify-center gap-2 px-5 py-3.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-bold text-base rounded-xl transition-all shadow-lg shadow-indigo-200 dark:shadow-indigo-950"
+                                    >
+                                        <QrCode className="w-5 h-5" />
+                                        Enroll Now — ₹{course.price.toLocaleString()}
+                                    </button>
+                                ) : course.price === 0 || !course.paymentEnabled ? (
+                                    <button
+                                        onClick={() => {
+                                            if (!user) { navigate('/login/'); return; }
+                                            courseAPI.enroll(id!)
+                                                .then(() => {
+                                                    addToast({ type: 'success', message: `Enrolled in ${course.title}!` });
+                                                    fetchCourse();
+                                                })
+                                                .catch((e: any) => addToast({ type: 'error', message: e?.message || 'Could not enroll' }));
+                                        }}
+                                        className="w-full flex items-center justify-center gap-2 px-5 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-xl transition-colors"
+                                    >
+                                        <CheckCircle className="w-5 h-5" />
+                                        Enroll Free
+                                    </button>
+                                ) : null}
+
+                                {hasSubjects && (
+                                    <div className="pt-2 space-y-1">
+                                        <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Subjects included</p>
+                                        {course.subjects!.map((sub) => (
+                                            <div key={sub._id} className="flex items-center gap-2 py-1.5 border-b border-gray-100 dark:border-gray-800 last:border-0">
+                                                <span>{sub.icon || '📚'}</span>
+                                                <span className="text-sm text-gray-800 dark:text-gray-200 flex-1">{sub.name}</span>
+                                                {isSubjectEnrolled(sub._id) && (
+                                                    <CheckCircle className="w-3.5 h-3.5 text-green-500" />
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
                         </Card>
                     </div>
                 </div>
@@ -248,13 +302,12 @@ const CourseDetails: React.FC = () => {
                 {hasSubjects ? (
                     <div className="grid lg:grid-cols-4 gap-8">
 
-                        {/* Left: Subject Tab List */}
+                    {/* Left: Subject Tab List */}
                         <div className="lg:col-span-1">
                             <div className="sticky top-24 space-y-2">
                                 <p className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-3 px-1">Subjects</p>
                                 {course.subjects!.map((subject) => {
                                     const enrolled = isSubjectEnrolled(subject._id);
-                                    const payStatus = getSubjectPaymentStatus(subject._id);
                                     const isSelected = selectedSubject?._id === subject._id;
                                     return (
                                         <button
@@ -274,14 +327,9 @@ const CourseDetails: React.FC = () => {
                                                     {subject.name}
                                                 </p>
                                                 <p className={`text-xs mt-0.5 font-medium ${
-                                                    enrolled ? 'text-green-600 dark:text-green-400'
-                                                    : payStatus === 'pending' ? 'text-amber-600 dark:text-amber-400'
-                                                    : 'text-indigo-600 dark:text-indigo-400'
+                                                    enrolled ? 'text-green-600 dark:text-green-400' : 'text-gray-500 dark:text-gray-400'
                                                 }`}>
-                                                    {enrolled ? '✓ Enrolled'
-                                                        : payStatus === 'pending' ? '⏳ Pending'
-                                                        : subject.price === 0 ? 'Free'
-                                                        : `₹${subject.price.toLocaleString()}`}
+                                                    {enrolled ? '✓ Enrolled' : isCourseEnrolled ? '✓ Access included' : 'Enroll course to access'}
                                                 </p>
                                             </div>
                                             {isSelected && <ChevronRight className="w-4 h-4 text-indigo-500 flex-shrink-0" />}
@@ -303,7 +351,7 @@ const CourseDetails: React.FC = () => {
                                         transition={{ duration: 0.2 }}
                                         className="space-y-6"
                                     >
-                                        {/* Subject Header Card with CTA */}
+                                        {/* Subject Header Card */}
                                         <Card className="p-6">
                                             <div className="flex items-start justify-between gap-4 flex-wrap">
                                                 <div className="flex items-start gap-4">
@@ -315,20 +363,10 @@ const CourseDetails: React.FC = () => {
                                                         {selectedSubject.description && (
                                                             <p className="text-gray-600 dark:text-gray-400 mt-1 text-sm">{selectedSubject.description}</p>
                                                         )}
-                                                        <div className="flex items-baseline gap-2 mt-2">
-                                                            <span className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">
-                                                                {selectedSubject.price === 0 ? 'Free' : `₹${selectedSubject.price.toLocaleString()}`}
-                                                            </span>
-                                                            {selectedSubject.originalPrice && selectedSubject.originalPrice > selectedSubject.price && (
-                                                                <span className="text-base text-gray-400 line-through">
-                                                                    ₹{selectedSubject.originalPrice.toLocaleString()}
-                                                                </span>
-                                                            )}
-                                                        </div>
                                                     </div>
                                                 </div>
 
-                                                {/* CTA Button */}
+                                                {/* Access CTA — based on course enrollment */}
                                                 <div className="flex-shrink-0">
                                                     {isSubjectEnrolled(selectedSubject._id) ? (
                                                         <button
@@ -342,52 +380,14 @@ const CourseDetails: React.FC = () => {
                                                             <PlayCircle className="w-5 h-5" />
                                                             Go to Content
                                                         </button>
-                                                    ) : getSubjectPaymentStatus(selectedSubject._id) === 'pending' ? (
-                                                        <div className="px-5 py-3 bg-amber-50 dark:bg-amber-950 border border-amber-300 dark:border-amber-700 rounded-xl text-center">
-                                                            <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">⏳ Pending Verification</p>
-                                                            <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">Usually within 24 hrs</p>
-                                                        </div>
-                                                    ) : getSubjectPaymentStatus(selectedSubject._id) === 'rejected' ? (
-                                                        <div className="space-y-2">
-                                                            <div className="px-4 py-2 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-xl text-center">
-                                                                <p className="text-xs font-semibold text-red-700 dark:text-red-300">Previous payment rejected</p>
-                                                            </div>
-                                                            <button
-                                                                onClick={() => user ? setShowPaymentModal(true) : navigate('/login/')}
-                                                                className="w-full flex items-center justify-center gap-2 px-5 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-semibold rounded-xl transition-all shadow-lg"
-                                                            >
-                                                                <QrCode className="w-5 h-5" />
-                                                                Try Again
-                                                            </button>
-                                                        </div>
-                                                    ) : course.paymentEnabled && selectedSubject.price > 0 ? (
+                                                    ) : (
                                                         <button
                                                             onClick={() => user ? setShowPaymentModal(true) : navigate('/login/')}
-                                                            className="flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-semibold rounded-xl transition-all shadow-lg shadow-indigo-200 dark:shadow-indigo-950"
+                                                            className="flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-semibold rounded-xl transition-all shadow-lg"
                                                         >
                                                             <QrCode className="w-5 h-5" />
-                                                            Enroll Now — ₹{selectedSubject.price.toLocaleString()}
+                                                            Enroll in Course
                                                         </button>
-                                                    ) : selectedSubject.price === 0 ? (
-                                                        <button
-                                                            onClick={() => {
-                                                                if (!user) { navigate('/login/'); return; }
-                                                                courseAPI.enroll(id!, selectedSubject._id)
-                                                                    .then(() => {
-                                                                        setEnrolledSubjectIds(prev => [...prev, selectedSubject._id]);
-                                                                        addToast({ type: 'success', message: `Enrolled in ${selectedSubject.name}!` });
-                                                                    })
-                                                                    .catch((e: any) => addToast({ type: 'error', message: e?.message || 'Could not enroll' }));
-                                                            }}
-                                                            className="flex items-center gap-2 px-5 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-xl transition-colors"
-                                                        >
-                                                            <CheckCircle className="w-5 h-5" />
-                                                            Enroll Free
-                                                        </button>
-                                                    ) : (
-                                                        <div className="px-5 py-3 bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl">
-                                                            <p className="text-sm text-gray-600 dark:text-gray-400">Contact admin to enroll</p>
-                                                        </div>
                                                     )}
                                                 </div>
                                             </div>
@@ -543,18 +543,16 @@ const CourseDetails: React.FC = () => {
             </div>
         </motion.div>
 
-        {/* Payment Modal — wired to selected subject */}
-        {course && showPaymentModal && selectedSubject && (
+        {/* Payment Modal — course-level */}
+        {course && showPaymentModal && (
             <PaymentModal
-                course={{ ...course, price: selectedSubject.price } as any}
-                subjectId={selectedSubject._id}
-                subjectName={selectedSubject.name}
+                course={course as any}
                 isOpen={showPaymentModal}
                 onClose={() => setShowPaymentModal(false)}
                 onSuccess={() => {
-                    setSubjectPaymentStatuses(prev => ({ ...prev, [selectedSubject._id]: 'pending' }));
+                    setCoursePaymentStatus('pending');
                     setShowPaymentModal(false);
-                    addToast({ type: 'success', message: `Payment submitted for ${selectedSubject.name}! Admin will verify shortly.` });
+                    addToast({ type: 'success', message: `Payment submitted for ${course.title}! Admin will verify shortly.` });
                 }}
             />
         )}

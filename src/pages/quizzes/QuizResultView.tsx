@@ -197,9 +197,9 @@ const QuizResultView: React.FC = () => {
                                             {index + 1}
                                         </span>
                                         <div className="flex-1">
-                                            <p className="text-gray-900 dark:text-white font-medium mb-2">
-                                                {qResult.questionText}
-                                            </p>
+                                            <div className="text-gray-900 dark:text-white font-medium mb-2">
+                                                <RichTextDisplay content={qResult.questionText} />
+                                            </div>
                                         </div>
                                     </div>
                                     <div className="flex-shrink-0 ml-4">

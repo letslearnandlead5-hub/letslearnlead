@@ -3,8 +3,8 @@ import mongoose, { Document, Schema } from 'mongoose';
 export interface IEnrollment extends Document {
     userId: mongoose.Types.ObjectId;
     courseId: mongoose.Types.ObjectId;
-    subjectId: mongoose.Types.ObjectId;  // Which subject was enrolled (required for subject-based courses)
-    subjectName?: string;                // Denormalized e.g. "Mathematics"
+    subjectId?: mongoose.Types.ObjectId;  // Which subject was enrolled; null = entire course enrolled
+    subjectName?: string;                // Denormalized e.g. "Mathematics"; empty for course-level enrollment
     razorpayOrderId: string;
     razorpayPaymentId?: string;
     razorpaySignature?: string;
@@ -34,7 +34,8 @@ const EnrollmentSchema = new Schema<IEnrollment>(
         },
         subjectId: {
             type: Schema.Types.ObjectId,
-            required: true, // Every enrollment must be for a specific subject
+            required: false,   // Optional: null = enrolled in the whole course
+            default: null,
         },
         subjectName: {
             type: String,
@@ -91,7 +92,8 @@ const EnrollmentSchema = new Schema<IEnrollment>(
 
 // Indexes for faster queries
 EnrollmentSchema.index({ userId: 1, courseId: 1 });
-EnrollmentSchema.index({ userId: 1, courseId: 1, subjectId: 1 }, { unique: true }); // One enrollment per student per subject
+// Allow one enrollment per student per course (course-level has subjectId=null, subject-level has a value)
+EnrollmentSchema.index({ userId: 1, courseId: 1, subjectId: 1 });
 EnrollmentSchema.index({ userId: 1, subjectId: 1 });
 EnrollmentSchema.index({ razorpayOrderId: 1 });
 EnrollmentSchema.index({ razorpayPaymentId: 1 });

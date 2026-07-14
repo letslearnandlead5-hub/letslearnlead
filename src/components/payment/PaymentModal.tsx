@@ -25,13 +25,11 @@ interface Props {
     isOpen: boolean;
     onClose: () => void;
     onSuccess?: () => void;
-    subjectId?: string;     // Subject within class-course
-    subjectName?: string;   // e.g. "Mathematics"
 }
 
 type Step = 'qr' | 'form' | 'success';
 
-const PaymentModal: React.FC<Props> = ({ course, isOpen, onClose, onSuccess, subjectId, subjectName }) => {
+const PaymentModal: React.FC<Props> = ({ course, isOpen, onClose, onSuccess }) => {
     const { user } = useAuthStore();
     const { addToast } = useToastStore();
 
@@ -127,8 +125,6 @@ const PaymentModal: React.FC<Props> = ({ course, isOpen, onClose, onSuccess, sub
             setSubmitting(true);
             await paymentAPI.submit({
                 courseId: course._id,
-                subjectId,
-                subjectName,
                 ...form,
                 studentPhone: form.studentPhone.replace(/\s/g, ''),
             });
@@ -175,7 +171,7 @@ const PaymentModal: React.FC<Props> = ({ course, isOpen, onClose, onSuccess, sub
                                         {step === 'qr' ? 'Scan & Pay' : step === 'form' ? 'Confirm Payment' : 'Payment Submitted'}
                                     </p>
                                     <h2 className="text-white font-bold text-lg leading-tight line-clamp-1">
-                                        {subjectName ? `${course.title} — ${subjectName}` : course.title}
+                                        {course.title}
                                     </h2>
                                 </div>
                             </div>

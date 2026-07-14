@@ -8,6 +8,7 @@ import {
     VolumeX,
     Maximize,
     ChevronRight,
+    ChevronLeft,
     FileText,
     AlertCircle,
     CheckCircle2,
@@ -693,6 +694,23 @@ const VideoPlayer: React.FC = () => {
                     <div>
                         <Card className="p-6">
                             <div className="mb-4">
+                                {course?.subjects?.length > 1 ? (
+                                    <button
+                                        onClick={() => navigate(`/learn/${courseId}/`)}
+                                        className="flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 hover:underline mb-3 font-medium"
+                                    >
+                                        <ChevronLeft className="w-3.5 h-3.5" />
+                                        Back to Subjects
+                                    </button>
+                                ) : (
+                                    <button
+                                        onClick={() => navigate('/dashboard/?tab=courses')}
+                                        className="flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 hover:underline mb-3 font-medium"
+                                    >
+                                        <ChevronLeft className="w-3.5 h-3.5" />
+                                        Back to My Courses
+                                    </button>
+                                )}
                                 <h2 className="text-xl font-bold text-gray-900 dark:text-white">
                                     {activeSubject ? `${activeSubject.name} Content` : 'Course Content'}
                                 </h2>

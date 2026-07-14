@@ -40,6 +40,7 @@ api.interceptors.response.use(
       'Something went wrong. Please try again.';
 
     error.userMessage = message;
+    error.code = error.response?.data?.code;
     return Promise.reject(error);
   }
 );

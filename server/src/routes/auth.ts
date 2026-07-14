@@ -162,7 +162,7 @@ router.post('/signup', authLimiter, validate(signupSchema), async (req: Request,
 // @access  Public
 router.post('/login', authLimiter, validate(loginSchema), async (req: Request, res: Response, next) => {
     try {
-        const { email, password, deviceId } = req.body;
+        const { email, password, deviceId, forceLogout } = req.body;
 
         // 1. Check if user exists
         const user = await User.findOne({ email })
@@ -193,7 +193,8 @@ router.post('/login', authLimiter, validate(loginSchema), async (req: Request, r
             user.role !== 'admin' &&
             user.currentDeviceId &&
             user.sessionStatus === 'active' &&
-            user.currentDeviceId !== newFingerprint
+            user.currentDeviceId !== newFingerprint &&
+            !forceLogout
         ) {
             const sdlMode = process.env.SINGLE_DEVICE_MODE || 'block';
 

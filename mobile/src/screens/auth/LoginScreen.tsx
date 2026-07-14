@@ -38,7 +38,26 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
     try {
       await login({ email: email.trim().toLowerCase(), password });
     } catch (err: any) {
-      // Error is handled by AuthContext
+      if (err?.code === 'ACCOUNT_ACTIVE_ELSEWHERE') {
+        Alert.alert(
+          'Account Active Elsewhere',
+          'This account is already active on another device. Do you want to log out from the other device and log in here?',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Logout & Sign In',
+              style: 'destructive',
+              onPress: async () => {
+                try {
+                  await login({ email: email.trim().toLowerCase(), password, forceLogout: true });
+                } catch (forceErr) {
+                  // Handled by context
+                }
+              }
+            }
+          ]
+        );
+      }
     }
   };
 

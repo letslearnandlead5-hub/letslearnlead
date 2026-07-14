@@ -180,7 +180,7 @@ api.interceptors.response.use(
 export const authAPI = {
   signup: (data: { name: string; email: string; password: string; deviceId?: string; deviceInfo?: string }) =>
     api.post("/auth/signup", data),
-  login: (data: { email: string; password: string; deviceId?: string; deviceInfo?: string }) =>
+  login: (data: { email: string; password: string; deviceId?: string; deviceInfo?: string; forceLogout?: boolean }) =>
     api.post("/auth/login", data),
   logout: () => api.post("/auth/logout"),
   refresh: () => api.post("/auth/refresh"),

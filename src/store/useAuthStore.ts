@@ -35,13 +35,13 @@ export const useAuthStore = create<AuthState>()(
             sessionExpiredReason: '',
 
             // ── Login ────────────────────────────────────────────────────────
-            login: async (email: string, password: string) => {
+            login: async (email: string, password: string, forceLogout?: boolean) => {
                 set({ loading: true });
                 try {
                     const deviceId = getDeviceId();
                     const deviceInfo = getDeviceInfo();
 
-                    const response: any = await authAPI.login({ email, password, deviceId, deviceInfo });
+                    const response: any = await authAPI.login({ email, password, deviceId, deviceInfo, forceLogout });
                     const { token, user } = response;
 
                     set({ user, token, isAuthenticated: true, loading: false, sessionExpired: false });

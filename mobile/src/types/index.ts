@@ -105,6 +105,7 @@ export interface ApiResponse<T> {
 export interface LoginPayload {
   email: string;
   password: string;
+  forceLogout?: boolean;
 }
 
 export interface RegisterPayload {

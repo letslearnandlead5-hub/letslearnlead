@@ -56,6 +56,24 @@ const Login: React.FC = () => {
         }
     };
 
+    const handleForceLogin = async () => {
+        setError('');
+        try {
+            await login(email, password, true);
+            addToast({ type: 'success', message: 'Welcome back! Logged out from other device.' });
+            const pendingCourseId = localStorage.getItem('pendingCourseId');
+            if (pendingCourseId) {
+                localStorage.removeItem('pendingCourseId');
+                navigate(`/courses/${pendingCourseId}/purchase/`);
+            } else {
+                navigate('/');
+            }
+        } catch (err: any) {
+            setError(err?.message || 'Login failed. Please try again.');
+            addToast({ type: 'error', message: err?.message || 'Login failed' });
+        }
+    };
+
     return (
         <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50 dark:from-slate-900 dark:via-blue-950 dark:to-purple-950 py-12 px-4">
             <div className="w-full max-w-6xl grid md:grid-cols-2 gap-8 items-center">
@@ -184,15 +202,26 @@ const Login: React.FC = () => {
                                 </Link>
                             </div>
 
-                            <Button
-                                type="submit"
-                                variant="primary"
-                                className="w-full bg-black dark:bg-white text-white dark:text-black hover:bg-gray-800 dark:hover:bg-gray-200"
-                                isLoading={loading}
-                                disabled={loading}
-                            >
-                                {loading ? 'Signing in...' : 'Sign In'}
-                            </Button>
+                            {isBlockedElsewhere ? (
+                                <button
+                                    type="button"
+                                    onClick={handleForceLogin}
+                                    className="w-full flex items-center justify-center gap-2 px-5 py-3.5 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white font-bold text-base rounded-xl transition-all shadow-lg shadow-amber-200 dark:shadow-orange-950"
+                                    disabled={loading}
+                                >
+                                    Logout Other Device & Sign In Here
+                                </button>
+                            ) : (
+                                <Button
+                                    type="submit"
+                                    variant="primary"
+                                    className="w-full bg-black dark:bg-white text-white dark:text-black hover:bg-gray-800 dark:hover:bg-gray-200"
+                                    isLoading={loading}
+                                    disabled={loading}
+                                >
+                                    {loading ? 'Signing in...' : 'Sign In'}
+                                </Button>
+                            )}
                         </form>
 
                         {/* Footer */}

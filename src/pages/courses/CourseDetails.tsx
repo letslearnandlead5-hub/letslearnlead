@@ -209,7 +209,7 @@ const CourseDetails: React.FC = () => {
                                         <BookOpen className="w-4 h-4 text-indigo-300" />
                                         <span className="text-white font-medium">{course.subjects!.length} subjects included</span>
                                     </div>
-                                    {!isCourseEnrolled && course.paymentEnabled && course.price > 0 && (
+                                    {!isCourseEnrolled && course.paymentEnabled && course.price && course.price > 0 && (
                                         <span className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-sm rounded-full border border-white/20 text-sm">
                                             <span className="text-white font-bold">₹{course.price.toLocaleString()}</span>
                                             <span className="text-gray-300 text-xs">one-time</span>
@@ -251,7 +251,7 @@ const CourseDetails: React.FC = () => {
                                             Try Again
                                         </button>
                                     </>
-                                ) : course.paymentEnabled && course.price > 0 ? (
+                                ) : course.paymentEnabled && course.price && course.price > 0 ? (
                                     <button
                                         onClick={() => user ? setShowPaymentModal(true) : navigate('/login/')}
                                         className="w-full flex items-center justify-center gap-2 px-5 py-3.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-bold text-base rounded-xl transition-all shadow-lg shadow-indigo-200 dark:shadow-indigo-950"

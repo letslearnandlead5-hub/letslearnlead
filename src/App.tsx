@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import { Toaster } from 'react-hot-toast';
 import Header from './components/layout/Header';
@@ -41,6 +41,16 @@ import QuizEditor from './pages/admin/QuizEditor';
 import QuizResults from './pages/admin/QuizResults';
 import NoteViewer from './pages/notes/NoteViewer';
 import SessionExpiredModal from './components/auth/SessionExpiredModal';
+
+const ScrollToTop: React.FC = () => {
+  const { pathname } = useLocation();
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+
+  return null;
+};
 
 const ProtectedRoute = ({ children, requiredRole }: { children: React.ReactNode; requiredRole?: string }) => {
   const { isAuthenticated, user } = useAuthStore();
@@ -128,6 +138,7 @@ function App() {
   return (
     <ErrorBoundary>
       <Router>
+        <ScrollToTop />
         <Routes>
           {/* Admin Routes - No Header/Footer */}
           <Route path="/dashboard/" element={

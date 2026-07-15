@@ -13,7 +13,7 @@ interface AuthState {
     sessionExpired: boolean;
     /** Human-readable reason for session expiry */
     sessionExpiredReason: string;
-    login: (email: string, password: string) => Promise<void>;
+    login: (email: string, password: string, forceLogout?: boolean) => Promise<void>;
     signup: (name: string, email: string, password: string) => Promise<void>;
     logout: () => Promise<void>;
     checkAuth: () => Promise<void>;
@@ -23,6 +23,28 @@ interface AuthState {
     triggerSessionExpiry: (reason?: string) => void;
     clearSessionExpiry: () => void;
 }
+
+
+// ── Helper: remove legacy un-scoped progress keys from localStorage ──────────
+// Old format: "course-<courseId>-completed" | "course-<courseId>-subject-<subjectId>-completed"
+// New format: "progress-u<userId>-c<courseId>[-s<subjectId>]"
+// Calling this at login removes any stale data left by the previous format so that
+// two students sharing the same browser can't contaminate each other's progress.
+function purgeLegacyProgressKeys() {
+    const legacyPattern = /^course-[a-f0-9]+-/;
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && legacyPattern.test(key)) {
+            keysToRemove.push(key);
+        }
+    }
+    keysToRemove.forEach((k) => {
+        localStorage.removeItem(k);
+        console.log(`🧹 Purged legacy progress key: ${k}`);
+    });
+}
+// ─────────────────────────────────────────────────────────────────────────────
 
 export const useAuthStore = create<AuthState>()(
     persist(
@@ -43,6 +65,13 @@ export const useAuthStore = create<AuthState>()(
 
                     const response: any = await authAPI.login({ email, password, deviceId, deviceInfo, forceLogout });
                     const { token, user } = response;
+
+                    // Purge legacy un-scoped progress keys left by the old key format.
+                    // Old keys: "course-<id>-completed", "course-<id>-subject-<id>-completed"
+                    // New keys: "progress-u<userId>-c<courseId>[-s<subjectId>]"
+                    // This removes any stale localStorage data that could contaminate
+                    // a different student's progress if they share the same browser.
+                    purgeLegacyProgressKeys();
 
                     set({ user, token, isAuthenticated: true, loading: false, sessionExpired: false });
                 } catch (error: any) {

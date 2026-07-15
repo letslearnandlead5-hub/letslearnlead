@@ -42,4 +42,43 @@ export const ENDPOINTS = {
     MARK_READ: (id: string) => `/notifications/${id}/read`,
     MARK_ALL_READ: '/notifications/mark-all-read',
   },
+
+  // Quizzes
+  QUIZZES: {
+    AVAILABLE: '/quizzes/available/my',
+    PREVIEW: (id: string) => `/quizzes/${id}/preview`,
+    START: (id: string) => `/quizzes/${id}/start`,
+    SAVE_ANSWER: (attemptId: string) => `/quizzes/attempts/${attemptId}/answer`,
+    SUBMIT: (attemptId: string) => `/quizzes/attempts/${attemptId}/submit`,
+    LEADERBOARD: (id: string) => `/quizzes/${id}/leaderboard`,
+  },
+
+  // Doubts
+  DOUBTS: {
+    LIST: '/doubts',
+    CREATE: '/doubts',
+    DETAIL: (id: string) => `/doubts/${id}`,
+  },
+
+  // Notes
+  NOTES: {
+    LIST: '/notes',
+    BY_COURSE: (courseId: string) => `/notes/course/${courseId}`,
+    DETAIL: (id: string) => `/notes/${id}`,
+    DOWNLOAD: (id: string) => `/notes/${id}/download`,
+  },
+
+  // Payments
+  PAYMENTS: {
+    MY: '/payments/my',
+    STATUS: (courseId: string) => `/payments/status/${courseId}`,
+    SUBMIT: '/payments/submit',
+    COURSE_INFO: (courseId: string) => `/payments/course/${courseId}`,
+  },
+
+  // Invoice
+  INVOICE: {
+    DOWNLOAD: (enrollmentId: string) => `/invoice/${enrollmentId}/download`,
+  },
 } as const;
+

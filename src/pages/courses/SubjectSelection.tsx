@@ -21,7 +21,8 @@ interface SubjectCard {
 const SubjectSelection: React.FC = () => {
     const { courseId } = useParams<{ courseId: string }>();
     const navigate = useNavigate();
-    const { token } = useAuthStore();
+    const { token, user } = useAuthStore();
+    const userId = user?.id || 'guest';
 
     const [course, setCourse] = useState<any>(null);
     const [subjects, setSubjects] = useState<SubjectCard[]>([]);
@@ -53,7 +54,8 @@ const SubjectSelection: React.FC = () => {
 
             const dbCompletedList: string[] = courseEnrollment?.completedLessons || [];
             const cards: SubjectCard[] = (courseData.subjects || []).map((sub: any) => {
-                const storageKey = `course-${courseId}-subject-${sub._id}-completed`;
+                // ⚠️ Key must include userId to prevent cross-student contamination
+                const storageKey = `progress-u${userId}-c${courseId}-s${sub._id}`;
                 const savedCompleted: string[] = JSON.parse(localStorage.getItem(storageKey) || '[]');
                 const completedSet = new Set([...dbCompletedList, ...savedCompleted]);
 

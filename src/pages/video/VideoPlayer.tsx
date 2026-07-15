@@ -24,7 +24,8 @@ const VideoPlayer: React.FC = () => {
     const { courseId, lessonId } = useParams<{ courseId: string; lessonId: string }>();
     const navigate = useNavigate();
     const videoRef = useRef<HTMLVideoElement>(null);
-    const { token } = useAuthStore(); // Get token from auth store
+    const { token, user } = useAuthStore(); // Get token + user from auth store
+    const userId = user?.id || 'guest';
 
     const [isPlaying, setIsPlaying] = useState(false);
     const [isMuted, setIsMuted] = useState(false);
@@ -56,11 +57,13 @@ const VideoPlayer: React.FC = () => {
         return course?.sections || [];
     }, [activeSubject, course]);
 
+    // ⚠️ IMPORTANT: userId is included in the key to prevent cross-student
+    // localStorage contamination when two students share the same browser.
     const progressStorageKey = useMemo(() => {
         return activeSubject?._id
-            ? `course-${courseId}-subject-${activeSubject._id}-completed`
-            : `course-${courseId}-completed`;
-    }, [activeSubject, courseId]);
+            ? `progress-u${userId}-c${courseId}-s${activeSubject._id}`
+            : `progress-u${userId}-c${courseId}`;
+    }, [activeSubject, courseId, userId]);
 
     const countCompletedInSections = (sections: any[], completedSet: Set<string>) => {
         let totalLessons = 0;

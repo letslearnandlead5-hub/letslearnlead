@@ -256,6 +256,52 @@ router.get('/:id/analytics', protect, authorize('admin'), async (req: Request, r
 // @route   GET /api/quizzes/available
 // @desc    Get available quizzes for enrolled courses
 // @access  Private (Student)
+// ─── Helper: Verify quiz access for user ─────────────────────────────────────
+const canAccessQuiz = async (user: any, quiz: any): Promise<boolean> => {
+    // 1. Admins and Teachers have access to all quizzes
+    if (user.role === 'admin' || user.role === 'teacher') {
+        return true;
+    }
+
+    // 2. Fetch course details
+    const course = await Course.findById(quiz.courseId);
+    if (!course) return false;
+
+    // 3. Free course (price === 0 or paymentEnabled === false) -> accessible to all logged-in students
+    if (course.price === 0 || !course.paymentEnabled) {
+        return true;
+    }
+
+    // 4. Check if courseId is present in user.enrolledCourses array
+    const isEnrolledInUserDoc = (user.enrolledCourses || []).some(
+        (id: any) => id.toString() === quiz.courseId.toString()
+    );
+    if (isEnrolledInUserDoc) {
+        return true;
+    }
+
+    // 5. Check Enrollment collection (paid status + course-level OR matching subject)
+    const enrollmentQuery: any = {
+        userId: user._id,
+        courseId: quiz.courseId,
+        status: 'paid',
+    };
+
+    if (quiz.subjectId) {
+        enrollmentQuery.$or = [
+            { subjectId: quiz.subjectId },
+            { subjectId: null },
+            { subjectId: { $exists: false } },
+        ];
+    }
+
+    const enrollment = await Enrollment.findOne(enrollmentQuery);
+    return !!enrollment;
+};
+
+// @route   GET /api/quizzes/available
+// @desc    Get available quizzes for enrolled courses
+// @access  Private (Student)
 router.get('/available/my', protect, async (req: AuthRequest, res: Response, next) => {
     try {
         const user = await User.findById(req.user?.id);
@@ -263,34 +309,41 @@ router.get('/available/my', protect, async (req: AuthRequest, res: Response, nex
             throw new AppError('User not found', 404);
         }
 
-        // Get all enrolled courses & subjects
-        const enrollments = await Enrollment.find({ userId: user._id, status: 'paid' });
-        
-        if (enrollments.length === 0) {
-            return res.status(200).json({
-                success: true,
-                count: 0,
-                data: [],
-            });
-        }
+        let quizzes: any[] = [];
 
-        const queryConditions = enrollments.map((e) => {
-            const cond: any = { courseId: e.courseId };
-            if (e.subjectId) {
-                cond.$or = [
-                    { subjectId: e.subjectId },
-                    { subjectId: { $exists: false } },
-                    { subjectId: null }
-                ];
+        if (user.role === 'admin' || user.role === 'teacher') {
+            quizzes = await Quiz.find({ isPublished: true }).select('-questions');
+        } else {
+            // Get all paid enrollments
+            const enrollments = await Enrollment.find({ userId: user._id, status: 'paid' });
+            
+            // Get free courses
+            const freeCourses = await Course.find({
+                $or: [{ price: 0 }, { paymentEnabled: false }]
+            }).select('_id');
+
+            const enrolledCourseIds = new Set<string>();
+            enrollments.forEach((e) => enrolledCourseIds.add(e.courseId.toString()));
+            (user.enrolledCourses || []).forEach((cId: any) => enrolledCourseIds.add(cId.toString()));
+            freeCourses.forEach((c) => enrolledCourseIds.add(c._id.toString()));
+
+            if (enrolledCourseIds.size === 0) {
+                return res.status(200).json({
+                    success: true,
+                    count: 0,
+                    data: [],
+                });
             }
-            return cond;
-        });
 
-        // Get published quizzes matching the conditions
-        const quizzes = await Quiz.find({
-            $or: queryConditions,
-            isPublished: true,
-        }).select('-questions'); // Don't send questions in list view
+            const queryCourseObjectIds = Array.from(enrolledCourseIds).map(
+                (id) => new mongoose.Types.ObjectId(id)
+            );
+
+            quizzes = await Quiz.find({
+                courseId: { $in: queryCourseObjectIds },
+                isPublished: true,
+            }).select('-questions');
+        }
 
         // Get user's attempts for these quizzes
         const attempts = await QuizAttempt.find({
@@ -345,30 +398,26 @@ router.get('/:id/preview', protect, async (req: AuthRequest, res: Response, next
             throw new AppError('Quiz is not published yet', 403);
         }
 
-        // Check if user is enrolled in the course & subject (if quiz is subject-specific)
-        const enrollmentQuery: any = {
-            userId: req.user?.id,
-            courseId: quiz.courseId,
-            status: 'paid',
-        };
-        if (quiz.subjectId) {
-            enrollmentQuery.subjectId = quiz.subjectId;
+        const user = await User.findById(req.user?.id);
+        if (!user) {
+            throw new AppError('User not found', 404);
         }
-        const enrollment = await Enrollment.findOne(enrollmentQuery);
 
-        if (!enrollment) {
+        // Verify quiz access using robust multi-check helper
+        const hasAccess = await canAccessQuiz(user, quiz);
+        if (!hasAccess) {
             throw new AppError('You must be enrolled in the course to access this quiz', 403);
         }
 
         // Get user's previous attempts
         const attempts = await QuizAttempt.find({
             quizId: quiz._id,
-            studentId: req.user?.id,
+            studentId: user._id,
         }).sort({ createdAt: -1 });
 
         const results = await QuizResult.find({
             quizId: quiz._id,
-            studentId: req.user?.id,
+            studentId: user._id,
         }).sort({ createdAt: -1 });
 
         res.status(200).json({
@@ -406,18 +455,9 @@ router.post('/:id/start', protect, async (req: AuthRequest, res: Response, next)
             throw new AppError('User not found', 404);
         }
 
-        // Check enrollment (including subject check)
-        const enrollmentQuery: any = {
-            userId: user._id,
-            courseId: quiz.courseId,
-            status: 'paid',
-        };
-        if (quiz.subjectId) {
-            enrollmentQuery.subjectId = quiz.subjectId;
-        }
-        const enrollment = await Enrollment.findOne(enrollmentQuery);
-
-        if (!enrollment) {
+        // Verify quiz access using robust multi-check helper
+        const hasAccess = await canAccessQuiz(user, quiz);
+        if (!hasAccess) {
             throw new AppError('You must be enrolled in the course to attempt this quiz', 403);
         }
 

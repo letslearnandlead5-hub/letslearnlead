@@ -118,7 +118,9 @@ export const CategoryCoursesScreen: React.FC<Props> = ({ route, navigation }) =>
       <Text style={styles.emptyEmoji}>📚</Text>
       <Text style={styles.emptyText}>No courses found</Text>
       <Text style={styles.emptySubtext}>
-        Try adjusting your filters or check back later
+        {selectedGrade !== 'All' || selectedMedium !== 'All'
+          ? 'Try removing the filters — no matching courses for your selection.'
+          : 'No courses are available in this category yet. Check back soon!'}
       </Text>
     </View>
   );

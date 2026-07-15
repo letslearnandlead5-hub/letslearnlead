@@ -23,18 +23,10 @@ export const courseService = {
     return data;
   },
 
+  /** Enroll in a free course (paid courses redirect to website) */
   enrollInCourse: async (id: string): Promise<ApiResponse<Course>> => {
     const { data } = await api.post(ENDPOINTS.COURSES.ENROLL(id));
     return data;
   },
-
-  getEnrolledCourses: async (): Promise<{ success: boolean; data: Course[]; count: number }> => {
-    const { data } = await api.get(ENDPOINTS.COURSES.MY_COURSES);
-    return data;
-  },
-
-  markLessonComplete: async (courseId: string, lessonId: string): Promise<ApiResponse<any>> => {
-    const { data } = await api.post(`/courses/${courseId}/lessons/${lessonId}/complete`);
-    return data;
-  },
 };
+

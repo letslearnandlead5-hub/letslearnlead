@@ -8,6 +8,7 @@ import React, {
 } from 'react';
 import { authService } from '../services/authService';
 import { Storage } from '../utils/storage';
+import { getDeviceId, getDeviceInfo } from '../utils/deviceId';
 import { User, LoginPayload, RegisterPayload, UpdateProfilePayload } from '../types';
 
 // ─── State ────────────────────────────────────────────────────────────────────
@@ -112,7 +113,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     dispatch({ type: 'SET_LOADING', payload: true });
     dispatch({ type: 'SET_ERROR', payload: null });
     try {
-      const response = await authService.login(payload);
+      // SDL: attach stable device fingerprint so the backend can enforce
+      // single-device-login and detect session conflicts.
+      const deviceId = await getDeviceId();
+      const deviceInfo = getDeviceInfo();
+      const response = await authService.login({ ...payload, deviceId, deviceInfo });
       if (response.success && response.token && response.user) {
         await Storage.setToken(response.token);
         await Storage.setUser(response.user);
@@ -132,7 +137,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     dispatch({ type: 'SET_LOADING', payload: true });
     dispatch({ type: 'SET_ERROR', payload: null });
     try {
-      const response = await authService.register(payload);
+      const deviceId = await getDeviceId();
+      const deviceInfo = getDeviceInfo();
+      const response = await authService.register({ ...payload, deviceId, deviceInfo } as any);
       if (response.success && response.token && response.user) {
         await Storage.setToken(response.token);
         await Storage.setUser(response.user);

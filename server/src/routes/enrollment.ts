@@ -164,6 +164,45 @@ router.put('/progress/:courseId', protect, async (req: AuthRequest, res: Respons
         };
         if (subjectId) enrollmentQuery.subjectId = subjectId;
 
+        // ── Server-side guard: build the set of valid lesson IDs for this course ──
+        // This prevents any lesson IDs from other courses or other users'
+        // contaminated localStorage from ever being saved into this enrollment.
+        const courseDoc: any = await Course.findById(courseId).select('subjects sections').lean();
+        const validLessonIds = new Set<string>();
+        if (courseDoc) {
+            const collectIds = (items: any[]) => {
+                for (const item of items || []) {
+                    if (item._id) validLessonIds.add(item._id.toString());
+                }
+            };
+            for (const subject of courseDoc.subjects || []) {
+                for (const section of subject.sections || []) {
+                    for (const subsection of section.subsections || []) {
+                        collectIds(subsection.content || []);
+                    }
+                }
+            }
+            for (const section of courseDoc.sections || []) {
+                for (const subsection of section.subsections || []) {
+                    collectIds(subsection.content || []);
+                }
+            }
+        }
+
+        const sanitizeLessons = (lessons: string[]): string[] => {
+            if (!Array.isArray(lessons)) return [];
+            if (validLessonIds.size === 0) return lessons; // no structure to validate against
+            const safe = lessons.filter((id) => validLessonIds.has(id));
+            if (safe.length !== lessons.length) {
+                console.warn(
+                    `⚠️  [progress] Filtered ${lessons.length - safe.length} invalid lessonId(s)` +
+                    ` for user=${req.user?.id} course=${courseId}`
+                );
+            }
+            return safe;
+        };
+        // ─────────────────────────────────────────────────────────────────────────
+
         // Find or create enrollment
         let enrollment = await Enrollment.findOne(enrollmentQuery);
 
@@ -173,14 +212,14 @@ router.put('/progress/:courseId', protect, async (req: AuthRequest, res: Respons
         }
 
         if (!enrollment) {
-            const course: any = await Course.findById(courseId).select('subjects sections').lean();
-            const completedList = Array.isArray(completedLessons) ? completedLessons : [];
+            const rawList = Array.isArray(completedLessons) ? completedLessons : [];
+            const completedList = sanitizeLessons(rawList);
             let totalCourseLessons = 0;
             let completedCourseLessons = 0;
             const completedSet = new Set(completedList);
 
-            if (course && course.subjects) {
-                for (const subject of course.subjects) {
+            if (courseDoc && courseDoc.subjects) {
+                for (const subject of courseDoc.subjects) {
                     for (const section of subject.sections || []) {
                         for (const subsection of section.subsections || []) {
                             for (const item of subsection.content || []) {
@@ -193,8 +232,8 @@ router.put('/progress/:courseId', protect, async (req: AuthRequest, res: Respons
                     }
                 }
             }
-            if (course && course.sections) {
-                for (const section of course.sections) {
+            if (courseDoc && courseDoc.sections) {
+                for (const section of courseDoc.sections) {
                     for (const subsection of section.subsections || []) {
                         for (const item of subsection.content || []) {
                             totalCourseLessons++;
@@ -219,7 +258,7 @@ router.put('/progress/:courseId', protect, async (req: AuthRequest, res: Respons
             });
         } else {
             if (Array.isArray(completedLessons)) {
-                enrollment.completedLessons = completedLessons;
+                enrollment.completedLessons = sanitizeLessons(completedLessons);
             }
 
             if (enrollment.subjectId) {
@@ -230,14 +269,13 @@ router.put('/progress/:courseId', protect, async (req: AuthRequest, res: Respons
                         : enrollment.completionPercentage;
             } else {
                 // Course-level enrollment: compute overall course progress
-                const course: any = await Course.findById(courseId).select('subjects sections').lean();
                 const completedList = enrollment.completedLessons || [];
                 let totalCourseLessons = 0;
                 let completedCourseLessons = 0;
                 const completedSet = new Set(completedList);
 
-                if (course && course.subjects) {
-                    for (const subject of course.subjects) {
+                if (courseDoc && courseDoc.subjects) {
+                    for (const subject of courseDoc.subjects) {
                         for (const section of subject.sections || []) {
                             for (const subsection of section.subsections || []) {
                                 for (const item of subsection.content || []) {
@@ -250,8 +288,8 @@ router.put('/progress/:courseId', protect, async (req: AuthRequest, res: Respons
                         }
                     }
                 }
-                if (course && course.sections) {
-                    for (const section of course.sections) {
+                if (courseDoc && courseDoc.sections) {
+                    for (const section of courseDoc.sections) {
                         for (const subsection of section.subsections || []) {
                             for (const item of subsection.content || []) {
                                 totalCourseLessons++;
@@ -280,13 +318,13 @@ router.put('/progress/:courseId', protect, async (req: AuthRequest, res: Respons
                 );
 
                 if (courseProgressIndex !== undefined && courseProgressIndex >= 0) {
-                    user.courseProgress[courseProgressIndex].completedLessons = completedLessons;
+                    user.courseProgress[courseProgressIndex].completedLessons = sanitizeLessons(completedLessons);
                     user.courseProgress[courseProgressIndex].lastAccessed = new Date();
                 } else {
                     if (!user.courseProgress) user.courseProgress = [];
                     user.courseProgress.push({
                         courseId: courseId,
-                        completedLessons: completedLessons,
+                        completedLessons: sanitizeLessons(completedLessons),
                         lastAccessed: new Date(),
                     });
                 }

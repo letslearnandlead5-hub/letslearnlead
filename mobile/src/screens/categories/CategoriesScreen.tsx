@@ -15,45 +15,112 @@ import { Colors, Typography, Spacing, Radius, Shadows } from '../../theme';
 
 type Props = NativeStackScreenProps<HomeStackParamList, 'Categories'>;
 
+// These IDs MUST match the `category` field values stored in MongoDB courses
+// (set by admin in CourseEditor → Category dropdown)
 const CATEGORIES = [
-  // Subject-based categories
-  { id: 'science', name: 'Science', icon: '🔬', gradient: ['#FF6B9D', '#FF8FB3'], courses: 45 },
-  { id: 'math', name: 'Mathematics', icon: '📐', gradient: ['#4DA3FF', '#6DB5FF'], courses: 38 },
-  { id: 'english', name: 'English', icon: '📚', gradient: ['#10B981', '#34D399'], courses: 52 },
-  { id: 'kannada', name: 'Kannada', icon: '🗣️', gradient: ['#F59E0B', '#FBBF24'], courses: 28 },
-  { id: 'social', name: 'Social Studies', icon: '🌍', gradient: ['#8B5CF6', '#A78BFA'], courses: 34 },
-  { id: 'computer', name: 'Computer Science', icon: '💻', gradient: ['#06B6D4', '#22D3EE'], courses: 41 },
-  { id: 'physics', name: 'Physics', icon: '⚛️', gradient: ['#EC4899', '#F472B6'], courses: 29 },
-  { id: 'chemistry', name: 'Chemistry', icon: '🧪', gradient: ['#F97316', '#FB923C'], courses: 31 },
-  { id: 'biology', name: 'Biology', icon: '🧬', gradient: ['#14B8A6', '#2DD4BF'], courses: 26 },
-  { id: 'history', name: 'History', icon: '📜', gradient: ['#A855F7', '#C084FC'], courses: 22 },
+  // School
+  {
+    id: 'school-6-10',
+    name: 'School (Class 6–10)',
+    icon: '🏫',
+    gradient: ['#4DA3FF', '#6DB5FF'] as [string, string],
+    description: 'CBSE / State Board curriculum',
+  },
+  {
+    id: 'school-puc',
+    name: 'PUC (Class 11–12)',
+    icon: '🎓',
+    gradient: ['#10B981', '#34D399'] as [string, string],
+    description: 'Science, Commerce & Arts streams',
+  },
+  // Competitive
+  {
+    id: 'neet',
+    name: 'NEET Preparation',
+    icon: '🩺',
+    gradient: ['#FF6B9D', '#FF8FB3'] as [string, string],
+    description: 'Medical entrance exam prep',
+  },
+  {
+    id: 'jee',
+    name: 'JEE Preparation',
+    icon: '⚙️',
+    gradient: ['#F97316', '#FB923C'] as [string, string],
+    description: 'Engineering entrance exam prep',
+  },
+  {
+    id: 'kcet',
+    name: 'KCET Preparation',
+    icon: '📋',
+    gradient: ['#8B5CF6', '#A78BFA'] as [string, string],
+    description: 'Karnataka common entrance test',
+  },
+  {
+    id: 'upsc',
+    name: 'UPSC / Govt Exams',
+    icon: '🏛️',
+    gradient: ['#EC4899', '#F472B6'] as [string, string],
+    description: 'Civil services & government exams',
+  },
+  {
+    id: 'competitive',
+    name: 'Other Competitive',
+    icon: '📝',
+    gradient: ['#F59E0B', '#FBBF24'] as [string, string],
+    description: 'Bank, SSC, Railways & more',
+  },
+  // Higher Education
+  {
+    id: 'college',
+    name: 'College / Degree',
+    icon: '🎯',
+    gradient: ['#06B6D4', '#22D3EE'] as [string, string],
+    description: 'Undergraduate college courses',
+  },
+  {
+    id: 'skills',
+    name: 'Skills & Certification',
+    icon: '💼',
+    gradient: ['#14B8A6', '#2DD4BF'] as [string, string],
+    description: 'Professional skills & certifications',
+  },
+  {
+    id: 'other',
+    name: 'Other',
+    icon: '📦',
+    gradient: ['#A855F7', '#C084FC'] as [string, string],
+    description: 'More learning opportunities',
+  },
 ];
 
 export const CategoriesScreen: React.FC<Props> = ({ navigation }) => {
   const insets = useSafeAreaInsets();
 
-  const handleCategoryPress = (category: typeof CATEGORIES[0]) => {
+  const handleCategoryPress = (category: (typeof CATEGORIES)[0]) => {
     navigation.navigate('CategoryCourses', {
       categoryId: category.id,
       categoryName: category.name,
     });
   };
 
-  const renderCategoryCard = ({ item }: { item: typeof CATEGORIES[0] }) => (
+  const renderCategoryCard = ({ item }: { item: (typeof CATEGORIES)[0] }) => (
     <TouchableOpacity
       style={styles.categoryCard}
       onPress={() => handleCategoryPress(item)}
       activeOpacity={0.85}>
       <LinearGradient
-        colors={item.gradient as [string, string]}
+        colors={item.gradient}
         style={styles.categoryGradient}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}>
         <View style={styles.categoryContent}>
           <Text style={styles.categoryIcon}>{item.icon}</Text>
           <Text style={styles.categoryName}>{item.name}</Text>
-          <View style={styles.coursesCountBadge}>
-            <Text style={styles.coursesCountText}>{item.courses} courses</Text>
+          <Text style={styles.categoryDescription} numberOfLines={2}>
+            {item.description}
+          </Text>
+          <View style={styles.exploreBadge}>
+            <Text style={styles.exploreText}>Explore →</Text>
           </View>
         </View>
       </LinearGradient>
@@ -63,10 +130,10 @@ export const CategoriesScreen: React.FC<Props> = ({ navigation }) => {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor={Colors.background} />
-      
+
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.backButton}
           onPress={() => navigation.goBack()}>
           <Text style={styles.backIcon}>←</Text>
@@ -74,6 +141,9 @@ export const CategoriesScreen: React.FC<Props> = ({ navigation }) => {
         <Text style={styles.headerTitle}>All Categories</Text>
         <View style={styles.placeholder} />
       </View>
+
+      {/* Subtitle */}
+      <Text style={styles.subtitle}>Find the right course for you</Text>
 
       {/* Categories Grid */}
       <FlatList
@@ -83,13 +153,10 @@ export const CategoriesScreen: React.FC<Props> = ({ navigation }) => {
         renderItem={renderCategoryCard}
         contentContainerStyle={[
           styles.list,
-          { paddingBottom: insets.bottom + 80 }
+          { paddingBottom: insets.bottom + 80 },
         ]}
         columnWrapperStyle={styles.row}
         showsVerticalScrollIndicator={false}
-        ListHeaderComponent={
-          <Text style={styles.sectionTitle}>Browse by Subject</Text>
-        }
       />
     </View>
   );
@@ -105,7 +172,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: Spacing.md,
-    paddingBottom: Spacing.md,
+    paddingBottom: Spacing.sm,
     backgroundColor: Colors.background,
   },
   backButton: {
@@ -129,15 +196,15 @@ const styles = StyleSheet.create({
   placeholder: {
     width: 40,
   },
-  list: {
-    padding: Spacing.md,
-  },
-  sectionTitle: {
+  subtitle: {
     ...Typography.body,
     color: Colors.textSecondary,
-    fontWeight: '600',
-    marginBottom: Spacing.md,
     textAlign: 'center',
+    marginBottom: Spacing.md,
+    paddingHorizontal: Spacing.md,
+  },
+  list: {
+    padding: Spacing.md,
   },
   row: {
     justifyContent: 'space-between',
@@ -145,7 +212,7 @@ const styles = StyleSheet.create({
   },
   categoryCard: {
     width: '48%',
-    height: 180,
+    height: 190,
     borderRadius: Radius.xl,
     overflow: 'hidden',
     ...Shadows.lg,
@@ -153,33 +220,39 @@ const styles = StyleSheet.create({
   categoryGradient: {
     flex: 1,
     padding: Spacing.md,
-    justifyContent: 'space-between',
   },
   categoryContent: {
     flex: 1,
     justifyContent: 'space-between',
   },
   categoryIcon: {
-    fontSize: 48,
-    marginBottom: Spacing.sm,
+    fontSize: 44,
+    marginBottom: Spacing.xs,
   },
   categoryName: {
     ...Typography.h5,
     color: Colors.textOnPrimary,
     fontWeight: '700',
+    marginBottom: 4,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  categoryDescription: {
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.85)',
+    lineHeight: 15,
     marginBottom: Spacing.xs,
   },
-  coursesCountBadge: {
+  exploreBadge: {
     backgroundColor: 'rgba(255, 255, 255, 0.25)',
     paddingHorizontal: Spacing.sm,
-    paddingVertical: 6,
+    paddingVertical: 5,
     borderRadius: Radius.md,
     alignSelf: 'flex-start',
   },
-  coursesCountText: {
-    ...Typography.caption,
+  exploreText: {
+    fontSize: 11,
     color: Colors.textOnPrimary,
-    fontWeight: '600',
-    fontSize: 12,
+    fontWeight: '700',
   },
 });

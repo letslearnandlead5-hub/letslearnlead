@@ -8,13 +8,15 @@ import {
   StatusBar,
   FlatList,
   ActivityIndicator,
+  ScrollView,
 } from 'react-native';
 import YoutubePlayer from 'react-native-youtube-iframe';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { HomeStackParamList, CourseContent, CourseSection } from '../../types';
+import { HomeStackParamList, CourseContent, CourseSection, CourseSubject } from '../../types';
 import { Colors, Typography, Spacing, Radius } from '../../theme';
 import { courseService } from '../../services/courseService';
+import { enrollmentService } from '../../services/enrollmentService';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const VIDEO_HEIGHT = (SCREEN_WIDTH * 9) / 16;
@@ -42,10 +44,11 @@ const extractYouTubeId = (url: string): string => {
 };
 
 export const VideoPlayerScreen: React.FC<Props> = ({ route, navigation }) => {
-  const { courseId, lessonId, lessonTitle } = route.params;
+  const { courseId, lessonId, lessonTitle, subjectId } = route.params;
   const insets = useSafeAreaInsets();
   const playerRef = useRef<any>(null);
 
+  const [activeSubject, setActiveSubject] = useState<CourseSubject | null>(null);
   const [currentLesson, setCurrentLesson] = useState<CourseContent | null>(null);
   const [courseSections, setCourseSections] = useState<CourseSection[]>([]);
   const [expandedSections, setExpandedSections] = useState<{ [key: string]: boolean }>({});
@@ -53,6 +56,8 @@ export const VideoPlayerScreen: React.FC<Props> = ({ route, navigation }) => {
   const [isReady, setIsReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [totalLessons, setTotalLessons] = useState(0);
+  // Track which lessons have been completed in this session
+  const [completedLessonIds, setCompletedLessonIds] = useState<Set<string>>(new Set());
 
   // Demo YouTube video ID (Big Buck Bunny)
   const defaultVideoId = 'aqz-KE-bpKQ';
@@ -69,34 +74,66 @@ export const VideoPlayerScreen: React.FC<Props> = ({ route, navigation }) => {
       const response = await courseService.getCourseById(courseId);
       if (response.success && response.data) {
         const course = response.data;
-        setCourseSections(course.sections || []);
+
+        // Filter sections by the active subject instead of mixing all subjects together
+        let allSections: CourseSection[] = [];
+        let selectedSubject: CourseSubject | null = null;
+
+        if (course.subjects?.length) {
+          // 1. Try matching by subjectId param
+          if (subjectId) {
+            selectedSubject = course.subjects.find(s => s._id === subjectId) || null;
+          }
+          // 2. Fallback: try finding subject that contains lessonId
+          if (!selectedSubject && lessonId) {
+            selectedSubject = course.subjects.find(s =>
+              (s.sections || []).some(sec =>
+                (sec.subsections || []).some(sub =>
+                  (sub.content || []).some(item => item._id === lessonId)
+                )
+              )
+            ) || null;
+          }
+          // 3. Fallback: select first subject
+          if (!selectedSubject) {
+            selectedSubject = course.subjects[0];
+          }
+
+          setActiveSubject(selectedSubject);
+          allSections = selectedSubject.sections || [];
+        } else {
+          allSections = course.sections || [];
+        }
+        setCourseSections(allSections);
         
-        // Calculate total lessons
+        // Calculate total video lessons
         let total = 0;
-        course.sections?.forEach(section => {
+        allSections.forEach(section => {
           section.subsections.forEach(subsection => {
             total += subsection.content.filter(c => c.type === 'video').length;
           });
         });
         setTotalLessons(total);
         
-        // Find current lesson
+        // Find current lesson across all sections
         let foundLesson: CourseContent | null = null;
-        course.sections?.forEach(section => {
-          section.subsections.forEach(subsection => {
-            subsection.content.forEach(content => {
+        outer:
+        for (const section of allSections) {
+          for (const subsection of section.subsections) {
+            for (const content of subsection.content) {
               if (content._id === lessonId && content.type === 'video') {
                 foundLesson = content;
+                break outer;
               }
-            });
-          });
-        });
+            }
+          }
+        }
         
         if (foundLesson) {
           setCurrentLesson(foundLesson);
         } else {
-          // Find first video lesson
-          for (const section of course.sections || []) {
+          // Fall back to first video
+          for (const section of allSections) {
             for (const subsection of section.subsections) {
               const firstVideo = subsection.content.find(c => c.type === 'video');
               if (firstVideo) {
@@ -104,9 +141,16 @@ export const VideoPlayerScreen: React.FC<Props> = ({ route, navigation }) => {
                 break;
               }
             }
-            if (foundLesson) break;
           }
         }
+
+        // Load existing progress from backend
+        try {
+          const progressData = await enrollmentService.getCourseProgress(courseId);
+          if (progressData.completedLessons?.length) {
+            setCompletedLessonIds(new Set(progressData.completedLessons));
+          }
+        } catch { /* ignore progress load failure */ }
       }
     } catch (err) {
       console.error('Failed to load course:', err);
@@ -130,13 +174,23 @@ export const VideoPlayerScreen: React.FC<Props> = ({ route, navigation }) => {
   }, []);
 
   const handleVideoComplete = async () => {
-    try {
-      if (currentLesson) {
-        await courseService.markLessonComplete(courseId, currentLesson._id);
-      }
-    } catch (err) {
-      console.error('Failed to mark lesson complete:', err);
-    }
+    if (!currentLesson) return;
+    const lessonId = currentLesson._id;
+
+    // Add to local completed set
+    setCompletedLessonIds(prev => {
+      const updated = new Set(prev);
+      updated.add(lessonId);
+
+      // ✅ Save to backend immediately — this is the critical fix
+      // The backend will validate that these IDs belong to this course.
+      const completedArray = Array.from(updated);
+      enrollmentService.updateProgress(courseId, completedArray)
+        .then(() => console.log(`✅ Progress saved: ${completedArray.length} lessons`)
+        ).catch(err => console.warn('⚠️ Progress save failed:', err));
+
+      return updated;
+    });
   };
 
   const playNextLesson = () => {
@@ -367,7 +421,7 @@ export const VideoPlayerScreen: React.FC<Props> = ({ route, navigation }) => {
           <Text style={styles.backIcon}>←</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle} numberOfLines={1}>
-          {currentLesson?.title || lessonTitle || 'Video Lesson'}
+          {activeSubject ? `${activeSubject.name} • ${currentLesson?.title || lessonTitle}` : (currentLesson?.title || lessonTitle || 'Video Lesson')}
         </Text>
       </View>
 
@@ -391,7 +445,10 @@ export const VideoPlayerScreen: React.FC<Props> = ({ route, navigation }) => {
       </View>
 
       {/* Course Content */}
-      <View style={styles.content}>
+      <ScrollView
+        style={styles.content}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
+        showsVerticalScrollIndicator={false}>
         {/* Current Lesson Info */}
         <View style={styles.lessonHeader}>
           <Text style={styles.lessonTitle}>{currentLesson?.title || 'Video Lesson'}</Text>
@@ -433,7 +490,7 @@ export const VideoPlayerScreen: React.FC<Props> = ({ route, navigation }) => {
           </Text>
           {renderHierarchicalContent()}
         </View>
-      </View>
+      </ScrollView>
     </View>
   );
 };

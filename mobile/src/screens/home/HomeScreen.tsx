@@ -13,624 +13,470 @@ import {
   ScrollView,
   NativeScrollEvent,
   NativeSyntheticEvent,
+  Animated,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
-import { HomeStackParamList, Course, Enrollment } from '../../types';
+import { HomeStackParamList, Course } from '../../types';
 import { useCourses } from '../../context/CourseContext';
 import { useAuth } from '../../context/AuthContext';
-import { courseService } from '../../services/courseService';
-import { notificationService } from '../../services/notificationService';
 import { bannerService, Banner } from '../../services/bannerService';
-import { Colors, Typography, Spacing, Radius, Shadows } from '../../theme';
+import { notificationService } from '../../services/notificationService';
+import { Colors, Typography, Spacing, Radius, Shadows, Gradients, CardSizes } from '../../theme';
 
 type Props = NativeStackScreenProps<HomeStackParamList, 'Home'>;
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const BANNER_HEIGHT = 200;
-const BANNER_INNER_WIDTH = SCREEN_WIDTH - 32; // visible card width with 16px padding each side
-const CATEGORY_SIZE = 110;
+const { width: SW } = Dimensions.get('window');
 
+// DB-aligned category IDs with metadata
 const CATEGORIES = [
-  { id: 'science', name: 'Science', icon: '🔬', color: '#FF6B9D', gradient: ['#FF6B9D', '#FF8FB3'] },
-  { id: 'math', name: 'Math', icon: '📐', color: '#4DA3FF', gradient: ['#4DA3FF', '#6DB5FF'] },
-  { id: 'english', name: 'English', icon: '📚', color: '#10B981', gradient: ['#10B981', '#34D399'] },
-  { id: 'kannada', name: 'Kannada', icon: '🗣️', color: '#F59E0B', gradient: ['#F59E0B', '#FBBF24'] },
-  { id: 'social', name: 'Social', icon: '🌍', color: '#8B5CF6', gradient: ['#8B5CF6', '#A78BFA'] },
+  { id: 'school-6-10', name: 'School\n6–10', icon: '🏫', gradient: Gradients.school },
+  { id: 'school-puc',  name: 'PUC\n11–12', icon: '🎓', gradient: Gradients.primaryLight },
+  { id: 'neet',        name: 'NEET',        icon: '🩺', gradient: Gradients.neet },
+  { id: 'jee',         name: 'JEE',         icon: '⚙️',  gradient: Gradients.jee },
+  { id: 'kcet',        name: 'KCET',        icon: '📋', gradient: Gradients.kcet },
+  { id: 'competitive', name: 'Compet.',     icon: '📝', gradient: Gradients.competitive },
 ];
 
-const FEATURED_BANNERS = [
-  {
-    id: '1',
-    title: 'Master Science',
-    subtitle: 'Get 60% OFF on all courses',
-    discount: '60% OFF',
-    cta: 'Enroll Now',
-    image: 'https://images.unsplash.com/photo-1532094349884-543bc11b234d?w=400',
-    bgGradient: ['#667eea', '#764ba2'],
-    action: { type: 'category', id: 'science', name: 'Science' },
-  },
-  {
-    id: '2',
-    title: 'Learn Mathematics',
-    subtitle: 'Limited time offer - 50% OFF',
-    discount: '50% OFF',
-    cta: 'Start Learning',
-    image: 'https://images.unsplash.com/photo-1509228468518-180dd4864904?w=400',
-    bgGradient: ['#f093fb', '#f5576c'],
-    action: { type: 'category', id: 'math', name: 'Mathematics' },
-  },
-  {
-    id: '3',
-    title: 'English Mastery',
-    subtitle: 'Improve your skills today',
-    discount: '40% OFF',
-    cta: 'Join Now',
-    image: 'https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?w=400',
-    bgGradient: ['#4facfe', '#00f2fe'],
-    action: { type: 'category', id: 'english', name: 'English' },
-  },
-  {
-    id: '4',
-    title: 'Kannada Classes',
-    subtitle: 'Learn in your mother tongue',
-    discount: 'FREE TRIAL',
-    cta: 'Try Now',
-    image: 'https://images.unsplash.com/photo-1503676260728-1c00da094a0b?w=400',
-    bgGradient: ['#F59E0B', '#FBBF24'],
-    action: { type: 'category', id: 'kannada', name: 'Kannada' },
-  },
-  {
-    id: '5',
-    title: 'Social Studies',
-    subtitle: 'Explore history and geography',
-    discount: '30% OFF',
-    cta: 'Explore',
-    image: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=400',
-    bgGradient: ['#8B5CF6', '#A78BFA'],
-    action: { type: 'category', id: 'social', name: 'Social Studies' },
-  },
+const FALLBACK_BANNERS: any[] = [
+  { _id: '1', title: 'Master Class 9 & 10', subtitle: 'All subjects in Kannada & English', cta: 'Explore Courses', discount: 'FREE TRIAL', image: 'https://images.unsplash.com/photo-1532094349884-543bc11b234d?w=600', bgGradient: ['#5B5FEF','#8B5CF6'], actionType: 'category', actionId: 'school-6-10', actionName: 'School (6–10)', isActive: true, order: 0 },
+  { _id: '2', title: 'NEET Preparation 2025', subtitle: 'Crash course with expert faculty', cta: 'Start Now', discount: '50% OFF', image: 'https://images.unsplash.com/photo-1559757148-5c350d0d3c56?w=600', bgGradient: ['#E53935','#FF7043'], actionType: 'category', actionId: 'neet', actionName: 'NEET', isActive: true, order: 1 },
+  { _id: '3', title: 'JEE Main & Advanced', subtitle: 'Score 99 percentile this year', cta: 'Enroll Now', discount: '40% OFF', image: 'https://images.unsplash.com/photo-1509228468518-180dd4864904?w=600', bgGradient: ['#F59E0B','#FF6B35'], actionType: 'category', actionId: 'jee', actionName: 'JEE', isActive: true, order: 2 },
 ];
+
+// ─── Greeting based on time ────────────────────────────────────────────────────
+const getGreeting = (): string => {
+  const hour = new Date().getHours();
+  if (hour < 12) return 'Good Morning';
+  if (hour < 17) return 'Good Afternoon';
+  if (hour < 21) return 'Good Evening';
+  return 'Good Night';
+};
 
 export const HomeScreen: React.FC<Props> = ({ navigation }) => {
-  const { courses, isLoading, error, fetchCourses, refreshCourses } = useCourses();
+  const { courses, isLoading, fetchCourses, refreshCourses } = useCourses();
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
-  const bannerScrollRef = useRef<ScrollView>(null);
 
   const [refreshing, setRefreshing] = useState(false);
   const [continueLearning, setContinueLearning] = useState<any[]>([]);
   const [banners, setBanners] = useState<Banner[]>([]);
-  const [activeBannerIndex, setActiveBannerIndex] = useState(0);
-  const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
-  const bannerIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const activeBannerIndexRef = useRef(0);
+  const [activeBannerIdx, setActiveBannerIdx] = useState(0);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  const bannerScrollRef = useRef<ScrollView>(null);
+  const bannerIdxRef    = useRef(0);
+  const bannerTimer     = useRef<NodeJS.Timeout | null>(null);
+
+  // hero pulse animation
+  const pulseAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     fetchCourses();
     loadContinueLearning();
-    loadNotificationCount();
     loadBanners();
+    loadNotificationCount();
+    startPulse();
+    return () => stopBannerTimer();
   }, []);
 
+  const startPulse = () => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 1.08, duration: 900, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1, duration: 900, useNativeDriver: true }),
+      ])
+    ).start();
+  };
+
+  // ── Banner auto-scroll ────────────────────────────────────────────────────
+  useEffect(() => {
+    if (banners.length > 1) startBannerTimer();
+    return stopBannerTimer;
+  }, [banners.length]);
+
+  const startBannerTimer = useCallback(() => {
+    stopBannerTimer();
+    bannerTimer.current = setInterval(() => {
+      const next = (bannerIdxRef.current + 1) % banners.length;
+      bannerScrollRef.current?.scrollTo({ x: next * SW, animated: true });
+      bannerIdxRef.current = next;
+      setActiveBannerIdx(next);
+    }, 3500);
+  }, [banners.length]);
+
+  const stopBannerTimer = useCallback(() => {
+    if (bannerTimer.current) { clearInterval(bannerTimer.current); bannerTimer.current = null; }
+  }, []);
+
+  const handleBannerScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const idx = Math.round(e.nativeEvent.contentOffset.x / SW);
+    if (idx !== bannerIdxRef.current && idx >= 0 && idx < banners.length) {
+      bannerIdxRef.current = idx;
+      setActiveBannerIdx(idx);
+    }
+  };
+
+  // ── Data loaders ─────────────────────────────────────────────────────────
   const loadNotificationCount = async () => {
     try {
-      const response = await notificationService.getNotifications(1, true);
-      if (response.success) {
-        setUnreadNotificationCount(response.unreadCount || 0);
-      }
-    } catch (err) {
-      console.log('Failed to load notification count');
-    }
+      const r = await notificationService.getNotifications(1, true);
+      if (r.success) setUnreadCount(r.unreadCount || 0);
+    } catch {}
   };
 
   const loadBanners = async () => {
     try {
-      const response = await bannerService.getActiveBanners();
-      if (response.success && response.data) {
-        setBanners(response.data);
-      }
-    } catch (err) {
-      console.log('Failed to load banners, using default banners');
-      // Fallback to hardcoded banners if API fails
-      setBanners(FEATURED_BANNERS as any);
+      const r = await bannerService.getActiveBanners();
+      if (r.success && r.data?.length) setBanners(r.data);
+      else setBanners(FALLBACK_BANNERS);
+    } catch {
+      setBanners(FALLBACK_BANNERS);
     }
   };
-
-  // Auto-scroll banner every 3 seconds
-  useEffect(() => {
-    if (banners.length > 0) {
-      startBannerAutoScroll();
-    }
-    return () => stopBannerAutoScroll();
-  }, [banners.length]); // restart when banners change
-
-  const startBannerAutoScroll = useCallback(() => {
-    stopBannerAutoScroll();
-    bannerIntervalRef.current = setInterval(() => {
-      const nextIndex = (activeBannerIndexRef.current + 1) % banners.length;
-      scrollToBanner(nextIndex);
-    }, 3000);
-  }, [banners.length]);
-
-  const stopBannerAutoScroll = useCallback(() => {
-    if (bannerIntervalRef.current) {
-      clearInterval(bannerIntervalRef.current);
-      bannerIntervalRef.current = null;
-    }
-  }, []);
-
-  const scrollToBanner = (index: number) => {
-    if (bannerScrollRef.current) {
-      // ScrollView scrollTo is exact — no FlatList offset calculation issues
-      bannerScrollRef.current.scrollTo({ x: index * SCREEN_WIDTH, animated: true });
-      activeBannerIndexRef.current = index;
-      setActiveBannerIndex(index);
-    }
-  };
-
-  const handleBannerScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const scrollPosition = event.nativeEvent.contentOffset.x;
-    const index = Math.round(scrollPosition / SCREEN_WIDTH);
-    
-    if (index !== activeBannerIndexRef.current && index >= 0 && index < banners.length) {
-      activeBannerIndexRef.current = index;
-      setActiveBannerIndex(index);
-    }
-  };
-
-  useEffect(() => {
-    fetchCourses();
-    loadContinueLearning();
-  }, []);
 
   const loadContinueLearning = async () => {
     try {
-      const response = await courseService.getEnrolledCourses();
-      if (response.success && response.data) {
-        setContinueLearning(response.data.slice(0, 3));
+      const { enrollmentService } = await import('../../services/enrollmentService');
+      const r = await enrollmentService.getMyEnrollments();
+      if (r.success && r.data) {
+        const courses = r.data
+          .filter((e: any) => e.status === 'paid' && typeof e.courseId === 'object')
+          .map((e: any) => e.courseId)
+          .slice(0, 5);
+        setContinueLearning(courses);
       }
-    } catch (err) {
-      console.log('Failed to load enrolled courses');
-    }
+    } catch {}
   };
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await refreshCourses();
-    await loadContinueLearning();
-    await loadNotificationCount();
-    await loadBanners();
+    await Promise.all([refreshCourses(), loadContinueLearning(), loadBanners(), loadNotificationCount()]);
     setRefreshing(false);
   }, [refreshCourses]);
 
-  const handleCoursePress = (course: Course) => {
-    navigation.navigate('CourseDetail', {
-      courseId: course._id,
-      courseTitle: course.title,
-    });
+  // ── Course segmentation ───────────────────────────────────────────────────
+  const recommended = courses.filter(c => c.rating >= 4.5).sort((a,b) => b.rating - a.rating).slice(0, 10);
+  const popular     = courses.filter(c => c.studentsEnrolled >= 50).sort((a,b) => b.studentsEnrolled - a.studentsEnrolled).slice(0, 10);
+  const newCourses  = [...courses].reverse().slice(0, 10);
+
+  const displayRecommended = recommended.length > 0 ? recommended : courses.slice(0, 10);
+  const displayPopular     = popular.length > 0 ? popular : courses.slice(0, 10);
+  const displayNew         = newCourses.length > 0 ? newCourses : courses.slice(0, 10);
+
+  // ── Event handlers ────────────────────────────────────────────────────────
+  const goToCourse = (course: Course) =>
+    navigation.navigate('CourseDetail', { courseId: course._id, courseTitle: course.title });
+
+  const handleBannerPress = (b: Banner) => {
+    if (b.actionType === 'category')
+      navigation.navigate('CategoryCourses', { categoryId: b.actionId || '', categoryName: b.actionName || '' });
+    else if (b.actionType === 'course')
+      navigation.navigate('CourseDetail', { courseId: b.actionId || '', courseTitle: b.actionName || '' });
+    else if (b.actionType === 'search')
+      navigation.navigate('Search', { initialQuery: b.actionQuery || '' });
   };
 
-  const handleBannerPress = (banner: Banner) => {
-    if (banner.actionType === 'category') {
-      // Navigate to category courses page
-      navigation.navigate('CategoryCourses', {
-        categoryId: banner.actionId || '',
-        categoryName: banner.actionName || '',
-      });
-    } else if (banner.actionType === 'course') {
-      // Navigate to specific course detail page
-      navigation.navigate('CourseDetail', {
-        courseId: banner.actionId || '',
-        courseTitle: banner.actionName || '',
-      });
-    } else if (banner.actionType === 'search') {
-      // Navigate to search with pre-filled query
-      navigation.navigate('Search', {
-        initialQuery: banner.actionQuery || '',
-      });
-    }
-  };
+  // ─────────────────────────────────────────────────────────────────────────
+  //  Render helpers
+  // ─────────────────────────────────────────────────────────────────────────
 
-  // Separate courses by category
-  // ⭐ Recommended: High-rated courses (4.5+ stars)
-  const recommendedCourses = courses
-    .filter(c => c.rating >= 4.5)
-    .sort((a, b) => b.rating - a.rating) // Sort by rating (highest first)
-    .slice(0, 10);
-  
-  // 🔥 Popular: Most enrolled courses (50+ students)
-  const popularCourses = courses
-    .filter(c => c.studentsEnrolled >= 50)
-    .sort((a, b) => b.studentsEnrolled - a.studentsEnrolled) // Sort by enrollment
-    .slice(0, 10);
-  
-  // ✨ New: Latest courses
-  const newCourses = courses
-    .slice(0, 10)
-    .reverse(); // Newest first
-  
-  // Fallback: If not enough courses, show all available courses
-  const displayRecommended = recommendedCourses.length > 0 ? recommendedCourses : courses.slice(0, 10);
-  const displayPopular = popularCourses.length > 0 ? popularCourses : courses.slice(0, 10);
-  const displayNew = newCourses.length > 0 ? newCourses : courses.slice(0, 10);
-
-  const renderHeader = () => (
-    <View>
-      {/* Header with Profile */}
-      <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
-        <View style={styles.headerLeft}>
-          <Text style={styles.greeting}>Hello, {user?.name?.split(' ')[0] || 'Learner'} 👋</Text>
-          <Text style={styles.subGreeting}>What will you learn today?</Text>
-        </View>
-        <View style={styles.headerRight}>
-          <TouchableOpacity 
-            style={styles.notificationBtn}
-            onPress={() => {
-              navigation.navigate('Notifications');
-              // Reset count when opening notifications
-              setUnreadNotificationCount(0);
-            }}>
-            <Text style={styles.notificationIcon}>🔔</Text>
-            {unreadNotificationCount > 0 && (
-              <View style={styles.notificationBadge}>
-                {unreadNotificationCount <= 9 ? (
-                  <Text style={styles.notificationBadgeText}>{unreadNotificationCount}</Text>
-                ) : (
-                  <Text style={styles.notificationBadgeText}>9+</Text>
-                )}
-              </View>
-            )}
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={styles.avatar}
-            onPress={() => navigation.navigate('ProfileTab' as any)}>
-            <Text style={styles.avatarText}>
-              {(user?.name?.[0] || 'L').toUpperCase()}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* Search Bar */}
-      <View style={styles.searchContainer}>
-        <TouchableOpacity
-          style={styles.searchBar}
-          activeOpacity={0.7}
-          onPress={() => navigation.navigate('Search', {})}>
-          <Text style={styles.searchIcon}>🔍</Text>
-          <Text style={styles.searchPlaceholder}>Search courses, subjects...</Text>
+  const renderSectionHeader = (title: string, onSeeAll?: () => void) => (
+    <View style={styles.sectionHeader}>
+      <Text style={styles.sectionTitle}>{title}</Text>
+      {onSeeAll && (
+        <TouchableOpacity onPress={onSeeAll}>
+          <Text style={styles.seeAll}>See all →</Text>
         </TouchableOpacity>
-      </View>
-
-      {/* Featured Banner Carousel — ScrollView is used instead of FlatList
-           because FlatList inside ListHeaderComponent cannot reliably determine
-           its frame width for pagingEnabled / scrollToIndex */}
-      {banners.length > 0 && (
-        <View style={styles.bannerContainer}>
-          <ScrollView
-            ref={bannerScrollRef}
-            horizontal
-            pagingEnabled
-            showsHorizontalScrollIndicator={false}
-            scrollEventThrottle={16}
-            decelerationRate="fast"
-            bounces={false}
-            onMomentumScrollEnd={handleBannerScroll}
-            onScrollBeginDrag={stopBannerAutoScroll}
-            onScrollEndDrag={startBannerAutoScroll}>
-            {banners.map((item) => (
-              <View key={item._id} style={{ width: SCREEN_WIDTH, paddingHorizontal: 16 }}>
-                <TouchableOpacity
-                  activeOpacity={0.9}
-                  onPress={() => handleBannerPress(item)}>
-                  <LinearGradient
-                    colors={item.bgGradient as [string, string]}
-                    style={styles.banner}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}>
-                    <View style={styles.bannerContent}>
-                      <Text style={styles.bannerTitle}>{item.title}</Text>
-                      <Text style={styles.bannerSubtitle}>{item.subtitle}</Text>
-                      <TouchableOpacity
-                        style={styles.bannerButton}
-                        onPress={() => handleBannerPress(item)}>
-                        <Text style={styles.bannerButtonText}>{item.cta} →</Text>
-                      </TouchableOpacity>
-                    </View>
-                    <View style={styles.bannerBadge}>
-                      <Text style={styles.bannerBadgeText}>{item.discount}</Text>
-                    </View>
-                    <Image
-                      source={{ uri: item.image }}
-                      style={styles.bannerImage}
-                      resizeMode="cover"
-                    />
-                  </LinearGradient>
-                </TouchableOpacity>
-              </View>
-            ))}
-          </ScrollView>
-          
-          {/* Pagination Dots */}
-          <View style={styles.paginationDots}>
-            {banners.map((_, index) => (
-              <TouchableOpacity
-                key={index}
-                activeOpacity={0.8}
-                onPress={() => scrollToBanner(index)}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                <View
-                  style={[
-                    styles.dot,
-                    index === activeBannerIndex && styles.activeDot,
-                  ]}
-                />
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
       )}
-
-      {/* Categories */}
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>📚 Categories</Text>
-          <TouchableOpacity onPress={() => navigation.navigate('Categories')}>
-            <Text style={styles.seeAll}>See All →</Text>
-          </TouchableOpacity>
-        </View>
-        <FlatList
-          horizontal
-          data={CATEGORIES}
-          keyExtractor={(item) => item.id}
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.categoriesList}
-          renderItem={({ item }) => (
-            <TouchableOpacity 
-              style={styles.categoryCard}
-              onPress={() => navigation.navigate('CategoryCourses', {
-                categoryId: item.id,
-                categoryName: item.name,
-              })}>
-              <LinearGradient
-                colors={item.gradient as [string, string]}
-                style={styles.categoryIcon}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}>
-                <Text style={styles.categoryEmoji}>{item.icon}</Text>
-              </LinearGradient>
-              <Text style={styles.categoryName}>{item.name}</Text>
-            </TouchableOpacity>
-          )}
-        />
-      </View>
-
-      {/* Continue Learning */}
-      {continueLearning.length > 0 && (
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>🎯 Continue Learning</Text>
-            <TouchableOpacity onPress={() => navigation.navigate('MyCoursesTab' as any)}>
-              <Text style={styles.seeAll}>See All →</Text>
-            </TouchableOpacity>
-          </View>
-          <FlatList
-            horizontal
-            data={continueLearning}
-            keyExtractor={(item) => item._id}
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.coursesList}
-            renderItem={({ item }) => renderContinueCourseCard(item)}
-          />
-        </View>
-      )}
-
-      {/* Recommended Courses */}
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>⭐ Recommended Courses</Text>
-          <TouchableOpacity>
-            <Text style={styles.seeAll}>See All →</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
     </View>
   );
 
-  const renderContinueCourseCard = (course: any) => {
-    // Use actual completion percentage from backend, default to 0 if not available
-    const progress = course.completionPercentage || 0;
-    const actualCourse = typeof course.courseId === 'object' ? course.courseId : course;
-    
-    return (
-      <TouchableOpacity
-        style={styles.continueCourseCard}
-        onPress={() => handleCoursePress(actualCourse)}>
+  /** Horizontal course card — used in Popular & New Courses rows */
+  const renderHCard = (course: Course) => (
+    <TouchableOpacity
+      key={course._id}
+      style={styles.hCard}
+      onPress={() => goToCourse(course)}
+      activeOpacity={0.9}>
+      <Image
+        source={{ uri: course.thumbnail || 'https://images.unsplash.com/photo-1606092195730-5d7b9af1efc5?w=400' }}
+        style={styles.hCardImage}
+        resizeMode="cover"
+      />
+      {/* Discount badge */}
+      {course.originalPrice && course.originalPrice > (course.price ?? 0) && (
+        <View style={styles.discountBadge}>
+          <Text style={styles.discountText}>
+            {Math.round(((course.originalPrice - (course.price ?? 0)) / course.originalPrice) * 100)}% OFF
+          </Text>
+        </View>
+      )}
+      <View style={styles.hCardBody}>
+        <Text style={styles.hCardTitle} numberOfLines={2}>{course.title}</Text>
+        <Text style={styles.hCardInstructor} numberOfLines={1}>👨‍🏫 {course.instructor}</Text>
+        <View style={styles.hCardFooter}>
+          <View style={styles.starRow}>
+            <Text style={styles.starIcon}>★</Text>
+            <Text style={styles.starText}>{course.rating?.toFixed(1) || '—'}</Text>
+            <Text style={styles.enrolledText}>  ·  {course.studentsEnrolled} students</Text>
+          </View>
+        </View>
+        <Text style={styles.hCardPrice}>
+          {(course.price ?? 0) === 0 ? 'FREE' : `₹${course.price}`}
+          {course.originalPrice && course.originalPrice > (course.price ?? 0) && (
+            <Text style={styles.hCardOriginalPrice}>  ₹{course.originalPrice}</Text>
+          )}
+        </Text>
+      </View>
+    </TouchableOpacity>
+  );
+
+  /** 2-column grid card — used in Recommended & Recently Added */
+  const renderGridCard = ({ item }: { item: Course }) => (
+    <TouchableOpacity style={styles.gridCard} onPress={() => goToCourse(item)} activeOpacity={0.9}>
+      <View style={styles.gridImageWrap}>
         <Image
-          source={{ uri: actualCourse.thumbnail || 'https://via.placeholder.com/300x180' }}
-          style={styles.continueCourseImage}
+          source={{ uri: item.thumbnail || 'https://images.unsplash.com/photo-1606092195730-5d7b9af1efc5?w=400' }}
+          style={styles.gridImage}
           resizeMode="cover"
         />
-        <View style={styles.continueCourseInfo}>
-          <Text style={styles.continueCourseTitle} numberOfLines={2}>
-            {actualCourse.title}
+        <LinearGradient colors={['transparent', 'rgba(0,0,0,0.55)']} style={styles.gridImageGrad} />
+        <View style={styles.gridPriceBadge}>
+          <Text style={styles.gridPriceText}>
+            {(item.price ?? 0) === 0 ? 'FREE' : `₹${item.price}`}
           </Text>
-          <Text style={styles.continueCourseLesson} numberOfLines={1}>
-            {actualCourse.instructor}
-          </Text>
-          <View style={styles.progressContainer}>
-            <View style={styles.progressBar}>
+        </View>
+      </View>
+      <View style={styles.gridBody}>
+        <Text style={styles.gridTitle} numberOfLines={2}>{item.title}</Text>
+        <Text style={styles.gridInstructor} numberOfLines={1}>{item.instructor}</Text>
+        <View style={styles.gridMeta}>
+          <Text style={styles.gridStar}>★ {item.rating?.toFixed(1) || '—'}</Text>
+          {item.level && <View style={styles.levelChip}><Text style={styles.levelText}>{item.level}</Text></View>}
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
+
+  /** Continue Learning card */
+  const renderContinueCard = (course: any) => {
+    const progress = course.completionPercentage || 0;
+    const actual = typeof course.courseId === 'object' ? course.courseId : course;
+    return (
+      <TouchableOpacity key={actual._id} style={styles.continueCard} onPress={() => goToCourse(actual)} activeOpacity={0.9}>
+        <Image
+          source={{ uri: actual.thumbnail || 'https://images.unsplash.com/photo-1606092195730-5d7b9af1efc5?w=400' }}
+          style={styles.continueImage}
+          resizeMode="cover"
+        />
+        <LinearGradient colors={['transparent', 'rgba(0,0,0,0.7)']} style={styles.continueImageGrad} />
+        <View style={styles.continueBody}>
+          <Text style={styles.continueTitle} numberOfLines={2}>{actual.title}</Text>
+          <View style={styles.progressRow}>
+            <View style={styles.progressTrack}>
               <LinearGradient
-                colors={['#0D7EFF', '#4DA3FF']}
-                style={[styles.progressFill, { width: `${progress}%` }]}
+                colors={Gradients.primary as [string, string]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
+                style={[styles.progressFill, { width: `${Math.min(progress, 100)}%` }]}
               />
             </View>
-            <Text style={styles.progressText}>{progress}%</Text>
+            <Text style={styles.progressPct}>{progress}%</Text>
           </View>
-          <TouchableOpacity 
-            style={styles.resumeButton}
-            onPress={() => handleCoursePress(actualCourse)}>
-            <Text style={styles.resumeButtonText}>Resume →</Text>
+          <TouchableOpacity style={styles.resumeBtn} onPress={() => goToCourse(actual)}>
+            <Text style={styles.resumeBtnText}>Resume →</Text>
           </TouchableOpacity>
         </View>
       </TouchableOpacity>
     );
   };
 
-  const renderHorizontalCourseCard = (course: Course) => (
-    <TouchableOpacity
-      style={styles.horizontalCourseCard}
-      onPress={() => handleCoursePress(course)}>
-      <Image
-        source={{ uri: course.thumbnail || 'https://via.placeholder.com/300x180' }}
-        style={styles.horizontalCourseImage}
-        resizeMode="cover"
-      />
-      {course.originalPrice && course.originalPrice > course.price && (
-        <View style={styles.trendingBadge}>
-          <Text style={styles.trendingText}>🔥 Trending</Text>
-        </View>
-      )}
-      <View style={styles.horizontalCourseInfo}>
-        <Text style={styles.horizontalCourseTitle} numberOfLines={2}>
-          {course.title}
-        </Text>
-        <Text style={styles.horizontalCourseInstructor} numberOfLines={1}>
-          👨‍🏫 {course.instructor}
-        </Text>
-        <View style={styles.horizontalCourseMeta}>
-          <View style={styles.ratingContainer}>
-            <Text style={styles.ratingStar}>⭐</Text>
-            <Text style={styles.ratingText}>{course.rating}</Text>
-          </View>
-          <Text style={styles.courseMeta}>👥 {course.studentsEnrolled}</Text>
-        </View>
-        <View style={styles.horizontalCourseFooter}>
-          <Text style={styles.horizontalCoursePrice}>₹{course.price}</Text>
-          {course.originalPrice && course.originalPrice > course.price && (
-            <Text style={styles.horizontalCourseOriginalPrice}>₹{course.originalPrice}</Text>
-          )}
-          <View style={styles.levelBadge}>
-            <Text style={styles.levelText}>{course.level}</Text>
-          </View>
-        </View>
-      </View>
-    </TouchableOpacity>
-  );
-
-  const renderCourseCard = (course: Course) => (
-    <TouchableOpacity
-      style={styles.courseCard}
-      onPress={() => handleCoursePress(course)}>
-      <View style={styles.courseImageContainer}>
-        <Image
-          source={{ uri: course.thumbnail || 'https://via.placeholder.com/300x180'}}
-          style={styles.courseImage}
-          resizeMode="cover"
-        />
-        <View style={styles.courseBadge}>
-          <Text style={styles.courseBadgeText}>₹{course.price}</Text>
-        </View>
-        {course.originalPrice && course.originalPrice > course.price && (
-          <View style={styles.discountBadge}>
-            <Text style={styles.discountText}>
-              {Math.round(((course.originalPrice - course.price) / course.originalPrice) * 100)}% OFF
+  // ─────────────────────────────────────────────────────────────────────────
+  //  List Header (everything above the grid)
+  // ─────────────────────────────────────────────────────────────────────────
+  const ListHeader = () => (
+    <View>
+      {/* ── Top Header ──────────────────────────────────────────────── */}
+      <LinearGradient
+        colors={['#EEF0FF', '#F7F8FC']}
+        style={[styles.topHeader, { paddingTop: insets.top + 12 }]}>
+        <View style={styles.headerRow}>
+          <View style={styles.headerLeft}>
+            <Text style={styles.greeting}>{getGreeting()},</Text>
+            <Text style={styles.userName} numberOfLines={1}>
+              {user?.name?.split(' ')[0] || 'Learner'} 👋
             </Text>
           </View>
-        )}
-      </View>
-      <View style={styles.courseInfo}>
-        <Text style={styles.courseTitle} numberOfLines={2}>
-          {course.title}
-        </Text>
-        <Text style={styles.courseInstructor} numberOfLines={1}>
-          {course.instructor}
-        </Text>
-        <View style={styles.courseFooter}>
-          <View style={styles.ratingContainer}>
-            <Text style={styles.ratingStar}>⭐</Text>
-            <Text style={styles.ratingText}>{course.rating}</Text>
-          </View>
-          <View style={styles.courseMetaContainer}>
-            <Text style={styles.courseMeta}>👥 {course.studentsEnrolled}</Text>
-            <Text style={styles.courseMeta}>⏱ {course.duration}</Text>
+          <View style={styles.headerRight}>
+            <TouchableOpacity
+              style={styles.iconBtn}
+              onPress={() => { navigation.navigate('Notifications'); setUnreadCount(0); }}>
+              <Text style={styles.iconBtnText}>🔔</Text>
+              {unreadCount > 0 && (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.avatarBtn}
+              onPress={() => navigation.navigate('ProfileTab' as any)}>
+              <LinearGradient colors={Gradients.primary as [string, string]} style={styles.avatarGrad}>
+                <Text style={styles.avatarText}>{(user?.name?.[0] || 'L').toUpperCase()}</Text>
+              </LinearGradient>
+            </TouchableOpacity>
           </View>
         </View>
-        <View style={styles.courseTags}>
-          <View style={styles.levelBadge}>
-            <Text style={styles.levelText}>{course.level}</Text>
+
+        {/* ── Search Bar ──────────────────────────────────────────────── */}
+        <TouchableOpacity
+          style={styles.searchBar}
+          activeOpacity={0.85}
+          onPress={() => navigation.navigate('Search', {})}>
+          <Text style={styles.searchIcon}>🔍</Text>
+          <Text style={styles.searchPlaceholder}>Search courses, subjects...</Text>
+        </TouchableOpacity>
+      </LinearGradient>
+
+      {/* ── Banner Carousel ─────────────────────────────────────────── */}
+      {banners.length > 0 && (
+        <View style={styles.bannerSection}>
+          <ScrollView
+            ref={bannerScrollRef}
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            decelerationRate="fast"
+            bounces={false}
+            scrollEventThrottle={16}
+            onMomentumScrollEnd={handleBannerScroll}
+            onScrollBeginDrag={stopBannerTimer}
+            onScrollEndDrag={startBannerTimer}>
+            {banners.map(b => (
+              <View key={b._id} style={{ width: SW, paddingHorizontal: Spacing.md }}>
+                <TouchableOpacity activeOpacity={0.93} onPress={() => handleBannerPress(b)}>
+                  <LinearGradient
+                    colors={b.bgGradient as [string, string]}
+                    style={styles.bannerCard}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}>
+                    {/* Image background layer */}
+                    <Image source={{ uri: b.image }} style={styles.bannerImage} resizeMode="cover" />
+                    <LinearGradient
+                      colors={['rgba(0,0,0,0.6)', 'rgba(0,0,0,0.1)']}
+                      style={StyleSheet.absoluteFillObject}
+                      start={{ x: 0, y: 0.5 }}
+                      end={{ x: 1, y: 0.5 }}
+                    />
+                    {/* Content */}
+                    <View style={styles.bannerContent}>
+                      {b.discount && (
+                        <View style={styles.bannerBadge}>
+                          <Text style={styles.bannerBadgeText}>{b.discount}</Text>
+                        </View>
+                      )}
+                      <Text style={styles.bannerTitle} numberOfLines={2}>{b.title}</Text>
+                      <Text style={styles.bannerSubtitle} numberOfLines={2}>{b.subtitle}</Text>
+                      <View style={styles.bannerCta}>
+                        <Text style={styles.bannerCtaText}>{b.cta} →</Text>
+                      </View>
+                    </View>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </View>
+            ))}
+          </ScrollView>
+          {/* Pagination dots */}
+          <View style={styles.dotsRow}>
+            {banners.map((_, i) => (
+              <TouchableOpacity
+                key={i}
+                onPress={() => { bannerScrollRef.current?.scrollTo({ x: i * SW, animated: true }); bannerIdxRef.current = i; setActiveBannerIdx(i); }}>
+                <Animated.View style={[styles.dot, i === activeBannerIdx && styles.dotActive]} />
+              </TouchableOpacity>
+            ))}
           </View>
-          {course.medium && (
-            <View style={styles.mediumBadge}>
-              <Text style={styles.mediumText}>{course.medium}</Text>
-            </View>
-          )}
         </View>
+      )}
+
+      {/* ── Category Pills ──────────────────────────────────────────── */}
+      <View style={styles.section}>
+        {renderSectionHeader('📚 Browse Categories', () => navigation.navigate('Categories'))}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.catPills}>
+          {CATEGORIES.map(cat => (
+            <TouchableOpacity
+              key={cat.id}
+              style={styles.catPill}
+              onPress={() => navigation.navigate('CategoryCourses', { categoryId: cat.id, categoryName: cat.name.replace('\n', ' ') })}
+              activeOpacity={0.85}>
+              <LinearGradient colors={cat.gradient as [string, string]} style={styles.catPillGrad}>
+                <Text style={styles.catPillIcon}>{cat.icon}</Text>
+                <Text style={styles.catPillName}>{cat.name}</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
       </View>
-    </TouchableOpacity>
+
+      {/* ── Continue Learning ───────────────────────────────────────── */}
+      {continueLearning.length > 0 && (
+        <View style={styles.section}>
+          {renderSectionHeader('🎯 Continue Learning', () => navigation.navigate('MyCoursesTab' as any))}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hScroll}>
+            {continueLearning.map(c => renderContinueCard(c))}
+          </ScrollView>
+        </View>
+      )}
+
+      {/* ── Popular Courses (horizontal) ─────────────────────────────── */}
+      {displayPopular.length > 0 && (
+        <View style={styles.section}>
+          {renderSectionHeader('🔥 Popular Courses')}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hScroll}>
+            {displayPopular.map(c => renderHCard(c))}
+          </ScrollView>
+        </View>
+      )}
+
+      {/* ── Recommended — grid header text ───────────────────────────── */}
+      <View style={[styles.section, { marginBottom: 4 }]}>
+        {renderSectionHeader('⭐ Recommended Courses')}
+      </View>
+    </View>
   );
 
+  /** Footer after the grid */
+  const ListFooter = () => (
+    <View>
+      {/* ── New Courses (horizontal) ──────────────────────────────────── */}
+      {displayNew.length > 0 && (
+        <View style={[styles.section, { marginTop: Spacing.md }]}>
+          {renderSectionHeader('✨ Recently Added')}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hScroll}>
+            {displayNew.map(c => renderHCard(c))}
+          </ScrollView>
+        </View>
+      )}
+    </View>
+  );
+
+  // ─────────────────────────────────────────────────────────────────────────
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor={Colors.background} />
+    <View style={styles.root}>
+      <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
       <FlatList
         data={displayRecommended}
         numColumns={2}
-        keyExtractor={(item, index) => `${item._id}-${index}`}
-        columnWrapperStyle={styles.row}
+        keyExtractor={(item, idx) => `${item._id}-${idx}`}
+        columnWrapperStyle={styles.gridRow}
         contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 80 }]}
-        ListHeaderComponent={renderHeader()}
-        ListFooterComponent={
-          <>
-            {/* Popular Courses */}
-            <View style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>🔥 Popular Courses</Text>
-                <TouchableOpacity>
-                  <Text style={styles.seeAll}>See All →</Text>
-                </TouchableOpacity>
-              </View>
-              <FlatList
-                data={displayPopular}
-                horizontal
-                keyExtractor={(item) => item._id}
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.coursesList}
-                renderItem={({ item }) => renderHorizontalCourseCard(item)}
-              />
-            </View>
-
-            {/* New Courses */}
-            <View style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>✨ New Courses</Text>
-                <TouchableOpacity>
-                  <Text style={styles.seeAll}>See All →</Text>
-                </TouchableOpacity>
-              </View>
-              <FlatList
-                data={displayNew}
-                horizontal
-                keyExtractor={(item) => item._id}
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.coursesList}
-                renderItem={({ item }) => renderHorizontalCourseCard(item)}
-              />
-            </View>
-          </>
-        }
-        renderItem={({ item }) => renderCourseCard(item)}
+        ListHeaderComponent={<ListHeader />}
+        ListFooterComponent={<ListFooter />}
+        renderItem={renderGridCard}
         refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor={Colors.primary}
-            colors={[Colors.primary]}
-          />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} tintColor={Colors.primary} />
         }
         showsVerticalScrollIndicator={false}
       />
@@ -638,36 +484,44 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
   );
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+//  Styles
+// ─────────────────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+  root: { flex: 1, backgroundColor: Colors.background },
   list: { paddingHorizontal: Spacing.md },
-  
-  // Header
-  header: {
+
+  // ── Top Header
+  topHeader: {
+    marginHorizontal: -Spacing.md,
+    paddingHorizontal: Spacing.md,
+    paddingBottom: Spacing.md + 2,
+  },
+  headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: Spacing.sm + 4,
+    marginBottom: Spacing.md,
   },
   headerLeft: { flex: 1 },
-  greeting: { ...Typography.h3, color: Colors.text, marginBottom: 4 },
-  subGreeting: { ...Typography.body, color: Colors.textSecondary },
+  greeting: { ...Typography.bodySmall, color: Colors.textSecondary, marginBottom: 2 },
+  userName: { ...Typography.h3, color: Colors.text },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
-  notificationBtn: {
+  iconBtn: {
     width: 44,
     height: 44,
     borderRadius: 22,
     backgroundColor: Colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
-    ...Shadows.sm,
     position: 'relative',
+    ...Shadows.sm,
   },
-  notificationIcon: { fontSize: 20 },
-  notificationBadge: {
+  iconBtnText: { fontSize: 20 },
+  badge: {
     position: 'absolute',
-    top: 6,
-    right: 6,
+    top: 5,
+    right: 5,
     minWidth: 18,
     height: 18,
     borderRadius: 9,
@@ -676,290 +530,197 @@ const styles = StyleSheet.create({
     borderColor: Colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 4,
+    paddingHorizontal: 3,
   },
-  notificationBadgeText: {
-    color: Colors.textOnPrimary,
-    fontSize: 10,
-    fontWeight: '700',
-    lineHeight: 14,
-  },
-  avatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: Colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarText: { color: Colors.textOnPrimary, fontSize: 18, fontWeight: '700' },
+  badgeText: { color: '#fff', fontSize: 9, fontWeight: '700' },
+  avatarBtn: { borderRadius: 22, overflow: 'hidden', ...Shadows.sm },
+  avatarGrad: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  avatarText: { color: '#fff', fontSize: 18, fontWeight: '700' },
 
-  // Search
-  searchContainer: { marginBottom: Spacing.md + 4 },
+  // ── Search
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.surface,
-    borderRadius: Radius.lg,
+    borderRadius: Radius.full,
     paddingHorizontal: Spacing.md + 2,
     height: 50,
     ...Shadows.md,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
   },
-  searchIcon: { fontSize: 18, marginRight: Spacing.sm },
-  searchPlaceholder: {
-    flex: 1,
-    color: Colors.textMuted,
-    fontSize: 15,
-  },
+  searchIcon: { fontSize: 17, marginRight: Spacing.sm, color: Colors.textMuted },
+  searchPlaceholder: { flex: 1, color: Colors.textMuted, fontSize: 15 },
 
-  // Banner
-  bannerContainer: { marginBottom: Spacing.md + 4, marginHorizontal: -Spacing.md },
-  banner: {
-    width: BANNER_INNER_WIDTH,
-    height: 180,
-    borderRadius: Radius.lg + 2,
-    padding: Spacing.md + 2,
+  // ── Banner
+  bannerSection: { marginHorizontal: -Spacing.md, marginBottom: Spacing.md },
+  bannerCard: {
+    height: 196,
+    borderRadius: Radius.xl,
     overflow: 'hidden',
+    position: 'relative',
     ...Shadows.lg,
   },
-  bannerContent: { flex: 1, justifyContent: 'center', zIndex: 2 },
-  bannerTitle: { ...Typography.h3, color: Colors.textOnPrimary, marginBottom: 4, fontWeight: '700' },
-  bannerSubtitle: { ...Typography.body, color: 'rgba(255,255,255,0.9)', marginBottom: Spacing.md },
-  bannerButton: {
-    backgroundColor: 'rgba(255,255,255,0.95)',
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm + 2,
-    borderRadius: Radius.md,
-    alignSelf: 'flex-start',
-    ...Shadows.md,
-  },
-  bannerButtonText: { ...Typography.button, color: Colors.primary, fontWeight: '700' },
+  bannerImage: { position: 'absolute', right: 0, width: '55%', height: '100%', opacity: 0.6 },
+  bannerContent: { flex: 1, padding: Spacing.md + 2, justifyContent: 'flex-end' },
   bannerBadge: {
-    position: 'absolute',
-    top: Spacing.md,
-    right: Spacing.md,
-    backgroundColor: Colors.warning,
+    alignSelf: 'flex-start',
+    backgroundColor: Colors.secondary,
+    borderRadius: Radius.sm,
+    paddingHorizontal: Spacing.sm + 2,
+    paddingVertical: 4,
+    marginBottom: Spacing.sm,
+  },
+  bannerBadgeText: { ...Typography.overline, color: '#fff', letterSpacing: 0.5 },
+  bannerTitle: { ...Typography.h4, color: '#fff', marginBottom: 4 },
+  bannerSubtitle: { ...Typography.bodySmall, color: 'rgba(255,255,255,0.88)', marginBottom: Spacing.sm },
+  bannerCta: {
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(255,255,255,0.22)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.4)',
+    borderRadius: Radius.sm,
     paddingHorizontal: Spacing.md,
-    paddingVertical: 8,
-    borderRadius: Radius.md,
-    ...Shadows.sm,
+    paddingVertical: Spacing.xs + 2,
   },
-  bannerBadgeText: { ...Typography.caption, color: Colors.textOnPrimary, fontWeight: '800', fontSize: 13 },
-  bannerImage: {
-    position: 'absolute',
-    right: 0,
-    bottom: 0,
-    width: 140,
-    height: 140,
-    borderTopLeftRadius: Radius.xl,
-    opacity: 0.3,
-  },
-  paginationDots: {
+  bannerCtaText: { ...Typography.buttonSm, color: '#fff' },
+  dotsRow: {
     flexDirection: 'row',
     justifyContent: 'center',
-    alignItems: 'center',
-    gap: 8,
+    gap: 6,
     marginTop: Spacing.sm,
+    paddingHorizontal: Spacing.md,
   },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: Colors.divider,
-  },
-  activeDot: {
-    width: 24,
-    backgroundColor: Colors.primary,
-  },
+  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: Colors.border },
+  dotActive: { width: 22, backgroundColor: Colors.primary },
 
-  // Section
+  // ── Sections
   section: { marginBottom: Spacing.md + 4 },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: Spacing.sm + 2,
-    paddingHorizontal: 2,
   },
-  sectionTitle: { ...Typography.h5, color: Colors.text, fontWeight: '800', fontSize: 17 },
-  seeAll: { ...Typography.bodySmall, color: Colors.primary, fontWeight: '700', fontSize: 13 },
+  sectionTitle: { ...Typography.h5, color: Colors.text, fontWeight: '800' },
+  seeAll: { ...Typography.bodySmall, color: Colors.primary, fontWeight: '700' },
 
-  // Categories
-  categoriesList: { gap: Spacing.md },
-  categoryCard: {
-    alignItems: 'center',
-    width: CATEGORY_SIZE,
-  },
-  categoryIcon: {
-    width: 88,
-    height: 88,
-    borderRadius: Radius.xl,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: Spacing.sm,
-    ...Shadows.card,
-  },
-  categoryEmoji: { fontSize: 40 },
-  categoryName: { ...Typography.caption, color: Colors.text, fontWeight: '700', textAlign: 'center', fontSize: 13 },
-
-  // Continue Learning Card
-  coursesList: { gap: Spacing.md, paddingRight: Spacing.md },
-  continueCourseCard: {
-    width: SCREEN_WIDTH * 0.75,
-    backgroundColor: Colors.surface,
-    borderRadius: Radius.xl,
-    overflow: 'hidden',
-    ...Shadows.lg,
-  },
-  continueCourseImage: {
-    width: '100%',
-    height: 140,
-    backgroundColor: Colors.divider,
-  },
-  continueCourseInfo: { padding: Spacing.md },
-  continueCourseTitle: { ...Typography.h5, color: Colors.text, marginBottom: 4, fontWeight: '700' },
-  continueCourseLesson: { ...Typography.caption, color: Colors.textMuted, marginBottom: Spacing.md },
-  progressContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: Spacing.md,
-  },
-  progressBar: {
-    flex: 1,
-    height: 8,
-    backgroundColor: Colors.progressBackground,
-    borderRadius: 4,
-    marginRight: Spacing.sm,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    borderRadius: 4,
-  },
-  progressText: { ...Typography.caption, color: Colors.primary, fontWeight: '700', minWidth: 40, fontSize: 13 },
-  resumeButton: {
-    backgroundColor: Colors.primary,
+  // ── Category Pills
+  catPills: { gap: Spacing.sm, paddingRight: Spacing.md },
+  catPill: { borderRadius: Radius.xl, overflow: 'hidden', ...Shadows.card },
+  catPillGrad: {
+    paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm + 2,
-    borderRadius: Radius.md,
     alignItems: 'center',
-    ...Shadows.sm,
+    minWidth: 88,
+    gap: 4,
   },
-  resumeButtonText: { ...Typography.button, color: Colors.textOnPrimary, fontSize: 15, fontWeight: '700' },
+  catPillIcon: { fontSize: 26 },
+  catPillName: { ...Typography.caption, color: '#fff', fontWeight: '700', textAlign: 'center' },
 
-  // Course Card
-  row: { justifyContent: 'space-between', marginBottom: Spacing.md },
-  
-  // Horizontal Course Card (for Popular & New sections)
-  horizontalCourseCard: {
-    width: SCREEN_WIDTH * 0.7,
+  // ── Horizontal scroll
+  hScroll: { gap: Spacing.md, paddingRight: Spacing.md },
+
+  // ── Continue Learning card
+  continueCard: {
+    width: 300,
+    height: 180,
+    borderRadius: Radius.xl,
+    overflow: 'hidden',
+    position: 'relative',
+    ...Shadows.lg,
+  },
+  continueImage: { width: '100%', height: '100%', position: 'absolute' },
+  continueImageGrad: { position: 'absolute', left: 0, right: 0, bottom: 0, height: '70%' },
+  continueBody: { flex: 1, justifyContent: 'flex-end', padding: Spacing.md },
+  continueTitle: { ...Typography.h6, color: '#fff', marginBottom: 6 },
+  progressRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: Spacing.sm },
+  progressTrack: {
+    flex: 1,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: 'rgba(255,255,255,0.35)',
+    overflow: 'hidden',
+  },
+  progressFill: { height: '100%', borderRadius: 3 },
+  progressPct: { ...Typography.caption, color: '#fff', fontWeight: '700', minWidth: 30 },
+  resumeBtn: {
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.45)',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 5,
+    borderRadius: Radius.sm,
+  },
+  resumeBtnText: { ...Typography.buttonSm, color: '#fff' },
+
+  // ── Horizontal course card
+  hCard: {
+    width: 240,
     backgroundColor: Colors.surface,
     borderRadius: Radius.xl,
     overflow: 'hidden',
-    ...Shadows.lg,
+    ...Shadows.card,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
   },
-  horizontalCourseImage: {
-    width: '100%',
-    height: 160,
-  },
-  trendingBadge: {
+  hCardImage: { width: '100%', height: 140 },
+  discountBadge: {
     position: 'absolute',
     top: Spacing.sm,
     left: Spacing.sm,
-    backgroundColor: Colors.warning,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 4,
+    backgroundColor: Colors.secondary,
     borderRadius: Radius.sm,
-    ...Shadows.sm,
-  },
-  trendingText: { ...Typography.caption, color: Colors.textOnPrimary, fontWeight: '700', fontSize: 11 },
-  horizontalCourseInfo: { padding: Spacing.md },
-  horizontalCourseTitle: { ...Typography.h5, color: Colors.text, fontWeight: '700', marginBottom: 4, fontSize: 15 },
-  horizontalCourseInstructor: { ...Typography.caption, color: Colors.textMuted, marginBottom: Spacing.sm },
-  horizontalCourseMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.md,
-    marginBottom: Spacing.sm,
-  },
-  horizontalCourseFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-  },
-  horizontalCoursePrice: { ...Typography.h5, color: Colors.primary, fontWeight: '700', fontSize: 18 },
-  horizontalCourseOriginalPrice: {
-    ...Typography.caption,
-    color: Colors.textMuted,
-    textDecorationLine: 'line-through',
-    fontSize: 13,
-  },
-  
-  // Grid Course Card (for Recommended section)
-  courseCard: {
-    width: (SCREEN_WIDTH - Spacing.md * 3) / 2,
-    backgroundColor: Colors.surface,
-    borderRadius: Radius.xl,
-    overflow: 'hidden',
-    ...Shadows.lg,
-  },
-  courseImageContainer: {
-    width: '100%',
-    height: 130,
-    position: 'relative',
-  },
-  courseImage: {
-    width: '100%',
-    height: '100%',
-  },
-  courseBadge: {
-    position: 'absolute',
-    top: Spacing.xs,
-    left: Spacing.xs,
-    backgroundColor: Colors.primary,
     paddingHorizontal: Spacing.sm,
-    paddingVertical: 4,
-    borderRadius: Radius.sm,
-    ...Shadows.sm,
-  },
-  courseBadgeText: { ...Typography.caption, color: Colors.textOnPrimary, fontWeight: '800', fontSize: 12 },
-  discountBadge: {
-    position: 'absolute',
-    top: Spacing.xs,
-    right: Spacing.xs,
-    backgroundColor: Colors.error,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 4,
-    borderRadius: Radius.sm,
-    ...Shadows.sm,
-  },
-  discountText: { ...Typography.caption, color: '#FFF', fontWeight: '800', fontSize: 11 },
-  courseInfo: { padding: Spacing.md },
-  courseTitle: { ...Typography.body, color: Colors.text, fontWeight: '700', marginBottom: 4, fontSize: 14 },
-  courseInstructor: { ...Typography.caption, color: Colors.textMuted, marginBottom: Spacing.xs },
-  courseFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: Spacing.xs,
-  },
-  ratingContainer: { flexDirection: 'row', alignItems: 'center' },
-  ratingStar: { fontSize: 12, marginRight: 2 },
-  ratingText: { ...Typography.caption, color: Colors.text, fontWeight: '600' },
-  courseMetaContainer: { flexDirection: 'row', gap: 6 },
-  courseMeta: { ...Typography.caption, color: Colors.textMuted, fontSize: 10 },
-  courseTags: { flexDirection: 'row', gap: 4, flexWrap: 'wrap' },
-  levelBadge: {
-    backgroundColor: Colors.progressBackground,
-    paddingHorizontal: 8,
     paddingVertical: 3,
-    borderRadius: Radius.sm,
   },
-  levelText: { ...Typography.caption, color: Colors.primary, fontSize: 10, fontWeight: '700' },
-  mediumBadge: {
-    backgroundColor: Colors.divider,
+  discountText: { ...Typography.overline, color: '#fff', letterSpacing: 0.3 },
+  hCardBody: { padding: Spacing.md },
+  hCardTitle: { ...Typography.h6, color: Colors.text, marginBottom: 4 },
+  hCardInstructor: { ...Typography.caption, color: Colors.textMuted, marginBottom: Spacing.xs },
+  hCardFooter: { marginBottom: 4 },
+  starRow: { flexDirection: 'row', alignItems: 'center' },
+  starIcon: { color: Colors.star, fontSize: 13, marginRight: 3 },
+  starText: { ...Typography.caption, color: Colors.text, fontWeight: '700' },
+  enrolledText: { ...Typography.caption, color: Colors.textMuted },
+  hCardPrice: { ...Typography.h5, color: Colors.primary, fontWeight: '800' },
+  hCardOriginalPrice: { ...Typography.bodySmall, color: Colors.textMuted, textDecorationLine: 'line-through', fontSize: 12 },
+
+  // ── Grid course card
+  gridRow: { justifyContent: 'space-between', marginBottom: Spacing.md },
+  gridCard: {
+    width: (SW - Spacing.md * 3) / 2,
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.lg,
+    overflow: 'hidden',
+    ...Shadows.card,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+  },
+  gridImageWrap: { position: 'relative', width: '100%', height: 120 },
+  gridImage: { width: '100%', height: '100%' },
+  gridImageGrad: { position: 'absolute', left: 0, right: 0, bottom: 0, height: '60%' },
+  gridPriceBadge: {
+    position: 'absolute',
+    bottom: Spacing.xs,
+    right: Spacing.xs,
+    backgroundColor: Colors.primary,
+    borderRadius: Radius.xs,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+  },
+  gridPriceText: { ...Typography.caption, color: '#fff', fontWeight: '800', fontSize: 11 },
+  gridBody: { padding: Spacing.sm + 2 },
+  gridTitle: { ...Typography.bodySmall, color: Colors.text, fontWeight: '700', marginBottom: 3, lineHeight: 18 },
+  gridInstructor: { ...Typography.caption, color: Colors.textMuted, marginBottom: 4 },
+  gridMeta: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  gridStar: { ...Typography.caption, color: Colors.star, fontWeight: '700' },
+  levelChip: {
+    backgroundColor: Colors.primarySoft,
+    borderRadius: Radius.xs,
     paddingHorizontal: 6,
     paddingVertical: 2,
-    borderRadius: 4,
   },
-  mediumText: { ...Typography.caption, color: Colors.textSecondary, fontSize: 10, fontWeight: '600' },
+  levelText: { ...Typography.caption, color: Colors.primary, fontWeight: '600', fontSize: 10 },
 });

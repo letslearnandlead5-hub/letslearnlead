@@ -9,7 +9,6 @@ import {
   Alert,
   StatusBar,
   Dimensions,
-  FlatList,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -17,20 +16,19 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Course } from '../../types';
 import { courseService } from '../../services/courseService';
 import { enrollmentService } from '../../services/enrollmentService';
-import { AppButton } from '../../components/ui/AppButton';
 import { LoadingSpinner } from '../../components/ui/LoadingSpinner';
 import { ErrorMessage } from '../../components/ui/ErrorMessage';
-import { Colors, Typography, Spacing, Radius, Shadows } from '../../theme';
+import { Colors, Typography, Spacing, Radius, Shadows, Gradients } from '../../theme';
 
-// A minimal param list scoped to this screen so it's reusable across any
-// stack that contains a 'CourseDetail' screen (HomeStack, MyCoursesStack, etc.)
 type CourseDetailParamList = {
   CourseDetail: { courseId: string; courseTitle?: string };
-  VideoPlayer: { courseId: string; lessonId: string; lessonTitle?: string };
+  SubjectSelection: { courseId: string; courseTitle?: string };
+  VideoPlayer: { courseId: string; lessonId: string; lessonTitle?: string; subjectId?: string };
+  PaymentSubmit: { courseId: string; courseTitle: string };
 };
 type Props = NativeStackScreenProps<CourseDetailParamList, 'CourseDetail'>;
 
-const { width, height } = Dimensions.get('window');
+const { width } = Dimensions.get('window');
 
 export const CourseDetailScreen: React.FC<Props> = ({ route, navigation }) => {
   const { courseId } = route.params;
@@ -42,7 +40,7 @@ export const CourseDetailScreen: React.FC<Props> = ({ route, navigation }) => {
   const [isEnrolled, setIsEnrolled] = useState(false);
   const [enrolling, setEnrolling] = useState(false);
   const [showFullDescription, setShowFullDescription] = useState(false);
-  const [progress, setProgress] = useState({ percentage: 0, completed: 0, total: 0 });
+  const [progress, setProgress] = useState({ percentage: 0, completed: 0, total: 0, completedIds: [] as string[] });
   const [expandedSections, setExpandedSections] = useState<{ [key: string]: boolean }>({});
 
   useEffect(() => {
@@ -67,15 +65,13 @@ export const CourseDetailScreen: React.FC<Props> = ({ route, navigation }) => {
       setIsEnrolled(response.enrolled);
       
       if (response.enrolled) {
-        // Fetch progress
         const progressData = await enrollmentService.getCourseProgress(courseId);
-        const completedCount = progressData.completedLessons?.length || 0;
-        
-        // Calculate actual percentage from completed lessons (ignore backend percentage if inconsistent)
+        const completedIds = progressData.completedLessons || [];
         setProgress({
           percentage: progressData.completionPercentage || 0,
-          completed: completedCount,
-          total: 0, // Will be calculated from course data
+          completed: completedIds.length,
+          total: 0,
+          completedIds,
         });
       }
     } catch {
@@ -85,15 +81,17 @@ export const CourseDetailScreen: React.FC<Props> = ({ route, navigation }) => {
 
   const handleEnroll = async () => {
     if (!course) return;
-    if (course.price > 0) {
-      Alert.alert(
-        'Paid Course',
-        `This course costs ₹${course.price}. Please visit our website to complete the payment and enroll.`,
-        [{ text: 'OK' }]
-      );
+
+    // Paid course → go to payment submission screen
+    if (course.paymentEnabled || course.price > 0) {
+      navigation.navigate('PaymentSubmit', {
+        courseId,
+        courseTitle: course.title,
+      });
       return;
     }
 
+    // Free course → direct enrollment
     setEnrolling(true);
     try {
       await courseService.enrollInCourse(courseId);
@@ -109,23 +107,27 @@ export const CourseDetailScreen: React.FC<Props> = ({ route, navigation }) => {
   if (isLoading) return <LoadingSpinner fullScreen message="Loading course..." />;
   if (error || !course) return <ErrorMessage message={error || 'Course not found'} onRetry={loadCourse} />;
 
-  // Calculate total VIDEO lessons only (not documents or quizzes)
-  const totalLessons = course.sections?.reduce(
-    (acc, s) => acc + s.subsections.reduce((a, sub) => {
-      const videoCount = sub.content?.filter(c => c.type === 'video').length || 0;
-      return a + videoCount;
-    }, 0),
-    0
-  ) || 0;
+  const hasSubjects = (course.subjects?.length || 0) > 1;
+  const contentSections = hasSubjects
+    ? []
+    : course.subjects?.[0]?.sections || course.sections || [];
 
-  // Update progress total and recalculate percentage if needed
-  if (progress.total === 0 && totalLessons > 0) {
-    const actualPercentage = totalLessons > 0 ? (progress.completed / totalLessons) * 100 : 0;
-    setProgress(prev => ({ 
-      ...prev, 
-      total: totalLessons,
-      percentage: actualPercentage, // Use calculated percentage instead of backend value
-    }));
+  // Count all lessons
+  let totalLessons = 0;
+  if (hasSubjects) {
+    for (const subject of course.subjects || []) {
+      for (const section of subject.sections || []) {
+        for (const sub of section.subsections || []) {
+          totalLessons += sub.content?.filter(c => c.type === 'video').length || 0;
+        }
+      }
+    }
+  } else {
+    for (const section of contentSections) {
+      for (const sub of section.subsections || []) {
+        totalLessons += sub.content?.filter(c => c.type === 'video').length || 0;
+      }
+    }
   }
 
   const toggleSection = (sectionId: string) => {
@@ -142,30 +144,25 @@ export const CourseDetailScreen: React.FC<Props> = ({ route, navigation }) => {
     }));
   };
 
-  // Calculate completion for sections
+  const completedLessonIds = new Set(progress.completedIds || []);
+
   const getSectionCompletion = (section: any) => {
     let total = 0;
     let completed = 0;
     section.subsections?.forEach((sub: any) => {
       sub.content?.forEach((item: any) => {
         total++;
-        if (progress.completed > 0) completed++; // Simplified - you'd check actual completion
+        if (completedLessonIds.has(item._id)) completed++;
       });
     });
     return { completed, total };
   };
 
-  // Flatten all lessons for first video
   const allLessons: Array<{ id: string; title: string; type: string; duration?: string }> = [];
-  course.sections?.forEach(section => {
+  contentSections.forEach(section => {
     section.subsections.forEach(sub => {
       sub.content?.forEach(item => {
-        allLessons.push({
-          id: item._id,
-          title: item.title,
-          type: item.type,
-          duration: item.duration,
-        });
+        allLessons.push({ id: item._id, title: item.title, type: item.type, duration: item.duration });
       });
     });
   });
@@ -178,27 +175,32 @@ export const CourseDetailScreen: React.FC<Props> = ({ route, navigation }) => {
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
       
-      <ScrollView showsVerticalScrollIndicator={false} bounces={true}>
-        {/* Hero Image with Title Overlay */}
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        bounces={true}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 120 }}>
+        
+        {/* Hero Banner with Custom Glass Effect */}
         <View style={styles.heroContainer}>
           <Image
-            source={{ uri: course.thumbnail || 'https://via.placeholder.com/800x400/4F46E5/FFFFFF?text=Course' }}
+            source={{ uri: course.thumbnail || 'https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=800' }}
             style={styles.heroImage}
             resizeMode="cover"
           />
           <LinearGradient
-            colors={['rgba(0,0,0,0.2)', 'rgba(0,0,0,0.85)']}
+            colors={['rgba(28,29,31,0.15)', 'rgba(28,29,31,0.85)']}
             style={styles.heroGradient}
           />
           
           {/* Back Button */}
           <TouchableOpacity
             style={[styles.backBtn, { top: insets.top + 12 }]}
-            onPress={() => navigation.goBack()}>
+            onPress={() => navigation.goBack()}
+            activeOpacity={0.7}>
             <Text style={styles.backIcon}>←</Text>
           </TouchableOpacity>
 
-          {/* Course Title on Image */}
+          {/* Title and Instructor overlay */}
           <View style={styles.heroContent}>
             <Text style={styles.heroTitle}>{course.title}</Text>
             <View style={styles.heroMeta}>
@@ -209,9 +211,9 @@ export const CourseDetailScreen: React.FC<Props> = ({ route, navigation }) => {
           </View>
         </View>
 
-        {/* Content */}
+        {/* Content Body */}
         <View style={styles.content}>
-          {/* Quick Stats Bar */}
+          {/* Stats Bar */}
           <View style={styles.quickStatsBar}>
             <View style={styles.quickStat}>
               <Text style={styles.quickStatIcon}>👥</Text>
@@ -226,29 +228,29 @@ export const CourseDetailScreen: React.FC<Props> = ({ route, navigation }) => {
             </View>
             <View style={styles.quickStatDivider} />
             <View style={styles.quickStat}>
-              <Text style={styles.quickStatIcon}>📘</Text>
+              <Text style={styles.quickStatIcon}>📚</Text>
               <Text style={styles.quickStatValue}>{totalLessons}</Text>
               <Text style={styles.quickStatLabel}>Lessons</Text>
             </View>
           </View>
 
-          {/* Tags - Only 2 */}
+          {/* Tags */}
           <View style={styles.tagsRow}>
             <View style={[styles.tag, styles.tagLevel]}>
-              <Text style={styles.tagText}>{course.level}</Text>
+              <Text style={[styles.tagText, { color: Colors.primary }]}>{course.level}</Text>
             </View>
             {course.medium && (
               <View style={[styles.tag, styles.tagMedium]}>
-                <Text style={styles.tagText}>{course.medium}</Text>
+                <Text style={[styles.tagText, { color: Colors.secondary }]}>{course.medium}</Text>
               </View>
             )}
           </View>
 
-          {/* Progress Bar (if enrolled) */}
+          {/* Enrollment Progress Indicator */}
           {isEnrolled && (
             <View style={styles.progressCard}>
               <View style={styles.progressHeader}>
-                <Text style={styles.progressLabel}>Your Progress</Text>
+                <Text style={styles.progressLabel}>Your Learning Progress</Text>
                 <Text style={styles.progressPercentage}>{Math.round(progress.percentage)}%</Text>
               </View>
               <View style={styles.progressBarContainer}>
@@ -257,14 +259,14 @@ export const CourseDetailScreen: React.FC<Props> = ({ route, navigation }) => {
             </View>
           )}
 
-          {/* About Section */}
+          {/* Course Description */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>About This Course</Text>
             <Text style={styles.description}>
               {showFullDescription ? course.description : shortDescription}
             </Text>
             {hasMoreDescription && (
-              <TouchableOpacity onPress={() => setShowFullDescription(!showFullDescription)}>
+              <TouchableOpacity onPress={() => setShowFullDescription(!showFullDescription)} activeOpacity={0.7}>
                 <Text style={styles.readMore}>
                   {showFullDescription ? 'Show Less' : 'Read More'}
                 </Text>
@@ -272,109 +274,139 @@ export const CourseDetailScreen: React.FC<Props> = ({ route, navigation }) => {
             )}
           </View>
 
-          {/* Curriculum - Hierarchical Structure */}
-          <View style={styles.section}>
-            <View style={styles.curriculumHeader}>
-              <Text style={styles.sectionTitle}>Course Content</Text>
+          {/* Subjects selection prompt for multi-subject courses */}
+          {hasSubjects && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Course Subjects</Text>
+              <Text style={styles.infoText}>This course contains multiple subjects. Access them by clicking the button below.</Text>
             </View>
+          )}
 
-            {course.sections?.map((section, sectionIndex) => {
-              const sectionCompletion = getSectionCompletion(section);
-              const isSectionExpanded = expandedSections[section._id];
+          {/* Course Curriculum */}
+          {!hasSubjects && (
+            <View style={styles.section}>
+              <View style={styles.curriculumHeader}>
+                <Text style={styles.sectionTitle}>Course Curriculum</Text>
+              </View>
 
-              return (
-                <View key={section._id} style={styles.sectionContainer}>
-                  {/* Section Header */}
-                  <TouchableOpacity
-                    style={styles.sectionHeader}
-                    onPress={() => toggleSection(section._id)}
-                    activeOpacity={0.7}>
-                    <View style={styles.sectionLeft}>
-                      <View style={[styles.sectionDot, sectionCompletion.completed > 0 && styles.sectionDotActive]} />
-                      <View style={styles.sectionInfo}>
-                        <Text style={styles.sectionTitle2}>{section.title}</Text>
-                        <Text style={styles.sectionProgress}>
-                          {sectionCompletion.completed}/{sectionCompletion.total} completed
-                        </Text>
+              {course.sections?.map((section, sectionIndex) => {
+                const sectionCompletion = getSectionCompletion(section);
+                const isSectionExpanded = expandedSections[section._id];
+
+                return (
+                  <View key={section._id} style={styles.sectionContainer}>
+                    {/* Section Header */}
+                    <TouchableOpacity
+                      style={[styles.sectionHeader, isSectionExpanded && styles.sectionHeaderExpanded]}
+                      onPress={() => toggleSection(section._id)}
+                      activeOpacity={0.85}>
+                      <View style={styles.sectionLeft}>
+                        <View style={[styles.sectionDot, sectionCompletion.completed > 0 && styles.sectionDotActive]} />
+                        <View style={styles.sectionInfo}>
+                          <Text style={styles.sectionTitle2}>{section.title}</Text>
+                          <Text style={styles.sectionProgress}>
+                            {sectionCompletion.completed}/{sectionCompletion.total} completed
+                          </Text>
+                        </View>
                       </View>
-                    </View>
-                    <Text style={styles.sectionArrow}>{isSectionExpanded ? '▼' : '▶'}</Text>
-                  </TouchableOpacity>
+                      <Text style={styles.sectionArrow}>{isSectionExpanded ? '▼' : '▶'}</Text>
+                    </TouchableOpacity>
 
-                  {/* Subsections */}
-                  {isSectionExpanded && section.subsections?.map((subsection, subIndex) => {
-                    const isSubExpanded = expandedSections[subsection._id];
-                    const subTotal = subsection.content?.length || 0;
-                    const subCompleted = 0; // Simplified
+                    {/* Subsections */}
+                    {isSectionExpanded && section.subsections?.map((subsection, subIndex) => {
+                      const isSubExpanded = expandedSections[subsection._id];
+                      const subTotal = subsection.content?.length || 0;
+                      
+                      // Calculate completed lessons in this subsection
+                      let subCompleted = 0;
+                      subsection.content?.forEach((item: any) => {
+                        if (completedLessonIds.has(item._id)) subCompleted++;
+                      });
 
-                    return (
-                      <View key={subsection._id} style={styles.subsectionContainer}>
-                        {/* Subsection Header */}
-                        <TouchableOpacity
-                          style={styles.subsectionHeader}
-                          onPress={() => toggleSubsection(subsection._id)}
-                          activeOpacity={0.7}>
-                          <View style={styles.subsectionLeft}>
-                            <View style={[styles.subsectionDot, subCompleted > 0 && styles.subsectionDotActive]} />
-                            <View style={styles.subsectionInfo}>
-                              <Text style={styles.subsectionTitle}>
-                                {sectionIndex + 1}.{subIndex + 1} {subsection.title}
-                              </Text>
-                              <Text style={styles.subsectionProgress}>
-                                {subCompleted}/{subTotal} completed
-                              </Text>
-                            </View>
-                          </View>
-                          <Text style={styles.subsectionArrow}>{isSubExpanded ? '▼' : '▶'}</Text>
-                        </TouchableOpacity>
-
-                        {/* Lessons */}
-                        {isSubExpanded && subsection.content?.map((lesson, lessonIndex) => (
+                      return (
+                        <View key={subsection._id} style={styles.subsectionContainer}>
+                          {/* Subsection Header */}
                           <TouchableOpacity
-                            key={lesson._id}
-                            style={[
-                              styles.lessonItem,
-                              lessonIndex === 0 && styles.lessonItemActive,
-                            ]}
-                            activeOpacity={0.7}
-                            onPress={() => {
-                              if (lesson.type === 'video' && isEnrolled) {
-                                navigation.navigate('VideoPlayer', {
-                                  courseId: course._id,
-                                  lessonId: lesson._id,
-                                  lessonTitle: lesson.title,
-                                });
-                              } else if (!isEnrolled) {
-                                Alert.alert('Enroll Required', 'Please enroll in this course to access lessons.');
-                              } else {
-                                Alert.alert('Coming Soon', `${lesson.type} lessons coming soon!`);
-                              }
-                            }}>
-                            <View style={styles.lessonLeft}>
-                              <View style={[styles.lessonDot, lessonIndex === 0 && styles.lessonDotActive]} />
-                              <Text style={[styles.lessonText, lessonIndex === 0 && styles.lessonTextActive]}>
-                                {sectionIndex + 1}.{subIndex + 1}.{lessonIndex + 1} {lesson.title}
-                              </Text>
+                            style={[styles.subsectionHeader, isSubExpanded && styles.subsectionHeaderExpanded]}
+                            onPress={() => toggleSubsection(subsection._id)}
+                            activeOpacity={0.85}>
+                            <View style={styles.subsectionLeft}>
+                              <View style={[styles.subsectionDot, subCompleted > 0 && styles.subsectionDotActive]} />
+                              <View style={styles.subsectionInfo}>
+                                <Text style={styles.subsectionTitle}>
+                                  {sectionIndex + 1}.{subIndex + 1} {subsection.title}
+                                </Text>
+                                <Text style={styles.subsectionProgress}>
+                                  {subCompleted}/{subTotal} completed
+                                </Text>
+                              </View>
                             </View>
-                            <View style={styles.lessonTypeBadge2}>
-                              <Text style={styles.lessonTypeText2}>video</Text>
-                            </View>
+                            <Text style={styles.subsectionArrow}>{isSubExpanded ? '▼' : '▶'}</Text>
                           </TouchableOpacity>
-                        ))}
-                      </View>
-                    );
-                  })}
-                </View>
-              );
-            })}
-          </View>
 
-          {/* Spacer for sticky button */}
-          <View style={{ height: 100 }} />
+                          {/* Lessons */}
+                          {isSubExpanded && subsection.content?.map((lesson, lessonIndex) => {
+                            const isLessonCompleted = completedLessonIds.has(lesson._id);
+                            return (
+                              <TouchableOpacity
+                                key={lesson._id}
+                                style={[
+                                  styles.lessonItem,
+                                  isLessonCompleted && styles.lessonItemCompleted,
+                                ]}
+                                activeOpacity={0.7}
+                                onPress={() => {
+                                  if (lesson.type === 'video' && isEnrolled) {
+                                    navigation.navigate('VideoPlayer', {
+                                      courseId: course._id,
+                                      lessonId: lesson._id,
+                                      lessonTitle: lesson.title,
+                                    });
+                                  } else if (!isEnrolled) {
+                                    Alert.alert('Enrollment Required', 'Please enroll in this course to access lessons.');
+                                  } else {
+                                    Alert.alert('Coming Soon', `${lesson.type} lessons coming soon!`);
+                                  }
+                                }}>
+                                <View style={styles.lessonLeft}>
+                                  <View style={[
+                                    styles.lessonDot, 
+                                    isLessonCompleted && styles.lessonDotActive
+                                  ]} />
+                                  <Text style={[
+                                    styles.lessonText,
+                                    isLessonCompleted && styles.lessonTextCompleted
+                                  ]}>
+                                    {sectionIndex + 1}.{subIndex + 1}.{lessonIndex + 1} {lesson.title}
+                                  </Text>
+                                </View>
+                                <View style={[
+                                  styles.lessonTypeBadge, 
+                                  { backgroundColor: isLessonCompleted ? Colors.successSoft : Colors.primarySoft }
+                                ]}>
+                                  <Text style={[
+                                    styles.lessonTypeText, 
+                                    { color: isLessonCompleted ? Colors.success : Colors.primary }
+                                  ]}>
+                                    {isLessonCompleted ? 'Done ✓' : 'Video 🎥'}
+                                  </Text>
+                                </View>
+                              </TouchableOpacity>
+                            );
+                          })}
+                        </View>
+                      );
+                    })}
+                  </View>
+                );
+              })}
+            </View>
+          )}
+
         </View>
       </ScrollView>
 
-      {/* Sticky Bottom CTA */}
+      {/* Sticky Bottom Enroll/Continue Bar */}
       <View style={[styles.stickyFooter, { paddingBottom: insets.bottom + 12 }]}>
         {isEnrolled ? (
           <View style={styles.enrolledContainer}>
@@ -384,24 +416,33 @@ export const CourseDetailScreen: React.FC<Props> = ({ route, navigation }) => {
             <TouchableOpacity
               style={styles.continueButton}
               onPress={() => {
-                const firstVideo = allLessons.find(l => l.type === 'video');
-                if (firstVideo) {
-                  navigation.navigate('VideoPlayer', {
+                if (hasSubjects) {
+                  navigation.navigate('SubjectSelection', {
                     courseId: course._id,
-                    lessonId: firstVideo.id,
-                    lessonTitle: firstVideo.title,
+                    courseTitle: course.title,
                   });
                 } else {
-                  Alert.alert('No Videos', 'No video lessons found in this course.');
+                  const firstVideo = allLessons.find(l => l.type === 'video');
+                  if (firstVideo) {
+                    navigation.navigate('VideoPlayer', {
+                      courseId: course._id,
+                      lessonId: firstVideo.id,
+                      lessonTitle: firstVideo.title,
+                    });
+                  } else {
+                    Alert.alert('No Videos', 'No video lessons found in this course.');
+                  }
                 }
               }}
               activeOpacity={0.9}>
               <LinearGradient
-                colors={['#4F46E5', '#6366F1']}
+                colors={Gradients.primary as [string, string]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
                 style={styles.continueGradient}>
-                <Text style={styles.continueText}>▶ Continue Learning</Text>
+                <Text style={styles.continueText}>
+                  {hasSubjects ? '📚 View Subjects' : '▶ Start Learning'}
+                </Text>
               </LinearGradient>
             </TouchableOpacity>
           </View>
@@ -412,7 +453,7 @@ export const CourseDetailScreen: React.FC<Props> = ({ route, navigation }) => {
             disabled={enrolling}
             activeOpacity={0.9}>
             <LinearGradient
-              colors={['#4F46E5', '#6366F1']}
+              colors={Gradients.primary as [string, string]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
               style={styles.enrollGradient}>
@@ -430,11 +471,11 @@ export const CourseDetailScreen: React.FC<Props> = ({ route, navigation }) => {
 const styles = StyleSheet.create({
   container: { 
     flex: 1, 
-    backgroundColor: '#F9FAFB',
+    backgroundColor: Colors.background,
   },
   heroContainer: { 
     width, 
-    height: 300, 
+    height: 250, 
     position: 'relative',
   },
   heroImage: { 
@@ -447,16 +488,16 @@ const styles = StyleSheet.create({
   backBtn: {
     position: 'absolute',
     left: 16,
-    width: 44,
-    height: 44,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    borderRadius: 22,
+    width: 40,
+    height: 40,
+    backgroundColor: 'rgba(28, 29, 31, 0.45)',
+    borderRadius: Radius.full,
     alignItems: 'center',
     justifyContent: 'center',
   },
   backIcon: { 
     color: '#FFFFFF', 
-    fontSize: 26, 
+    fontSize: 22, 
     fontWeight: '700',
   },
   heroContent: {
@@ -466,14 +507,13 @@ const styles = StyleSheet.create({
     right: 16,
   },
   heroTitle: {
-    fontSize: 26,
-    fontWeight: '800',
+    ...Typography.h2,
     color: '#FFFFFF',
-    lineHeight: 34,
-    marginBottom: 10,
+    lineHeight: 32,
+    marginBottom: 8,
     textShadowColor: 'rgba(0,0,0,0.5)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 6,
+    textShadowOffset: { width: 0, height: 1.5 },
+    textShadowRadius: 4,
   },
   heroMeta: {
     flexDirection: 'row',
@@ -481,12 +521,9 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   heroInstructor: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
     color: 'rgba(255,255,255,0.95)',
-    textShadowColor: 'rgba(0,0,0,0.3)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
   },
   heroDivider: {
     width: 4,
@@ -495,135 +532,131 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.6)',
   },
   heroRating: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
     color: 'rgba(255,255,255,0.95)',
-    textShadowColor: 'rgba(0,0,0,0.3)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
   },
   content: { 
-    paddingHorizontal: 16, 
-    paddingTop: 20,
+    paddingHorizontal: Spacing.md, 
+    paddingTop: Spacing.md,
   },
   quickStatsBar: {
     flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3,
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.lg,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
+    ...Shadows.sm,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
   },
   quickStat: {
     flex: 1,
     alignItems: 'center',
   },
   quickStatIcon: {
-    fontSize: 24,
-    marginBottom: 6,
+    fontSize: 22,
+    marginBottom: 4,
   },
   quickStatValue: {
-    fontSize: 16,
-    fontWeight: '700',
+    ...Typography.h6,
     color: Colors.text,
-    marginBottom: 2,
+    fontWeight: '700',
   },
   quickStatLabel: {
+    ...Typography.caption,
+    color: Colors.textSecondary,
     fontSize: 11,
-    color: Colors.textMuted,
   },
   quickStatDivider: {
     width: 1,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: Colors.divider,
     marginHorizontal: 8,
   },
   tagsRow: {
     flexDirection: 'row',
-    gap: 10,
-    marginBottom: 16,
+    gap: 8,
+    marginBottom: Spacing.md,
   },
   tag: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: Spacing.xs + 2,
+    borderRadius: Radius.full,
   },
   tagLevel: {
-    backgroundColor: '#EEF2FF',
+    backgroundColor: Colors.primarySoft,
   },
   tagMedium: {
-    backgroundColor: '#FEF3C7',
+    backgroundColor: Colors.secondarySoft,
   },
   tagText: {
-    fontSize: 13,
+    ...Typography.caption,
     fontWeight: '700',
-    color: '#4F46E5',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   progressCard: {
-    backgroundColor: '#FFFFFF',
-    padding: 18,
-    borderRadius: 16,
-    marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3,
+    backgroundColor: Colors.surface,
+    padding: Spacing.md,
+    borderRadius: Radius.lg,
+    marginBottom: Spacing.md,
+    ...Shadows.sm,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
   },
   progressHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 8,
   },
   progressLabel: {
-    fontSize: 16,
-    fontWeight: '700',
+    ...Typography.bodyMedium,
     color: Colors.text,
+    fontWeight: '700',
   },
   progressPercentage: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: '#4F46E5',
+    ...Typography.h3,
+    color: Colors.primary,
   },
   progressBarContainer: {
-    height: 10,
-    backgroundColor: '#E5E7EB',
-    borderRadius: 5,
+    height: 8,
+    backgroundColor: Colors.progressTrack,
+    borderRadius: 4,
     overflow: 'hidden',
   },
   progressBarFill: {
     height: '100%',
-    backgroundColor: '#4F46E5',
-    borderRadius: 5,
+    backgroundColor: Colors.primary,
+    borderRadius: 4,
   },
   section: {
-    marginBottom: 24,
+    marginBottom: Spacing.lg,
   },
   sectionTitle: {
-    fontSize: 20,
-    fontWeight: '800',
+    ...Typography.h4,
     color: Colors.text,
-    marginBottom: 14,
+    fontWeight: '800',
+    marginBottom: 10,
   },
   curriculumHeader: {
-    marginBottom: 16,
-  },
-  sectionContainer: {
     marginBottom: 12,
   },
+  sectionContainer: {
+    marginBottom: Spacing.sm,
+  },
   sectionHeader: {
-    backgroundColor: '#F3F4F6',
-    padding: 16,
-    borderRadius: 12,
+    backgroundColor: Colors.divider,
+    padding: Spacing.md,
+    borderRadius: Radius.md,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+  },
+  sectionHeaderExpanded: {
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
+    backgroundColor: Colors.borderLight,
   },
   sectionLeft: {
     flexDirection: 'row',
@@ -632,49 +665,53 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   sectionDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
     borderWidth: 2,
-    borderColor: '#D1D5DB',
+    borderColor: Colors.textMuted,
     backgroundColor: 'transparent',
   },
   sectionDotActive: {
-    backgroundColor: '#22C55E',
-    borderColor: '#22C55E',
+    backgroundColor: Colors.success,
+    borderColor: Colors.success,
   },
   sectionInfo: {
     flex: 1,
   },
   sectionTitle2: {
-    fontSize: 16,
-    fontWeight: '700',
+    ...Typography.bodyMedium,
     color: Colors.text,
-    marginBottom: 4,
+    fontWeight: '700',
   },
   sectionProgress: {
-    fontSize: 12,
-    color: Colors.textMuted,
+    ...Typography.caption,
+    color: Colors.textSecondary,
+    marginTop: 2,
   },
   sectionArrow: {
-    fontSize: 14,
+    fontSize: 12,
     color: Colors.textSecondary,
     fontWeight: '700',
   },
   subsectionContainer: {
-    marginLeft: 24,
-    marginTop: 8,
+    marginLeft: 16,
+    marginTop: 6,
   },
   subsectionHeader: {
-    backgroundColor: '#FFFFFF',
-    padding: 14,
-    borderRadius: 10,
+    backgroundColor: Colors.surface,
+    padding: 12,
+    borderRadius: Radius.sm,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 8,
+    marginBottom: 6,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: Colors.divider,
+  },
+  subsectionHeaderExpanded: {
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
   },
   subsectionLeft: {
     flexDirection: 'row',
@@ -683,198 +720,161 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   subsectionDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
     borderWidth: 2,
-    borderColor: '#D1D5DB',
+    borderColor: Colors.textMuted,
     backgroundColor: 'transparent',
   },
   subsectionDotActive: {
-    backgroundColor: '#22C55E',
-    borderColor: '#22C55E',
+    backgroundColor: Colors.success,
+    borderColor: Colors.success,
   },
   subsectionInfo: {
     flex: 1,
   },
   subsectionTitle: {
-    fontSize: 15,
+    ...Typography.bodySmall,
     fontWeight: '600',
     color: Colors.text,
-    marginBottom: 3,
   },
   subsectionProgress: {
-    fontSize: 11,
-    color: Colors.textMuted,
+    fontSize: 10,
+    color: Colors.textSecondary,
+    marginTop: 2,
   },
   subsectionArrow: {
-    fontSize: 12,
+    fontSize: 10,
     color: Colors.textSecondary,
-    fontWeight: '700',
   },
   lessonItem: {
-    backgroundColor: '#F9FAFB',
-    padding: 12,
-    borderRadius: 8,
+    backgroundColor: Colors.background,
+    padding: 10,
+    borderRadius: Radius.xs,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 6,
-    marginLeft: 20,
-  },
-  lessonItemActive: {
-    backgroundColor: '#EEF2FF',
+    marginBottom: 4,
+    marginLeft: 12,
     borderWidth: 1,
-    borderColor: '#C7D2FE',
+    borderColor: Colors.divider,
+  },
+  lessonItemCompleted: {
+    backgroundColor: Colors.successSoft,
+    borderColor: 'rgba(30,158,107,0.15)',
   },
   lessonLeft: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
-    gap: 10,
+    gap: 8,
   },
   lessonDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    borderWidth: 2,
-    borderColor: '#D1D5DB',
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    borderWidth: 1.5,
+    borderColor: Colors.textMuted,
     backgroundColor: 'transparent',
   },
   lessonDotActive: {
-    backgroundColor: '#4F46E5',
-    borderColor: '#4F46E5',
+    backgroundColor: Colors.success,
+    borderColor: Colors.success,
   },
   lessonText: {
-    fontSize: 14,
+    ...Typography.bodySmall,
     color: Colors.textSecondary,
     flex: 1,
   },
-  lessonTextActive: {
-    color: '#4F46E5',
+  lessonTextCompleted: {
+    color: Colors.success,
     fontWeight: '600',
   },
-  lessonTypeBadge2: {
-    backgroundColor: '#D1FAE5',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 6,
+  lessonTypeBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: Radius.xs,
   },
-  lessonTypeText2: {
-    fontSize: 11,
-    color: '#059669',
-    fontWeight: '600',
-  },
-  bottomProgressCard: {
-    backgroundColor: '#FFFFFF',
-    padding: 18,
-    borderRadius: 16,
-    marginBottom: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  bottomProgressHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  bottomProgressLabel: {
-    fontSize: 16,
+  lessonTypeText: {
+    fontSize: 10,
     fontWeight: '700',
-    color: Colors.text,
-  },
-  bottomProgressPercentage: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: '#4F46E5',
-  },
-  bottomProgressBarContainer: {
-    height: 10,
-    backgroundColor: '#E5E7EB',
-    borderRadius: 5,
-    overflow: 'hidden',
-  },
-  bottomProgressBarFill: {
-    height: '100%',
-    backgroundColor: '#4F46E5',
-    borderRadius: 5,
   },
   description: {
-    fontSize: 15,
+    ...Typography.body,
     color: Colors.textSecondary,
-    lineHeight: 24,
+    lineHeight: 22,
   },
   readMore: {
-    fontSize: 15,
+    ...Typography.bodyMedium,
     fontWeight: '700',
-    color: '#4F46E5',
-    marginTop: 10,
+    color: Colors.primary,
+    marginTop: 8,
+  },
+  infoText: {
+    ...Typography.bodySmall,
+    color: Colors.textSecondary,
+    lineHeight: 18,
   },
   stickyFooter: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 16,
-    paddingTop: 14,
-    shadowColor: '#000',
+    backgroundColor: Colors.surface,
+    paddingHorizontal: Spacing.md,
+    paddingTop: Spacing.sm,
+    shadowColor: Colors.text,
     shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-    elevation: 10,
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 8,
+    borderTopWidth: 1,
+    borderColor: Colors.divider,
   },
   enrolledContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: Spacing.sm,
   },
   enrolledBadge: {
-    backgroundColor: '#ECFDF5',
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderRadius: 12,
+    backgroundColor: Colors.successSoft,
+    paddingHorizontal: 12,
+    paddingVertical: 14,
+    borderRadius: Radius.sm,
     borderWidth: 1,
-    borderColor: '#A7F3D0',
+    borderColor: 'rgba(30,158,107,0.15)',
   },
   enrolledText: {
-    fontSize: 14,
+    ...Typography.bodySmall,
     fontWeight: '700',
-    color: '#059669',
+    color: Colors.success,
   },
   continueButton: {
     flex: 1,
-    borderRadius: 14,
+    borderRadius: Radius.sm,
     overflow: 'hidden',
   },
   continueGradient: {
-    paddingVertical: 16,
+    paddingVertical: 14,
     alignItems: 'center',
     justifyContent: 'center',
   },
   continueText: {
-    fontSize: 16,
-    fontWeight: '700',
+    ...Typography.button,
     color: '#FFFFFF',
-    letterSpacing: 0.3,
   },
   enrollButton: {
-    borderRadius: 14,
+    borderRadius: Radius.sm,
     overflow: 'hidden',
   },
   enrollGradient: {
-    paddingVertical: 18,
+    paddingVertical: 16,
     alignItems: 'center',
     justifyContent: 'center',
   },
   enrollText: {
-    fontSize: 17,
-    fontWeight: '700',
+    ...Typography.button,
     color: '#FFFFFF',
-    letterSpacing: 0.3,
   },
 });

@@ -13,15 +13,21 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAuth } from '../../context/AuthContext';
 import { AppInput } from '../../components/ui/AppInput';
 import { AppButton } from '../../components/ui/AppButton';
 import { LoadingSpinner } from '../../components/ui/LoadingSpinner';
 import { Colors, Typography, Spacing, Radius, Gradients, Shadows } from '../../theme';
 import { authService } from '../../services/authService';
+import { ProfileStackParamList } from '../../types';
+
+type ProfileNavProp = NativeStackNavigationProp<ProfileStackParamList, 'ProfileHome'>;
 
 export const ProfileScreen = () => {
-  const { user, logout, updateProfile, isLoading } = useAuth();
+  const navigation = useNavigation<ProfileNavProp>();
+  const { user, logout, updateProfile } = useAuth();
   const insets = useSafeAreaInsets();
 
   const [editMode, setEditMode] = useState(false);
@@ -111,7 +117,7 @@ export const ProfileScreen = () => {
           { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 100 },
         ]}>
 
-        {/* Header Card */}
+        {/* Premium Profile Header Card */}
         <LinearGradient
           colors={Gradients.primary as [string, string]}
           style={styles.profileHeader}>
@@ -125,7 +131,7 @@ export const ProfileScreen = () => {
           </View>
         </LinearGradient>
 
-        {/* Stats Row */}
+        {/* Clean Stats Row */}
         <View style={styles.statsCard}>
           <View style={styles.statItem}>
             <Text style={styles.statValue}>{user.enrolledCourses?.length || 0}</Text>
@@ -138,12 +144,55 @@ export const ProfileScreen = () => {
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
-            <Text style={styles.statValue}>{user.medium || user.stream || '—'}</Text>
-            <Text style={styles.statLabel}>Stream</Text>
+            <Text style={styles.statValue}>{user.medium || 'English'}</Text>
+            <Text style={styles.statLabel}>Medium</Text>
           </View>
         </View>
 
-        {/* Profile Form */}
+        {/* Learning Hub & Shortcuts */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Learning Hub</Text>
+          <View style={styles.actionsCard}>
+            <TouchableOpacity style={styles.actionRow} onPress={() => navigation.navigate('CertificatesList')} activeOpacity={0.7}>
+              <View style={[styles.actionIconBg, { backgroundColor: Colors.primarySoft }]}>
+                <Text style={styles.actionEmoji}>🎓</Text>
+              </View>
+              <View style={styles.actionMeta}>
+                <Text style={styles.actionText}>My Certificates</Text>
+                <Text style={styles.actionSub}>View & share course achievements</Text>
+              </View>
+              <Text style={styles.actionArrow}>›</Text>
+            </TouchableOpacity>
+
+            <View style={styles.actionDivider} />
+
+            <TouchableOpacity style={styles.actionRow} onPress={() => navigation.navigate('PaymentsList')} activeOpacity={0.7}>
+              <View style={[styles.actionIconBg, { backgroundColor: Colors.warningSoft }]}>
+                <Text style={styles.actionEmoji}>💳</Text>
+              </View>
+              <View style={styles.actionMeta}>
+                <Text style={styles.actionText}>My Payments & Receipts</Text>
+                <Text style={styles.actionSub}>Payment status & history</Text>
+              </View>
+              <Text style={styles.actionArrow}>›</Text>
+            </TouchableOpacity>
+
+            <View style={styles.actionDivider} />
+
+            <TouchableOpacity style={styles.actionRow} onPress={() => navigation.navigate('NotesList')} activeOpacity={0.7}>
+              <View style={[styles.actionIconBg, { backgroundColor: Colors.successSoft }]}>
+                <Text style={styles.actionEmoji}>📂</Text>
+              </View>
+              <View style={styles.actionMeta}>
+                <Text style={styles.actionText}>Study Notes Library</Text>
+                <Text style={styles.actionSub}>Download course PDFs & guides</Text>
+              </View>
+              <Text style={styles.actionArrow}>›</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Profile Info Form */}
         <View style={styles.section}>
           <View style={styles.sectionRow}>
             <Text style={styles.sectionTitle}>Profile Details</Text>
@@ -156,13 +205,14 @@ export const ProfileScreen = () => {
                   setEditInstitution(user.institution || '');
                 }
                 setEditMode(!editMode);
-              }}>
+              }}
+              activeOpacity={0.7}>
               <Text style={styles.editBtn}>{editMode ? 'Cancel' : '✏️ Edit'}</Text>
             </TouchableOpacity>
           </View>
 
           {editMode ? (
-            <>
+            <View style={styles.editForm}>
               <AppInput label="Full Name" value={editName} onChangeText={setEditName} placeholder="Your full name" autoCapitalize="words" />
               <AppInput label="Phone Number" value={editPhone} onChangeText={setEditPhone} placeholder="Phone number" keyboardType="phone-pad" />
               <AppInput label="Grade / Class" value={editGrade} onChangeText={setEditGrade} placeholder="e.g. 10th" />
@@ -172,8 +222,9 @@ export const ProfileScreen = () => {
                 onPress={handleSaveProfile}
                 loading={saving}
                 disabled={saving}
+                style={{ backgroundColor: Colors.primary }}
               />
-            </>
+            </View>
           ) : (
             <View style={styles.infoCard}>
               <InfoRow label="Name" value={user.name} />
@@ -186,19 +237,31 @@ export const ProfileScreen = () => {
           )}
         </View>
 
-        {/* Account Actions */}
+        {/* Account Settings */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Account</Text>
           <View style={styles.actionsCard}>
-            <TouchableOpacity style={styles.actionRow} onPress={() => setPwModal(true)}>
-              <Text style={styles.actionEmoji}>🔒</Text>
-              <Text style={styles.actionText}>Change Password</Text>
+            <TouchableOpacity style={styles.actionRow} onPress={() => setPwModal(true)} activeOpacity={0.7}>
+              <View style={[styles.actionIconBg, { backgroundColor: Colors.divider }]}>
+                <Text style={styles.actionEmoji}>🔒</Text>
+              </View>
+              <View style={styles.actionMeta}>
+                <Text style={styles.actionText}>Change Password</Text>
+                <Text style={styles.actionSub}>Update your password safely</Text>
+              </View>
               <Text style={styles.actionArrow}>›</Text>
             </TouchableOpacity>
+            
             <View style={styles.actionDivider} />
-            <TouchableOpacity style={styles.actionRow} onPress={handleLogout}>
-              <Text style={styles.actionEmoji}>🚪</Text>
-              <Text style={[styles.actionText, { color: Colors.error }]}>Logout</Text>
+            
+            <TouchableOpacity style={styles.actionRow} onPress={handleLogout} activeOpacity={0.7}>
+              <View style={[styles.actionIconBg, { backgroundColor: Colors.errorSoft }]}>
+                <Text style={styles.actionEmoji}>🚪</Text>
+              </View>
+              <View style={styles.actionMeta}>
+                <Text style={[styles.actionText, { color: Colors.error }]}>Logout</Text>
+                <Text style={styles.actionSub}>Sign out from this device</Text>
+              </View>
               <Text style={styles.actionArrow}>›</Text>
             </TouchableOpacity>
           </View>
@@ -214,7 +277,7 @@ export const ProfileScreen = () => {
               <AppInput label="Current Password" value={currentPw} onChangeText={setCurrentPw} showPasswordToggle placeholder="Current password" />
               <AppInput label="New Password" value={newPw} onChangeText={setNewPw} showPasswordToggle placeholder="Min. 6 characters" />
               <AppInput label="Confirm New Password" value={confirmPw} onChangeText={setConfirmPw} showPasswordToggle placeholder="Re-enter new password" />
-              <AppButton title={pwLoading ? 'Updating...' : 'Update Password'} onPress={handleChangePassword} loading={pwLoading} disabled={pwLoading} />
+              <AppButton title={pwLoading ? 'Updating...' : 'Update Password'} onPress={handleChangePassword} loading={pwLoading} disabled={pwLoading} style={{ backgroundColor: Colors.primary }} />
               <AppButton title="Cancel" variant="ghost" onPress={() => { setPwModal(false); setCurrentPw(''); setNewPw(''); setConfirmPw(''); }} style={{ marginTop: 4 }} />
             </View>
           </KeyboardAvoidingView>
@@ -224,7 +287,6 @@ export const ProfileScreen = () => {
   );
 };
 
-// ─── Info Row ─────────────────────────────────────────────────────────────────
 const InfoRow = ({ label, value, last }: { label: string; value?: string; last?: boolean }) => (
   <View style={[infoStyles.row, !last && infoStyles.border]}>
     <Text style={infoStyles.label}>{label}</Text>
@@ -237,11 +299,11 @@ const infoStyles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 12,
+    paddingVertical: 14,
   },
   border: { borderBottomWidth: 1, borderColor: Colors.divider },
-  label: { ...Typography.bodySmall, color: Colors.textMuted, flex: 1 },
-  value: { ...Typography.bodySmall, color: Colors.text, flex: 2, textAlign: 'right' },
+  label: { ...Typography.bodySmall, color: Colors.textSecondary, flex: 1 },
+  value: { ...Typography.bodySmall, color: Colors.text, flex: 2, textAlign: 'right', fontWeight: '500' },
 });
 
 const styles = StyleSheet.create({
@@ -249,88 +311,114 @@ const styles = StyleSheet.create({
   scrollContent: { paddingHorizontal: Spacing.md },
   profileHeader: {
     alignItems: 'center',
-    borderRadius: Radius.xl,
     padding: Spacing.xl,
+    borderRadius: Radius.xl,
     marginBottom: Spacing.md,
-    gap: Spacing.xs,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    ...Shadows.md,
   },
   avatarLarge: {
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: Colors.primary,
-    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
     justifyContent: 'center',
+    alignItems: 'center',
     marginBottom: Spacing.sm,
-    ...Shadows.md,
+    borderWidth: 3,
+    borderColor: 'rgba(255, 255, 255, 0.4)',
   },
-  avatarText: { color: Colors.textOnPrimary, fontSize: 32, fontWeight: '700' },
-  userName: { ...Typography.h4, color: Colors.text },
-  userEmail: { ...Typography.body, color: Colors.textSecondary },
+  avatarText: {
+    ...Typography.h2,
+    color: Colors.textOnPrimary,
+  },
+  userName: {
+    ...Typography.h4,
+    color: Colors.textOnPrimary,
+    marginBottom: 2,
+    fontWeight: '700',
+  },
+  userEmail: {
+    ...Typography.bodySmall,
+    color: 'rgba(255, 255, 255, 0.85)',
+    marginBottom: Spacing.sm,
+  },
   roleBadge: {
-    marginTop: Spacing.xs,
-    paddingVertical: 3,
-    paddingHorizontal: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
     borderRadius: Radius.full,
-    backgroundColor: 'rgba(108,99,255,0.2)',
-    borderWidth: 1,
-    borderColor: Colors.primary,
   },
   roleText: {
-    color: Colors.primary,
-    fontSize: 10,
+    ...Typography.caption,
+    color: Colors.textOnPrimary,
     fontWeight: '700',
-    letterSpacing: 1.5,
   },
   statsCard: {
     flexDirection: 'row',
     backgroundColor: Colors.surface,
     borderRadius: Radius.lg,
     padding: Spacing.md,
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.lg,
+    ...Shadows.sm,
     borderWidth: 1,
-    borderColor: Colors.border,
-    alignItems: 'center',
+    borderColor: Colors.borderLight,
   },
-  statItem: { flex: 1, alignItems: 'center', gap: 4 },
-  statValue: { ...Typography.h4, color: Colors.primary },
-  statLabel: { ...Typography.caption, color: Colors.textMuted },
-  statDivider: { width: 1, height: 36, backgroundColor: Colors.border },
+  statItem: { flex: 1, alignItems: 'center' },
+  statValue: { ...Typography.h5, color: Colors.primary, fontWeight: '700' },
+  statLabel: { ...Typography.caption, color: Colors.textSecondary, marginTop: 2 },
+  statDivider: { width: 1, backgroundColor: Colors.divider, height: '80%', alignSelf: 'center' },
   section: { marginBottom: Spacing.lg },
   sectionRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.sm,
   },
-  sectionTitle: { ...Typography.h4, color: Colors.text },
-  editBtn: { color: Colors.primary, fontSize: 14, fontWeight: '600' },
+  sectionTitle: { ...Typography.h5, color: Colors.text, marginBottom: Spacing.xs, fontWeight: '700' },
+  editBtn: { ...Typography.bodySmall, color: Colors.primary, fontWeight: '700' },
   infoCard: {
     backgroundColor: Colors.surface,
     borderRadius: Radius.lg,
     paddingHorizontal: Spacing.md,
+    ...Shadows.sm,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: Colors.borderLight,
+  },
+  editForm: {
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.lg,
+    padding: Spacing.md,
+    ...Shadows.sm,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
   },
   actionsCard: {
     backgroundColor: Colors.surface,
     borderRadius: Radius.lg,
+    paddingHorizontal: Spacing.md,
+    ...Shadows.sm,
     borderWidth: 1,
-    borderColor: Colors.border,
-    overflow: 'hidden',
+    borderColor: Colors.borderLight,
   },
   actionRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: Spacing.md,
+    paddingVertical: Spacing.md,
     gap: Spacing.sm,
   },
-  actionEmoji: { fontSize: 18 },
-  actionText: { ...Typography.body, color: Colors.text, flex: 1 },
-  actionArrow: { color: Colors.textMuted, fontSize: 18 },
-  actionDivider: { height: 1, backgroundColor: Colors.border, marginHorizontal: Spacing.md },
+  actionIconBg: {
+    width: 40,
+    height: 40,
+    borderRadius: Radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionEmoji: { fontSize: 20 },
+  actionMeta: { flex: 1 },
+  actionText: { ...Typography.bodySmall, fontWeight: '700', color: Colors.text },
+  actionSub: { fontSize: 11, color: Colors.textSecondary, marginTop: 2 },
+  actionArrow: { fontSize: 20, color: Colors.textMuted, fontWeight: '300' },
+  actionDivider: { height: 1, backgroundColor: Colors.divider },
   modalOverlay: {
     flex: 1,
     backgroundColor: Colors.overlay,
@@ -338,12 +426,10 @@ const styles = StyleSheet.create({
   },
   modalCard: {
     backgroundColor: Colors.surface,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: Spacing.lg,
-    paddingBottom: Spacing.xxl,
-    borderTopWidth: 1,
-    borderColor: Colors.border,
+    borderTopLeftRadius: Radius.xl,
+    borderTopRightRadius: Radius.xl,
+    padding: Spacing.xl,
+    gap: Spacing.sm,
   },
-  modalTitle: { ...Typography.h4, color: Colors.text, marginBottom: Spacing.lg, textAlign: 'center' },
+  modalTitle: { ...Typography.h4, color: Colors.text, marginBottom: Spacing.sm, fontWeight: '800' },
 });

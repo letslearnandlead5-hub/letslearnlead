@@ -7,78 +7,101 @@ import {
   RefreshControl,
   StatusBar,
   TouchableOpacity,
+  Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { courseService } from '../../services/courseService';
 import { enrollmentService } from '../../services/enrollmentService';
-import { Course } from '../../types';
-import { MyCourseCard } from '../../components/ui/MyCourseCard';
+import { Enrollment, Course, CourseSubject } from '../../types';
 import { LoadingSpinner } from '../../components/ui/LoadingSpinner';
 import { ErrorMessage } from '../../components/ui/ErrorMessage';
 import { Colors, Typography, Spacing } from '../../theme';
 import { useAuth } from '../../context/AuthContext';
 
+// ─── Helper: count all lessons inside a course (subjects or legacy sections) ──
+const countAllLessons = (course: Course): { total: number } => {
+  let total = 0;
+  // New schema: subjects[].sections[].subsections[].content[]
+  if (course.subjects?.length) {
+    for (const subject of course.subjects) {
+      for (const section of subject.sections || []) {
+        for (const subsection of section.subsections || []) {
+          total += subsection.content?.length || 0;
+        }
+      }
+    }
+  } else {
+    // Legacy schema: sections[].subsections[].content[]
+    for (const section of course.sections || []) {
+      for (const subsection of section.subsections || []) {
+        total += subsection.content?.length || 0;
+      }
+    }
+  }
+  return { total };
+};
+
+// ─── Enrollment card (one per enrolled course) ────────────────────────────────
+const EnrollmentCard = ({
+  enrollment,
+  onPress,
+}: {
+  enrollment: Enrollment;
+  onPress: () => void;
+}) => {
+  const course = enrollment.courseId as Course;
+  const { total } = countAllLessons(course);
+  const completed = enrollment.completedLessons?.length || 0;
+  const pct = enrollment.completionPercentage || 0;
+
+  return (
+    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.85}>
+      {/* Thumbnail */}
+      {course.thumbnail ? (
+        <Image source={{ uri: course.thumbnail }} style={styles.thumb} resizeMode="cover" />
+      ) : (
+        <LinearGradient colors={['#4F46E5', '#6366F1']} style={styles.thumb} />
+      )}
+
+      {/* Info */}
+      <View style={styles.cardBody}>
+        <Text style={styles.cardTitle} numberOfLines={2}>{course.title}</Text>
+        <Text style={styles.cardSub}>{course.instructor}</Text>
+
+        {/* Progress */}
+        <View style={styles.progressRow}>
+          <Text style={styles.progressLabel}>{completed}/{total} lessons</Text>
+          <Text style={styles.progressPct}>{Math.round(pct)}%</Text>
+        </View>
+        <View style={styles.progressTrack}>
+          <View style={[styles.progressFill, { width: `${Math.min(pct, 100)}%` as any }]} />
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
+};
+
+// ─── Screen ───────────────────────────────────────────────────────────────────
 export const MyCoursesScreen = () => {
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
-  const [courses, setCourses] = useState<Course[]>([]);
+  const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const loadEnrolledCourses = useCallback(async () => {
+  const loadEnrollments = useCallback(async () => {
     try {
       setError(null);
-      const response = await courseService.getEnrolledCourses();
-      const enrolledCourses = response.data || [];
-      
-      // Fetch progress for each course
-      const coursesWithProgress = await Promise.all(
-        enrolledCourses.map(async (course: any) => {
-          try {
-            const progressData = await enrollmentService.getCourseProgress(course._id);
-            
-            // Calculate total VIDEO lessons only (not documents or quizzes)
-            const totalLessons = course.sections?.reduce((total: number, section: any) => {
-              return total + (section.subsections?.reduce((subTotal: number, subsection: any) => {
-                const videoCount = subsection.content?.filter((c: any) => c.type === 'video').length || 0;
-                return subTotal + videoCount;
-              }, 0) || 0);
-            }, 0) || 0;
-            
-            const completedCount = progressData.completedLessons?.length || 0;
-            // Calculate actual percentage from completed lessons (ignore backend if inconsistent)
-            const actualPercentage = totalLessons > 0 ? (completedCount / totalLessons) * 100 : 0;
-            
-            return {
-              ...course,
-              completionPercentage: actualPercentage,
-              completedLessons: completedCount,
-              totalLessons,
-            };
-          } catch (err) {
-            // If progress fetch fails, return course with 0 progress
-            const totalLessons = course.sections?.reduce((total: number, section: any) => {
-              return total + (section.subsections?.reduce((subTotal: number, subsection: any) => {
-                const videoCount = subsection.content?.filter((c: any) => c.type === 'video').length || 0;
-                return subTotal + videoCount;
-              }, 0) || 0);
-            }, 0) || 0;
-            
-            return {
-              ...course,
-              completionPercentage: 0,
-              completedLessons: 0,
-              totalLessons,
-            };
-          }
-        })
+      // ✅ Correct endpoint: /api/enrollment/my-enrollments
+      const response = await enrollmentService.getMyEnrollments();
+      // Filter to only paid enrollments that have a populated courseId object
+      const paid = (response.data || []).filter(
+        (e: any) => e.status === 'paid' && typeof e.courseId === 'object'
       );
-      
-      setCourses(coursesWithProgress);
+      setEnrollments(paid);
     } catch (err: any) {
       setError(err.userMessage || 'Failed to load your courses.');
     } finally {
@@ -88,13 +111,30 @@ export const MyCoursesScreen = () => {
   }, []);
 
   useEffect(() => {
-    loadEnrolledCourses();
+    loadEnrollments();
   }, []);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
-    loadEnrolledCourses();
-  }, [loadEnrolledCourses]);
+    loadEnrollments();
+  }, [loadEnrollments]);
+
+  const handleCoursePress = (enrollment: Enrollment) => {
+    const course = enrollment.courseId as Course;
+    // If the course has multiple subjects → go to SubjectSelection hub
+    if (course.subjects && course.subjects.length > 1) {
+      navigation.navigate('SubjectSelection', {
+        courseId: course._id,
+        courseTitle: course.title,
+      });
+    } else {
+      // Single-subject or legacy course → go to CourseDetail
+      navigation.navigate('CourseDetail', {
+        courseId: course._id,
+        courseTitle: course.title,
+      });
+    }
+  };
 
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -106,14 +146,14 @@ export const MyCoursesScreen = () => {
   const firstName = user?.name?.split(' ')[0] || 'Student';
 
   if (isLoading) return <LoadingSpinner fullScreen message="Loading your courses..." />;
-  if (error) return <ErrorMessage message={error} onRetry={loadEnrolledCourses} />;
+  if (error) return <ErrorMessage message={error} onRetry={loadEnrollments} />;
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#F9FAFB" />
 
       <FlatList
-        data={courses}
+        data={enrollments}
         keyExtractor={(item) => item._id}
         contentContainerStyle={[
           styles.list,
@@ -137,7 +177,7 @@ export const MyCoursesScreen = () => {
               <View>
                 <Text style={styles.sectionTitle}>📚 My Courses</Text>
                 <Text style={styles.sectionSubtitle}>
-                  {courses.length} {courses.length === 1 ? 'course' : 'courses'} in progress
+                  {enrollments.length} {enrollments.length === 1 ? 'course' : 'courses'} enrolled
                 </Text>
               </View>
             </View>
@@ -167,14 +207,9 @@ export const MyCoursesScreen = () => {
           </View>
         }
         renderItem={({ item }) => (
-          <MyCourseCard
-            course={item}
-            onPress={(course) =>
-              navigation.navigate('CourseDetail', {
-                courseId: course._id,
-                courseTitle: course.title,
-              })
-            }
+          <EnrollmentCard
+            enrollment={item}
+            onPress={() => handleCoursePress(item)}
           />
         )}
         refreshControl={
@@ -192,16 +227,9 @@ export const MyCoursesScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { 
-    flex: 1, 
-    backgroundColor: '#F9FAFB',
-  },
-  list: { 
-    paddingHorizontal: Spacing.md,
-  },
-  headerSection: {
-    marginBottom: Spacing.lg,
-  },
+  container: { flex: 1, backgroundColor: '#F9FAFB' },
+  list: { paddingHorizontal: Spacing.md },
+  headerSection: { marginBottom: Spacing.lg },
   greetingCard: {
     padding: 24,
     borderRadius: 20,
@@ -212,42 +240,61 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 6,
   },
-  greetingText: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: 'rgba(255,255,255,0.9)',
-    marginBottom: 4,
-  },
-  userName: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    marginBottom: 8,
-  },
-  greetingSubtext: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.85)',
-  },
+  greetingText: { fontSize: 16, fontWeight: '500', color: 'rgba(255,255,255,0.9)', marginBottom: 4 },
+  userName: { fontSize: 28, fontWeight: '700', color: '#FFFFFF', marginBottom: 8 },
+  greetingSubtext: { fontSize: 14, color: 'rgba(255,255,255,0.85)' },
   titleSection: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: Spacing.md,
   },
-  sectionTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: Colors.text,
-    marginBottom: 4,
+  sectionTitle: { fontSize: 24, fontWeight: '700', color: Colors.text, marginBottom: 4 },
+  sectionSubtitle: { fontSize: 14, color: Colors.textSecondary },
+  // ── Enrollment Card ──────────────────────────────────────────────────────────
+  card: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    marginBottom: 14,
+    flexDirection: 'row',
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.07,
+    shadowRadius: 8,
+    elevation: 3,
   },
-  sectionSubtitle: {
-    fontSize: 14,
-    color: Colors.textSecondary,
+  thumb: {
+    width: 100,
+    height: 100,
   },
-  emptyContainer: {
-    alignItems: 'center',
-    paddingVertical: 40,
+  cardBody: {
+    flex: 1,
+    padding: 12,
+    justifyContent: 'space-between',
   },
+  cardTitle: { fontSize: 15, fontWeight: '700', color: Colors.text, marginBottom: 3 },
+  cardSub: { fontSize: 12, color: Colors.textSecondary, marginBottom: 8 },
+  progressRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  progressLabel: { fontSize: 11, color: Colors.textMuted },
+  progressPct: { fontSize: 11, color: '#4F46E5', fontWeight: '700' },
+  progressTrack: {
+    height: 6,
+    backgroundColor: '#E5E7EB',
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: '#4F46E5',
+    borderRadius: 3,
+  },
+  // ── Empty state ──────────────────────────────────────────────────────────────
+  emptyContainer: { alignItems: 'center', paddingVertical: 40 },
   emptyCard: {
     backgroundColor: Colors.surface,
     padding: 32,
@@ -260,37 +307,16 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 4,
   },
-  emptyEmoji: { 
-    fontSize: 64,
-    marginBottom: 16,
-  },
-  emptyTitle: { 
-    fontSize: 20,
-    fontWeight: '700',
-    color: Colors.text,
-    marginBottom: 8,
-  },
-  emptySubtext: { 
+  emptyEmoji: { fontSize: 64, marginBottom: 16 },
+  emptyTitle: { fontSize: 20, fontWeight: '700', color: Colors.text, marginBottom: 8 },
+  emptySubtext: {
     fontSize: 15,
     color: Colors.textSecondary,
     textAlign: 'center',
     marginBottom: 24,
     lineHeight: 22,
   },
-  browseButton: {
-    borderRadius: 12,
-    overflow: 'hidden',
-    width: '100%',
-  },
-  browseButtonGradient: {
-    paddingVertical: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  browseButtonText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    letterSpacing: 0.3,
-  },
+  browseButton: { borderRadius: 12, overflow: 'hidden', width: '100%' },
+  browseButtonGradient: { paddingVertical: 14, alignItems: 'center', justifyContent: 'center' },
+  browseButtonText: { fontSize: 15, fontWeight: '600', color: '#FFFFFF', letterSpacing: 0.3 },
 });

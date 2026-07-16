@@ -5,7 +5,8 @@ import { AppError } from './error';
 export const validate = (schema: z.ZodSchema) => {
     return (req: Request, res: Response, next: NextFunction) => {
         try {
-            schema.parse(req.body);
+            // Parse and assign back so the route handler gets validated/coerced values
+            req.body = schema.parse(req.body);
             next();
         } catch (error) {
             if (error instanceof ZodError) {

@@ -164,6 +164,9 @@ router.post('/login', authLimiter, validate(loginSchema), async (req: Request, r
     try {
         const { email, password, deviceId, forceLogout } = req.body;
 
+        // Debug log — remove after fixing
+        console.log(`🔑 Login attempt: ${email} | deviceId: ${deviceId?.substring(0, 8)}... | forceLogout: ${forceLogout}`);
+
         // 1. Check if user exists
         const user = await User.findOne({ email })
             .select('+password +currentDeviceId +activeSessionToken +sessionStatus');
@@ -185,6 +188,9 @@ router.post('/login', authLimiter, validate(loginSchema), async (req: Request, r
         // 4. Build fingerprint for the new device
         const clientDeviceId = deviceId || crypto.randomUUID();
         const newFingerprint = buildServerDeviceFingerprint(clientDeviceId, req);
+
+        // Debug: log SDL check values
+        console.log(`🔐 SDL check: storedDevice=${user.currentDeviceId?.substring(0,8)}... | newDevice=${newFingerprint.substring(0,8)}... | sessionStatus=${user.sessionStatus} | forceLogout=${forceLogout} | match=${user.currentDeviceId === newFingerprint}`);
 
         // 5. ── SINGLE DEVICE LOGIN ENFORCEMENT ──────────────────────────────
         //    Admins are exempt — they can log in from multiple devices freely.

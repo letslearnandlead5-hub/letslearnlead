@@ -1,6 +1,8 @@
 import axios from 'axios';
 import { API_BASE_URL } from '../config/api.config';
-import { Storage } from '../utils/storage';
+import { useAuthStore } from '../store/useAuthStore';
+import { secureStorage } from '../utils/secureStorage';
+import { navigationRef } from '../navigation/navigationRef';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -11,10 +13,24 @@ const api = axios.create({
   },
 });
 
+let isRefreshing = false;
+let failedQueue: any[] = [];
+
+const processQueue = (error: any, token: string | null = null) => {
+  failedQueue.forEach((prom) => {
+    if (error) {
+      prom.reject(error);
+    } else {
+      prom.resolve(token);
+    }
+  });
+  failedQueue = [];
+};
+
 // ─── Request Interceptor ─── Attach JWT token ───────────────────────────────
 api.interceptors.request.use(
   async (config) => {
-    const token = await Storage.getToken();
+    const token = useAuthStore.getState().accessToken;
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -23,13 +39,89 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// ─── Response Interceptor ─── Handle 401 / errors ───────────────────────────
+// ─── Response Interceptor ─── Handle 401 / token refresh ─────────────────────
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
-    if (error.response?.status === 401) {
-      // Clear auth data and let AuthContext handle navigation
-      await Storage.clearAll();
+    const originalRequest = error.config;
+
+    // Avoid infinite loop if the refresh route itself fails with 401
+    if (originalRequest.url?.includes('/auth/refresh')) {
+      return Promise.reject(error);
+    }
+
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      if (isRefreshing) {
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject });
+        })
+          .then((token) => {
+            originalRequest.headers.Authorization = `Bearer ${token}`;
+            return api(originalRequest);
+          })
+          .catch((err) => Promise.reject(err));
+      }
+
+      originalRequest._retry = true;
+      isRefreshing = true;
+
+      try {
+        const storedRefreshToken = useAuthStore.getState().refreshToken || await secureStorage.getItem('refreshToken');
+        if (!storedRefreshToken) {
+          throw new Error('No refresh token available');
+        }
+
+        // Call the refresh endpoint
+        const response = await axios.post(
+          `${API_BASE_URL}/auth/refresh`,
+          {},
+          {
+            headers: {
+              Cookie: `refreshToken=${storedRefreshToken}`,
+            },
+          }
+        );
+
+        if (response.data.success && response.data.token) {
+          const newAccessToken = response.data.token;
+          
+          // Attempt to extract rotated refresh token from set-cookie headers
+          const setCookieHeaders = response.headers?.['set-cookie'];
+          let newRefreshToken = storedRefreshToken;
+          if (setCookieHeaders && setCookieHeaders.length > 0) {
+            const match = setCookieHeaders[0].match(/refreshToken=([^;]+)/);
+            if (match && match[1]) {
+              newRefreshToken = match[1];
+            }
+          }
+
+          // Save new tokens in state and storage
+          await useAuthStore.getState().setAuth(
+            response.data.user || useAuthStore.getState().user,
+            newAccessToken,
+            newRefreshToken
+          );
+
+          processQueue(null, newAccessToken);
+          isRefreshing = false;
+
+          // Retry the original request
+          originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+          return api(originalRequest);
+        } else {
+          throw new Error('Refresh token rotation failed');
+        }
+      } catch (refreshError) {
+        processQueue(refreshError, null);
+        isRefreshing = false;
+        
+        // Log out user on refresh failure
+        await useAuthStore.getState().clearAuth();
+        if (navigationRef.isReady()) {
+          (navigationRef as any).navigate('App');
+        }
+        return Promise.reject(refreshError);
+      }
     }
 
     // Normalize error message for UI

@@ -7,203 +7,327 @@ import {
   KeyboardAvoidingView,
   Platform,
   TouchableOpacity,
+  StatusBar,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useForm, Controller } from 'react-hook-form';
 import { AuthStackParamList } from '../../types';
-import { useAuth } from '../../context/AuthContext';
+import { useAuthStore } from '../../store/useAuthStore';
+import { authService } from '../../services/authService';
 import { AppInput } from '../../components/ui/AppInput';
 import { AppButton } from '../../components/ui/AppButton';
-import { validateRegisterForm } from '../../utils/validators';
-import { Colors, Typography, Spacing, Gradients } from '../../theme';
+import { getDeviceId, getDeviceInfo } from '../../utils/deviceId';
+import { Colors, Typography, Spacing, Radius, Gradients, Shadows } from '../../theme';
 
-type Props = NativeStackScreenProps<AuthStackParamList, 'Register'>;
+type Props = NativeStackScreenProps<any, 'Register'>;
 
-export const RegisterScreen: React.FC<Props> = ({ navigation }) => {
-  const { register, isLoading, error, clearError } = useAuth();
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [formErrors, setFormErrors] = useState<{
-    name?: string;
-    email?: string;
-    password?: string;
-    confirmPassword?: string;
-  }>({});
+export const RegisterScreen: React.FC<Props> = ({ route, navigation }) => {
+  const { setAuth } = useAuthStore();
+  const [serverError, setServerError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleRegister = async () => {
-    clearError();
-    const errors = validateRegisterForm(name, email, password, confirmPassword);
-    if (Object.keys(errors).length > 0) {
-      setFormErrors(errors);
-      return;
-    }
-    setFormErrors({});
+  // Redirection parameters passed from the bottom sheet
+  const redirectTo = route.params?.redirectTo;
+  const onSuccess = route.params?.onSuccess;
 
+  const {
+    control,
+    handleSubmit,
+    watch,
+    formState: { errors },
+  } = useForm({
+    defaultValues: {
+      name: '',
+      email: '',
+      password: '',
+      confirmPassword: '',
+    },
+  });
+
+  const passwordVal = watch('password');
+
+  const onSubmit = async (formData: any) => {
+    setServerError(null);
+    setIsLoading(true);
     try {
-      await register({
-        name: name.trim(),
-        email: email.trim().toLowerCase(),
-        password,
-      });
-    } catch {
-      // Error handled by AuthContext
-    }
-  };
+      const deviceId = await getDeviceId();
+      const deviceInfo = getDeviceInfo();
+      const response = await authService.register({
+        name: formData.name.trim(),
+        email: formData.email.trim().toLowerCase(),
+        password: formData.password,
+        deviceId,
+        deviceInfo,
+      } as any);
 
-  const onChange = (setter: (v: string) => void) => (value: string) => {
-    setter(value);
-    clearError();
+      if (response.success && response.token && response.user) {
+        // Save auth to Zustand & SecureStore
+        await setAuth(response.user, response.token, response.token);
+
+        // Execute redirection
+        if (redirectTo) {
+          navigation.navigate(redirectTo.name, redirectTo.params);
+        } else {
+          navigation.replace('App');
+        }
+
+        if (onSuccess) {
+          onSuccess();
+        }
+      }
+    } catch (err: any) {
+      setServerError(err.userMessage || 'Registration failed. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
-    <LinearGradient colors={Gradients.splash as [string, string, string]} style={styles.gradient}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.flex}>
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}>
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="#1C1D3A" translucent />
+      <LinearGradient colors={Gradients.splash as [string, string, string]} style={styles.gradient}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.flex}>
+          <ScrollView
+            contentContainerStyle={styles.scrollContent}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}>
 
-          {/* Back button */}
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-            <Text style={styles.backText}>← Back</Text>
-          </TouchableOpacity>
-
-          {/* Header */}
-          <View style={styles.header}>
-            <Text style={styles.logo}>✨</Text>
-            <Text style={styles.title}>Create Account</Text>
-            <Text style={styles.subtitle}>Join thousands of learners today</Text>
-          </View>
-
-          {/* Form Card */}
-          <View style={styles.card}>
-            {error && (
-              <View style={styles.errorBanner}>
-                <Text style={styles.errorBannerText}>⚠️  {error}</Text>
-              </View>
-            )}
-
-            <AppInput
-              label="Full Name"
-              placeholder="Your full name"
-              value={name}
-              onChangeText={onChange(setName)}
-              error={formErrors.name}
-              returnKeyType="next"
-              autoCapitalize="words"
-            />
-
-            <AppInput
-              label="Email Address"
-              placeholder="you@example.com"
-              value={email}
-              onChangeText={onChange(setEmail)}
-              error={formErrors.email}
-              keyboardType="email-address"
-              returnKeyType="next"
-            />
-
-            <AppInput
-              label="Password"
-              placeholder="Min. 6 characters"
-              value={password}
-              onChangeText={onChange(setPassword)}
-              error={formErrors.password}
-              showPasswordToggle
-              returnKeyType="next"
-            />
-
-            <AppInput
-              label="Confirm Password"
-              placeholder="Re-enter your password"
-              value={confirmPassword}
-              onChangeText={onChange(setConfirmPassword)}
-              error={formErrors.confirmPassword}
-              showPasswordToggle
-              returnKeyType="done"
-              onSubmitEditing={handleRegister}
-            />
-
-            <AppButton
-              title={isLoading ? 'Creating Account...' : 'Create Account'}
-              onPress={handleRegister}
-              loading={isLoading}
-              disabled={isLoading}
-              style={styles.registerBtn}
-            />
-
-            <View style={styles.loginRow}>
-              <Text style={styles.loginText}>Already have an account? </Text>
-              <TouchableOpacity onPress={() => navigation.navigate('Login')}>
-                <Text style={styles.loginLink}>Sign In</Text>
+            {/* Header */}
+            <View style={styles.header}>
+              <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+                <Text style={styles.backIcon}>←</Text>
               </TouchableOpacity>
+              <Text style={styles.appName}>Let's Learn & Lead</Text>
+              <Text style={styles.subtitle}>Unlock Your Potential. Anywhere, Anytime.</Text>
             </View>
 
-            <Text style={styles.terms}>
-              By signing up, you agree to our{' '}
-              <Text style={styles.termsLink}>Terms of Service</Text> and{' '}
-              <Text style={styles.termsLink}>Privacy Policy</Text>
-            </Text>
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </LinearGradient>
+            {/* Register Card */}
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>Sign Up</Text>
+              
+              {/* Server Error */}
+              {serverError && (
+                <View style={styles.errorBanner}>
+                  <Text style={styles.errorBannerText}>⚠️  {serverError}</Text>
+                </View>
+              )}
+
+              <Controller
+                control={control}
+                rules={{
+                  required: 'Full name is required',
+                  minLength: { value: 2, message: 'Name must be at least 2 characters' },
+                }}
+                name="name"
+                render={({ field: { onChange, value } }) => (
+                  <AppInput
+                    label="Full Name"
+                    placeholder="Your full name"
+                    value={value}
+                    onChangeText={onChange}
+                    error={errors.name?.message}
+                    autoCapitalize="words"
+                    returnKeyType="next"
+                  />
+                )}
+              />
+
+              <Controller
+                control={control}
+                rules={{
+                  required: 'Email is required',
+                  pattern: {
+                    value: /^\S+@\S+$/i,
+                    message: 'Please enter a valid email address',
+                  },
+                }}
+                name="email"
+                render={({ field: { onChange, value } }) => (
+                  <AppInput
+                    label="Email Address"
+                    placeholder="you@example.com"
+                    value={value}
+                    onChangeText={onChange}
+                    error={errors.email?.message}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    returnKeyType="next"
+                  />
+                )}
+              />
+
+              <Controller
+                control={control}
+                rules={{
+                  required: 'Password is required',
+                  minLength: {
+                    value: 6,
+                    message: 'Password must be at least 6 characters',
+                  },
+                }}
+                name="password"
+                render={({ field: { onChange, value } }) => (
+                  <AppInput
+                    label="Password"
+                    placeholder="Min. 6 characters"
+                    value={value}
+                    onChangeText={onChange}
+                    error={errors.password?.message}
+                    showPasswordToggle
+                    returnKeyType="next"
+                  />
+                )}
+              />
+
+              <Controller
+                control={control}
+                rules={{
+                  required: 'Please confirm your password',
+                  validate: (val) => val === passwordVal || 'Passwords do not match',
+                }}
+                name="confirmPassword"
+                render={({ field: { onChange, value } }) => (
+                  <AppInput
+                    label="Confirm Password"
+                    placeholder="Repeat password"
+                    value={value}
+                    onChangeText={onChange}
+                    error={errors.confirmPassword?.message}
+                    showPasswordToggle
+                    returnKeyType="done"
+                    onSubmitEditing={handleSubmit(onSubmit)}
+                  />
+                )}
+              />
+
+              <AppButton
+                title={isLoading ? 'Signing up...' : 'Sign Up'}
+                onPress={handleSubmit(onSubmit)}
+                loading={isLoading}
+                disabled={isLoading}
+                style={styles.registerBtn}
+              />
+
+              {/* Divider */}
+              <View style={styles.divider}>
+                <View style={styles.dividerLine} />
+                <Text style={styles.dividerText}>ALREADY HAVE AN ACCOUNT?</Text>
+                <View style={styles.dividerLine} />
+              </View>
+
+              {/* Login link */}
+              <View style={styles.loginRow}>
+                <Text style={styles.loginText}>Already have an account? </Text>
+                <TouchableOpacity onPress={() => navigation.navigate('Login')} activeOpacity={0.7}>
+                  <Text style={styles.loginLink}>Sign In</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </LinearGradient>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
+  container: { flex: 1 },
   gradient: { flex: 1 },
   flex: { flex: 1 },
   scrollContent: {
     flexGrow: 1,
+    justifyContent: 'center',
     padding: Spacing.lg,
-    paddingTop: Spacing.xl,
-    paddingBottom: Spacing.xxl,
+    paddingTop: 60,
+    paddingBottom: 40,
   },
-  backBtn: { marginBottom: Spacing.md },
-  backText: { color: Colors.primary, fontSize: 15, fontWeight: '500' },
   header: {
     alignItems: 'center',
     marginBottom: Spacing.xl,
     gap: Spacing.sm,
+    position: 'relative',
+    width: '100%',
   },
-  logo: { fontSize: 48, marginBottom: 4 },
-  title: { ...Typography.h2, color: Colors.text },
-  subtitle: { ...Typography.body, color: Colors.textSecondary, textAlign: 'center' },
+  backBtn: {
+    position: 'absolute',
+    left: 0,
+    top: -20,
+    width: 36,
+    height: 36,
+    borderRadius: Radius.full,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  backIcon: {
+    color: '#FFFFFF',
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  appName: {
+    ...Typography.h1,
+    color: '#FFFFFF',
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  subtitle: {
+    ...Typography.bodySmall,
+    color: 'rgba(255, 255, 255, 0.75)',
+    textAlign: 'center',
+    fontWeight: '500',
+  },
   card: {
     backgroundColor: Colors.surface,
-    borderRadius: 24,
+    borderRadius: Radius.xxl,
     padding: Spacing.lg,
+    ...Shadows.lg,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: Colors.divider,
+  },
+  cardTitle: {
+    ...Typography.h3,
+    color: Colors.text,
+    marginBottom: Spacing.md,
+    fontWeight: '800',
   },
   errorBanner: {
-    backgroundColor: 'rgba(244,67,54,0.12)',
-    borderRadius: 10,
+    backgroundColor: Colors.errorSoft,
+    borderRadius: Radius.sm,
     padding: Spacing.md,
     marginBottom: Spacing.md,
     borderWidth: 1,
-    borderColor: 'rgba(244,67,54,0.3)',
+    borderColor: 'rgba(229,57,53,0.2)',
   },
-  errorBannerText: { color: Colors.error, fontSize: 13, lineHeight: 18 },
-  registerBtn: { marginTop: Spacing.sm },
+  errorBannerText: {
+    color: Colors.error,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '500',
+  },
+  registerBtn: {
+    backgroundColor: Colors.primary,
+    borderRadius: Radius.full,
+    height: 52,
+    marginTop: Spacing.md,
+    ...Shadows.primary,
+  },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: Spacing.lg,
+    gap: Spacing.sm,
+  },
+  dividerLine: { flex: 1, height: 1, backgroundColor: Colors.divider },
+  dividerText: { color: Colors.textMuted, fontSize: 10, fontWeight: '700', letterSpacing: 0.8 },
   loginRow: {
     flexDirection: 'row',
     justifyContent: 'center',
-    marginTop: Spacing.lg,
+    alignItems: 'center',
   },
   loginText: { color: Colors.textSecondary, fontSize: 14 },
   loginLink: { color: Colors.primary, fontSize: 14, fontWeight: '700' },
-  terms: {
-    color: Colors.textMuted,
-    fontSize: 11,
-    textAlign: 'center',
-    marginTop: Spacing.md,
-    lineHeight: 16,
-  },
-  termsLink: { color: Colors.primary },
 });

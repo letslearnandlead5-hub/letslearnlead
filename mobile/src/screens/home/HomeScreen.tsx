@@ -24,6 +24,8 @@ import { useAuth } from '../../context/AuthContext';
 import { bannerService, Banner } from '../../services/bannerService';
 import { notificationService } from '../../services/notificationService';
 import { Colors, Typography, Spacing, Radius, Shadows, Gradients, CardSizes } from '../../theme';
+import { useResponsiveSpacing } from '../../hooks/useResponsiveSpacing';
+import { ScreenContainer } from '../../components/layout/ScreenContainer';
 
 type Props = NativeStackScreenProps<HomeStackParamList, 'Home'>;
 
@@ -57,7 +59,7 @@ const getGreeting = (): string => {
 export const HomeScreen: React.FC<Props> = ({ navigation }) => {
   const { courses, isLoading, fetchCourses, refreshCourses } = useCourses();
   const { user } = useAuth();
-  const insets = useSafeAreaInsets();
+  const { insets, topInset, tabBarHeight } = useResponsiveSpacing();
 
   const [refreshing, setRefreshing] = useState(false);
   const [continueLearning, setContinueLearning] = useState<any[]>([]);
@@ -301,7 +303,7 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
       {/* ── Top Header ──────────────────────────────────────────────── */}
       <LinearGradient
         colors={['#EEF0FF', '#F7F8FC']}
-        style={[styles.topHeader, { paddingTop: insets.top + 12 }]}>
+        style={[styles.topHeader, { paddingTop: topInset + 12 }]}>
         <View style={styles.headerRow}>
           <View style={styles.headerLeft}>
             <Text style={styles.greeting}>{getGreeting()},</Text>
@@ -449,7 +451,7 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
 
   /** Footer after the grid */
   const ListFooter = () => (
-    <View>
+    <View style={{ paddingBottom: 16 }}>
       {/* ── New Courses (horizontal) ──────────────────────────────────── */}
       {displayNew.length > 0 && (
         <View style={[styles.section, { marginTop: Spacing.md }]}>
@@ -464,14 +466,13 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
 
   // ─────────────────────────────────────────────────────────────────────────
   return (
-    <View style={styles.root}>
-      <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
+    <ScreenContainer edges={['left', 'right']}>
       <FlatList
         data={displayRecommended}
         numColumns={2}
         keyExtractor={(item, idx) => `${item._id}-${idx}`}
         columnWrapperStyle={styles.gridRow}
-        contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 80 }]}
+        contentContainerStyle={[styles.list, { paddingBottom: tabBarHeight + 16 }]}
         ListHeaderComponent={<ListHeader />}
         ListFooterComponent={<ListFooter />}
         renderItem={renderGridCard}
@@ -480,7 +481,7 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
         }
         showsVerticalScrollIndicator={false}
       />
-    </View>
+    </ScreenContainer>
   );
 };
 

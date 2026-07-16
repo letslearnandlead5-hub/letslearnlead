@@ -10,13 +10,13 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types';
-import { useAuth } from '../context/AuthContext';
+import { useAuthStore } from '../store/useAuthStore';
 import { Colors, Typography, Gradients, Radius, Shadows, Spacing } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Splash'>;
 
 export const SplashScreen: React.FC<Props> = ({ navigation }) => {
-  const { isAuthenticated } = useAuth();
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const logoScale = useRef(new Animated.Value(0.5)).current;
   const logoOpacity = useRef(new Animated.Value(0)).current;
   const contentTranslateY = useRef(new Animated.Value(20)).current;
@@ -54,15 +54,11 @@ export const SplashScreen: React.FC<Props> = ({ navigation }) => {
 
     // Navigate to next screen
     const timer = setTimeout(() => {
-      if (isAuthenticated) {
-        navigation.replace('App');
-      } else {
-        navigation.replace('Auth');
-      }
-    }, 2400);
+      navigation.replace('App');
+    }, 2000);
 
     return () => clearTimeout(timer);
-  }, [isAuthenticated, navigation]);
+  }, [navigation]);
 
   return (
     <View style={styles.container}>

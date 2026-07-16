@@ -16,6 +16,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useResponsiveSpacing } from '../../hooks/useResponsiveSpacing';
+import { ScreenContainer } from '../../components/layout/ScreenContainer';
 import { doubtService, CreateDoubtPayload } from '../../services/doubtService';
 import { Doubt } from '../../types';
 import { LoadingSpinner } from '../../components/ui/LoadingSpinner';

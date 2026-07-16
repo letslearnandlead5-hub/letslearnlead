@@ -9,35 +9,77 @@ import {
   TouchableOpacity,
   Alert,
   StatusBar,
+  Switch,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useForm, Controller } from 'react-hook-form';
 import { AuthStackParamList } from '../../types';
-import { useAuth } from '../../context/AuthContext';
+import { useAuthStore } from '../../store/useAuthStore';
+import { authService } from '../../services/authService';
 import { AppInput } from '../../components/ui/AppInput';
 import { AppButton } from '../../components/ui/AppButton';
-import { validateLoginForm } from '../../utils/validators';
+import { getDeviceId, getDeviceInfo } from '../../utils/deviceId';
 import { Colors, Typography, Spacing, Radius, Gradients, Shadows } from '../../theme';
 
-type Props = NativeStackScreenProps<AuthStackParamList, 'Login'>;
+// Update type definition to support navigation params
+type Props = NativeStackScreenProps<any, 'Login'>;
 
-export const LoginScreen: React.FC<Props> = ({ navigation }) => {
-  const { login, isLoading, error, clearError } = useAuth();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [formErrors, setFormErrors] = useState<{ email?: string; password?: string }>({});
+export const LoginScreen: React.FC<Props> = ({ route, navigation }) => {
+  const { setAuth } = useAuthStore();
+  const [serverError, setServerError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
 
-  const handleLogin = async () => {
-    clearError();
-    const errors = validateLoginForm(email, password);
-    if (Object.keys(errors).length > 0) {
-      setFormErrors(errors);
-      return;
-    }
-    setFormErrors({});
+  // Redirection parameters passed from the bottom sheet
+  const redirectTo = route.params?.redirectTo;
+  const onSuccess = route.params?.onSuccess;
 
+  const {
+    control,
+    handleSubmit,
+    formState: { errors },
+  } = useForm({
+    defaultValues: {
+      email: '',
+      password: '',
+    },
+  });
+
+  const performLogin = async (formData: any, forceLogout = false) => {
+    setServerError(null);
+    setIsLoading(true);
     try {
-      await login({ email: email.trim().toLowerCase(), password });
+      const deviceId = await getDeviceId();
+      const deviceInfo = getDeviceInfo();
+      const response = await authService.login({
+        email: formData.email.trim().toLowerCase(),
+        password: formData.password,
+        deviceId,
+        deviceInfo,
+        forceLogout,
+      });
+
+      if (response.success && response.token && response.user) {
+        // Save auth to Zustand & SecureStore
+        await setAuth(response.user, response.token, response.token); // using token as mock refresh token for simplicity if not separated
+
+        // Execute redirection
+        if (redirectTo) {
+          if (redirectTo.name.endsWith('Tab')) {
+            // If redirecting to a tab, use navigate
+            navigation.navigate(redirectTo.name, redirectTo.params);
+          } else {
+            navigation.navigate(redirectTo.name, redirectTo.params);
+          }
+        } else {
+          navigation.replace('App');
+        }
+
+        if (onSuccess) {
+          onSuccess();
+        }
+      }
     } catch (err: any) {
       if (err?.code === 'ACCOUNT_ACTIVE_ELSEWHERE') {
         Alert.alert(
@@ -48,18 +90,20 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
             {
               text: 'Logout & Sign In',
               style: 'destructive',
-              onPress: async () => {
-                try {
-                  await login({ email: email.trim().toLowerCase(), password, forceLogout: true });
-                } catch (forceErr) {
-                  // Handled by context
-                }
-              }
-            }
+              onPress: () => performLogin(formData, true),
+            },
           ]
         );
+      } else {
+        setServerError(err.userMessage || 'Login failed. Please try again.');
       }
+    } finally {
+      setIsLoading(false);
     }
+  };
+
+  const onSubmit = (data: any) => {
+    performLogin(data);
   };
 
   return (
@@ -74,8 +118,11 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}>
 
-            {/* Premium Header */}
+            {/* Header */}
             <View style={styles.header}>
+              <TouchableOpacity style={styles.closeBtn} onPress={() => navigation.replace('App')}>
+                <Text style={styles.closeText}>✕</Text>
+              </TouchableOpacity>
               <View style={styles.logoBadge}>
                 <Text style={styles.logoEmoji}>🎓</Text>
               </View>
@@ -88,41 +135,82 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
               <Text style={styles.cardTitle}>Sign In</Text>
               
               {/* Server Error */}
-              {error && (
+              {serverError && (
                 <View style={styles.errorBanner}>
-                  <Text style={styles.errorBannerText}>⚠️  {error}</Text>
+                  <Text style={styles.errorBannerText}>⚠️  {serverError}</Text>
                 </View>
               )}
 
-              <AppInput
-                label="Email Address"
-                placeholder="you@example.com"
-                value={email}
-                onChangeText={(t) => { setEmail(t); clearError(); }}
-                error={formErrors.email}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                returnKeyType="next"
+              <Controller
+                control={control}
+                rules={{
+                  required: 'Email is required',
+                  pattern: {
+                    value: /^\S+@\S+$/i,
+                    message: 'Please enter a valid email address',
+                  },
+                }}
+                name="email"
+                render={({ field: { onChange, value } }) => (
+                  <AppInput
+                    label="Email Address"
+                    placeholder="you@example.com"
+                    value={value}
+                    onChangeText={onChange}
+                    error={errors.email?.message}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    returnKeyType="next"
+                  />
+                )}
               />
 
-              <AppInput
-                label="Password"
-                placeholder="Min. 6 characters"
-                value={password}
-                onChangeText={(t) => { setPassword(t); clearError(); }}
-                error={formErrors.password}
-                showPasswordToggle
-                returnKeyType="done"
-                onSubmitEditing={handleLogin}
+              <Controller
+                control={control}
+                rules={{
+                  required: 'Password is required',
+                  minLength: {
+                    value: 6,
+                    message: 'Password must be at least 6 characters',
+                  },
+                }}
+                name="password"
+                render={({ field: { onChange, value } }) => (
+                  <AppInput
+                    label="Password"
+                    placeholder="Min. 6 characters"
+                    value={value}
+                    onChangeText={onChange}
+                    error={errors.password?.message}
+                    showPasswordToggle
+                    returnKeyType="done"
+                    onSubmitEditing={handleSubmit(onSubmit)}
+                  />
+                )}
               />
 
-              <TouchableOpacity style={styles.forgotBtn} activeOpacity={0.7}>
-                <Text style={styles.forgotText}>Forgot Password?</Text>
-              </TouchableOpacity>
+              {/* Remember Me and Forgot Password Row */}
+              <View style={styles.metaRow}>
+                <View style={styles.rememberMeContainer}>
+                  <Switch
+                    value={rememberMe}
+                    onValueChange={setRememberMe}
+                    trackColor={{ false: Colors.border, true: Colors.primarySoft }}
+                    thumbColor={rememberMe ? Colors.primary : '#f4f3f4'}
+                    ios_backgroundColor="#3e3e3e"
+                    style={{ transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] }}
+                  />
+                  <Text style={styles.rememberText}>Remember Me</Text>
+                </View>
+
+                <TouchableOpacity style={styles.forgotBtn} onPress={() => navigation.navigate('ForgotPassword')} activeOpacity={0.7}>
+                  <Text style={styles.forgotText}>Forgot Password?</Text>
+                </TouchableOpacity>
+              </View>
 
               <AppButton
                 title={isLoading ? 'Signing in...' : 'Sign In'}
-                onPress={handleLogin}
+                onPress={handleSubmit(onSubmit)}
                 loading={isLoading}
                 disabled={isLoading}
                 style={styles.loginBtn}
@@ -165,6 +253,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: Spacing.xl,
     gap: Spacing.sm,
+    position: 'relative',
+    width: '100%',
+  },
+  closeBtn: {
+    position: 'absolute',
+    right: 0,
+    top: -20,
+    width: 36,
+    height: 36,
+    borderRadius: Radius.full,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  closeText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
   logoBadge: {
     width: 80,
@@ -219,10 +326,25 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     fontWeight: '500',
   },
-  forgotBtn: {
-    alignSelf: 'flex-end',
+  metaRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: Spacing.md,
-    marginTop: -Spacing.xs,
+    marginTop: Spacing.xs,
+  },
+  rememberMeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  rememberText: {
+    color: Colors.textSecondary,
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  forgotBtn: {
+    alignSelf: 'center',
   },
   forgotText: {
     color: Colors.primary,

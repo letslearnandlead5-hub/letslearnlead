@@ -12,6 +12,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { HomeStackParamList } from '../../types';
 import { Colors, Typography, Spacing, Radius, Shadows } from '../../theme';
+import { useResponsiveSpacing } from '../../hooks/useResponsiveSpacing';
+import { ScreenContainer } from '../../components/layout/ScreenContainer';
 
 type Props = NativeStackScreenProps<HomeStackParamList, 'Categories'>;
 
@@ -94,7 +96,7 @@ const CATEGORIES = [
 ];
 
 export const CategoriesScreen: React.FC<Props> = ({ navigation }) => {
-  const insets = useSafeAreaInsets();
+  const { insets, topInset, tabBarHeight } = useResponsiveSpacing();
 
   const handleCategoryPress = (category: (typeof CATEGORIES)[0]) => {
     navigation.navigate('CategoryCourses', {
@@ -128,11 +130,9 @@ export const CategoriesScreen: React.FC<Props> = ({ navigation }) => {
   );
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor={Colors.background} />
-
+    <ScreenContainer edges={['left', 'right']}>
       {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
+      <View style={[styles.header, { paddingTop: topInset + 16 }]}>
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => navigation.goBack()}>
@@ -153,12 +153,12 @@ export const CategoriesScreen: React.FC<Props> = ({ navigation }) => {
         renderItem={renderCategoryCard}
         contentContainerStyle={[
           styles.list,
-          { paddingBottom: insets.bottom + 80 },
+          { paddingBottom: insets.bottom + 24 },
         ]}
         columnWrapperStyle={styles.row}
         showsVerticalScrollIndicator={false}
       />
-    </View>
+    </ScreenContainer>
   );
 };
 

@@ -20,6 +20,8 @@ import { AppInput } from '../../components/ui/AppInput';
 import { AppButton } from '../../components/ui/AppButton';
 import { LoadingSpinner } from '../../components/ui/LoadingSpinner';
 import { Colors, Typography, Spacing, Radius, Gradients, Shadows } from '../../theme';
+import { useResponsiveSpacing } from '../../hooks/useResponsiveSpacing';
+import { ScreenContainer } from '../../components/layout/ScreenContainer';
 import { authService } from '../../services/authService';
 import { ProfileStackParamList } from '../../types';
 
@@ -28,7 +30,7 @@ type ProfileNavProp = NativeStackNavigationProp<ProfileStackParamList, 'ProfileH
 export const ProfileScreen = () => {
   const navigation = useNavigation<ProfileNavProp>();
   const { user, logout, updateProfile } = useAuth();
-  const insets = useSafeAreaInsets();
+  const { insets, topInset, tabBarHeight } = useResponsiveSpacing();
 
   const [editMode, setEditMode] = useState(false);
   const [editName, setEditName] = useState(user?.name || '');
@@ -108,13 +110,12 @@ export const ProfileScreen = () => {
     .slice(0, 2) || 'U';
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor={Colors.background} />
+    <ScreenContainer edges={['left', 'right']}>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 100 },
+          { paddingTop: topInset + 16, paddingBottom: tabBarHeight + 16 },
         ]}>
 
         {/* Premium Profile Header Card */}
@@ -283,7 +284,7 @@ export const ProfileScreen = () => {
           </KeyboardAvoidingView>
         </View>
       </Modal>
-    </View>
+    </ScreenContainer>
   );
 };
 

@@ -303,8 +303,10 @@ export type RootStackParamList = {
 };
 
 export type AuthStackParamList = {
-  Login: undefined;
-  Register: undefined;
+  Login: { redirectTo?: { name: string; params?: any }; onSuccess?: () => void } | undefined;
+  Register: { redirectTo?: { name: string; params?: any }; onSuccess?: () => void } | undefined;
+  ForgotPassword: undefined;
+  OTP: { email: string; purpose: 'register' | 'forgot_password' };
 };
 
 export type AppTabParamList = {

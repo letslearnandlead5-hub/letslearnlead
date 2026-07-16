@@ -18,6 +18,8 @@ import { LoadingSpinner } from '../../components/ui/LoadingSpinner';
 import { ErrorMessage } from '../../components/ui/ErrorMessage';
 import { Colors, Typography, Spacing } from '../../theme';
 import { useAuth } from '../../context/AuthContext';
+import { useResponsiveSpacing } from '../../hooks/useResponsiveSpacing';
+import { ScreenContainer } from '../../components/layout/ScreenContainer';
 
 // ─── Helper: count all lessons inside a course (subjects or legacy sections) ──
 const countAllLessons = (course: Course): { total: number } => {
@@ -83,9 +85,9 @@ const EnrollmentCard = ({
 };
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
-export const MyCoursesScreen = () => {
+export const MyCoursesScreen: React.FC = () => {
   const navigation = useNavigation<any>();
-  const insets = useSafeAreaInsets();
+  const { insets, topInset, tabBarHeight } = useResponsiveSpacing();
   const { user } = useAuth();
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -149,15 +151,13 @@ export const MyCoursesScreen = () => {
   if (error) return <ErrorMessage message={error} onRetry={loadEnrollments} />;
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#F9FAFB" />
-
+    <ScreenContainer edges={['left', 'right']}>
       <FlatList
         data={enrollments}
         keyExtractor={(item) => item._id}
         contentContainerStyle={[
           styles.list,
-          { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 100 },
+          { paddingTop: topInset + 16, paddingBottom: tabBarHeight + 16 },
         ]}
         ListHeaderComponent={
           <View style={styles.headerSection}>
@@ -222,7 +222,7 @@ export const MyCoursesScreen = () => {
         }
         showsVerticalScrollIndicator={false}
       />
-    </View>
+    </ScreenContainer>
   );
 };
 

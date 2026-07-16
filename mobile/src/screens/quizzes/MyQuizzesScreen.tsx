@@ -16,6 +16,8 @@ import { Quiz } from '../../types';
 import { LoadingSpinner } from '../../components/ui/LoadingSpinner';
 import { ErrorMessage } from '../../components/ui/ErrorMessage';
 import { Colors, Typography, Spacing, Radius, Shadows, Gradients } from '../../theme';
+import { useResponsiveSpacing } from '../../hooks/useResponsiveSpacing';
+import { ScreenContainer } from '../../components/layout/ScreenContainer';
 
 type FilterType = 'all' | 'not-attempted' | 'in-progress' | 'completed';
 
@@ -99,7 +101,7 @@ const QuizCard = ({
 
 export const MyQuizzesScreen: React.FC = () => {
   const navigation = useNavigation<any>();
-  const insets = useSafeAreaInsets();
+  const { insets, topInset, tabBarHeight } = useResponsiveSpacing();
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [filter, setFilter] = useState<FilterType>('all');
   const [isLoading, setIsLoading] = useState(true);
@@ -145,12 +147,11 @@ export const MyQuizzesScreen: React.FC = () => {
   };
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={Colors.primary} translucent />
+    <ScreenContainer edges={['left', 'right']}>
       <FlatList
         data={filtered}
         keyExtractor={item => item._id}
-        contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
+        contentContainerStyle={{ paddingBottom: tabBarHeight + 16 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} colors={[Colors.primary]} />}
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={
@@ -158,7 +159,7 @@ export const MyQuizzesScreen: React.FC = () => {
             {/* Premium Header card */}
             <LinearGradient
               colors={Gradients.primary as [string, string]}
-              style={[styles.header, { paddingTop: insets.top + 16 }]}>
+              style={[styles.header, { paddingTop: topInset + 16 }]}>
               <Text style={styles.headerTitle}>📋 My Quizzes</Text>
               <Text style={styles.headerSub}>Assess your knowledge and improve daily</Text>
 
@@ -217,7 +218,7 @@ export const MyQuizzesScreen: React.FC = () => {
           </View>
         }
       />
-    </View>
+    </ScreenContainer>
   );
 };
 

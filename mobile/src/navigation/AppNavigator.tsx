@@ -95,6 +95,10 @@ const ProfileStackNavigator = () => (
   </ProfileStack.Navigator>
 );
 
+import { ResponsiveTabBar } from '../components/layout/ResponsiveTabBar';
+import { useAuthStore } from '../store/useAuthStore';
+import { useAuthModalStore } from '../store/useAuthModalStore';
+
 // ─── Tab Icon ─────────────────────────────────────────────────────────────────
 const TabIcon = ({ emoji, label, focused }: { emoji: string; label: string; focused: boolean }) => (
   <View style={{ alignItems: 'center', gap: 3 }}>
@@ -105,28 +109,53 @@ const TabIcon = ({ emoji, label, focused }: { emoji: string; label: string; focu
   </View>
 );
 
+const protectedTabListener = (tabName: keyof AppTabParamList) => ({
+  tabPress: (e: any) => {
+    const isAuthenticated = useAuthStore.getState().isAuthenticated;
+    if (!isAuthenticated) {
+      e.preventDefault();
+      useAuthModalStore.getState().openModal({ name: tabName });
+    }
+  },
+});
+
 // ─── Bottom Tabs ──────────────────────────────────────────────────────────────
 const Tab = createBottomTabNavigator<AppTabParamList>();
 
 export const AppNavigator = () => (
   <Tab.Navigator
+    tabBar={(props) => <ResponsiveTabBar {...props} />}
     screenOptions={{
       headerShown: false,
-      tabBarShowLabel: false,
-      tabBarStyle: {
-        backgroundColor: Colors.tabBackground,
-        borderTopColor: Colors.divider,
-        borderTopWidth: 1,
-        paddingTop: 8,
-        paddingBottom: Platform.OS === 'ios' ? 24 : 8,
-        height: Platform.OS === 'ios' ? 84 : 64,
-        ...Shadows.md,
-      },
     }}>
-    <Tab.Screen name="HomeTab" component={HomeStackNavigator} options={{ tabBarIcon: ({ focused }) => <TabIcon emoji="🏠" label="Home" focused={focused} /> }} />
-    <Tab.Screen name="MyCoursesTab" component={MyCoursesStackNavigator} options={{ tabBarIcon: ({ focused }) => <TabIcon emoji="📚" label="My Courses" focused={focused} /> }} />
-    <Tab.Screen name="PracticeTab" component={QuizzesStackNavigator} options={{ tabBarIcon: ({ focused }) => <TabIcon emoji="📋" label="Practice" focused={focused} /> }} />
-    <Tab.Screen name="DoubtsTab" component={DoubtsStackNavigator} options={{ tabBarIcon: ({ focused }) => <TabIcon emoji="💬" label="Doubts" focused={focused} /> }} />
-    <Tab.Screen name="ProfileTab" component={ProfileStackNavigator} options={{ tabBarIcon: ({ focused }) => <TabIcon emoji="👤" label="Profile" focused={focused} /> }} />
+    <Tab.Screen
+      name="HomeTab"
+      component={HomeStackNavigator}
+      options={{ tabBarIcon: ({ focused }) => <TabIcon emoji="🏠" label="Home" focused={focused} /> }}
+    />
+    <Tab.Screen
+      name="MyCoursesTab"
+      component={MyCoursesStackNavigator}
+      listeners={protectedTabListener('MyCoursesTab')}
+      options={{ tabBarIcon: ({ focused }) => <TabIcon emoji="📚" label="My Courses" focused={focused} /> }}
+    />
+    <Tab.Screen
+      name="PracticeTab"
+      component={QuizzesStackNavigator}
+      listeners={protectedTabListener('PracticeTab')}
+      options={{ tabBarIcon: ({ focused }) => <TabIcon emoji="📋" label="Practice" focused={focused} /> }}
+    />
+    <Tab.Screen
+      name="DoubtsTab"
+      component={DoubtsStackNavigator}
+      listeners={protectedTabListener('DoubtsTab')}
+      options={{ tabBarIcon: ({ focused }) => <TabIcon emoji="💬" label="Doubts" focused={focused} /> }}
+    />
+    <Tab.Screen
+      name="ProfileTab"
+      component={ProfileStackNavigator}
+      listeners={protectedTabListener('ProfileTab')}
+      options={{ tabBarIcon: ({ focused }) => <TabIcon emoji="👤" label="Profile" focused={focused} /> }}
+    />
   </Tab.Navigator>
 );

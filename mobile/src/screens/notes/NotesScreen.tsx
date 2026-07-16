@@ -13,6 +13,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useResponsiveSpacing } from '../../hooks/useResponsiveSpacing';
+import { ScreenContainer } from '../../components/layout/ScreenContainer';
 import { noteService } from '../../services/noteService';
 import { Note } from '../../types';
 import { LoadingSpinner } from '../../components/ui/LoadingSpinner';
@@ -81,7 +83,7 @@ const NoteCard = ({ note, onDownload }: { note: Note; onDownload: () => void }) 
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
 export const NotesScreen: React.FC = () => {
-  const insets = useSafeAreaInsets();
+  const { insets, topInset, tabBarHeight } = useResponsiveSpacing();
   const [notes, setNotes] = useState<Note[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -131,12 +133,11 @@ export const NotesScreen: React.FC = () => {
   if (error && notes.length === 0) return <ErrorMessage message={error} onRetry={() => loadNotes()} />;
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#4F46E5" translucent />
+    <ScreenContainer edges={['left', 'right']}>
       <FlatList
         data={notes}
         keyExtractor={item => item._id}
-        contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}
+        contentContainerStyle={{ paddingBottom: tabBarHeight + 16 }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -150,7 +151,7 @@ export const NotesScreen: React.FC = () => {
             {/* Header */}
             <LinearGradient
               colors={['#4F46E5', '#6366F1']}
-              style={[styles.header, { paddingTop: insets.top + 16 }]}>
+              style={[styles.header, { paddingTop: topInset + 16 }]}>
               <Text style={styles.headerTitle}>📂 Study Notes</Text>
               <Text style={styles.headerSub}>
                 {notes.length} {notes.length === 1 ? 'note' : 'notes'} available
@@ -216,7 +217,7 @@ export const NotesScreen: React.FC = () => {
           </View>
         }
       />
-    </View>
+    </ScreenContainer>
   );
 };
 

@@ -17,7 +17,7 @@ import { Enrollment, Course, CourseSubject } from '../../types';
 import { LoadingSpinner } from '../../components/ui/LoadingSpinner';
 import { ErrorMessage } from '../../components/ui/ErrorMessage';
 import { Colors, Typography, Spacing } from '../../theme';
-import { useAuth } from '../../context/AuthContext';
+import { useAuthStore } from '../../store/useAuthStore';
 import { useResponsiveSpacing } from '../../hooks/useResponsiveSpacing';
 import { ScreenContainer } from '../../components/layout/ScreenContainer';
 
@@ -88,7 +88,7 @@ const EnrollmentCard = ({
 export const MyCoursesScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const { insets, topInset, tabBarHeight } = useResponsiveSpacing();
-  const { user } = useAuth();
+  const user = useAuthStore((state) => state.user);
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);

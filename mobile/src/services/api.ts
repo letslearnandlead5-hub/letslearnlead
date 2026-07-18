@@ -1,8 +1,13 @@
 import axios from 'axios';
 import { API_BASE_URL } from '../config/api.config';
-import { useAuthStore } from '../store/useAuthStore';
 import { secureStorage } from '../utils/secureStorage';
 import { navigationRef } from '../navigation/navigationRef';
+
+// Dynamically resolve useAuthStore to avoid circular dependency issues at startup
+const getAuthStore = () => {
+  return require('../store/useAuthStore').useAuthStore;
+};
+
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -30,7 +35,7 @@ const processQueue = (error: any, token: string | null = null) => {
 // ─── Request Interceptor ─── Attach JWT token ───────────────────────────────
 api.interceptors.request.use(
   async (config) => {
-    const token = useAuthStore.getState().accessToken;
+    const token = getAuthStore().getState().accessToken;
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -66,7 +71,7 @@ api.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        const storedRefreshToken = useAuthStore.getState().refreshToken || await secureStorage.getItem('refreshToken');
+        const storedRefreshToken = getAuthStore().getState().refreshToken || await secureStorage.getItem('refreshToken');
         if (!storedRefreshToken) {
           throw new Error('No refresh token available');
         }
@@ -96,8 +101,8 @@ api.interceptors.response.use(
           }
 
           // Save new tokens in state and storage
-          await useAuthStore.getState().setAuth(
-            response.data.user || useAuthStore.getState().user,
+          await getAuthStore().getState().setAuth(
+            response.data.user || getAuthStore().getState().user,
             newAccessToken,
             newRefreshToken
           );
@@ -116,7 +121,7 @@ api.interceptors.response.use(
         isRefreshing = false;
         
         // Log out user on refresh failure
-        await useAuthStore.getState().clearAuth();
+        await getAuthStore().getState().clearAuth();
         if (navigationRef.isReady()) {
           (navigationRef as any).navigate('App');
         }

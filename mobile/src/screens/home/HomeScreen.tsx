@@ -20,7 +20,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { HomeStackParamList, Course } from '../../types';
 import { useCourses } from '../../context/CourseContext';
-import { useAuth } from '../../context/AuthContext';
+import { useAuthStore } from '../../store/useAuthStore';
 import { bannerService, Banner } from '../../services/bannerService';
 import { notificationService } from '../../services/notificationService';
 import { Colors, Typography, Spacing, Radius, Shadows, Gradients, CardSizes } from '../../theme';
@@ -58,7 +58,7 @@ const getGreeting = (): string => {
 
 export const HomeScreen: React.FC<Props> = ({ navigation }) => {
   const { courses, isLoading, fetchCourses, refreshCourses } = useCourses();
-  const { user } = useAuth();
+  const user = useAuthStore((state) => state.user);
   const { insets, topInset, tabBarHeight } = useResponsiveSpacing();
 
   const [refreshing, setRefreshing] = useState(false);

@@ -15,7 +15,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useAuth } from '../../context/AuthContext';
+import { useAuthStore } from '../../store/useAuthStore';
 import { AppInput } from '../../components/ui/AppInput';
 import { AppButton } from '../../components/ui/AppButton';
 import { LoadingSpinner } from '../../components/ui/LoadingSpinner';
@@ -29,7 +29,7 @@ type ProfileNavProp = NativeStackNavigationProp<ProfileStackParamList, 'ProfileH
 
 export const ProfileScreen = () => {
   const navigation = useNavigation<ProfileNavProp>();
-  const { user, logout, updateProfile } = useAuth();
+  const { user, logout, updateProfile } = useAuthStore();
   const { insets, topInset, tabBarHeight } = useResponsiveSpacing();
 
   const [editMode, setEditMode] = useState(false);

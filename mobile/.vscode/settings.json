@@ -1,0 +1,5 @@
+{
+  "java.project.exclusionFilters": [
+    "**/node_modules/**"
+  ]
+}

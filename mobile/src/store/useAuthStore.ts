@@ -16,6 +16,8 @@ interface AuthState {
   setLoading: (loading: boolean) => void;
   initializeAuth: () => Promise<void>;
   updateUser: (updatedUser: Partial<User>) => void;
+  logout: () => Promise<void>;
+  updateProfile: (payload: any) => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -84,6 +86,26 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const currentUser = get().user;
     if (currentUser) {
       set({ user: { ...currentUser, ...updatedUser } });
+    }
+  },
+
+  logout: async () => {
+    try {
+      await authService.logout();
+    } catch (err) {
+      console.warn('Silent authService.logout error:', err);
+    }
+    await get().clearAuth();
+  },
+
+  updateProfile: async (payload) => {
+    try {
+      const response = await authService.updateProfile(payload);
+      if (response.success && response.user) {
+        get().updateUser(response.user);
+      }
+    } catch (error: any) {
+      throw error;
     }
   },
 }));

@@ -15,15 +15,31 @@ import { Colors, Typography, Gradients, Radius, Shadows, Spacing } from '../them
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Splash'>;
 
+const MIN_SPLASH_MS = 2000; // always show splash for at least 2 seconds
+
 export const SplashScreen: React.FC<Props> = ({ navigation }) => {
-  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const isLoading = useAuthStore((state) => state.isLoading);
   const logoScale = useRef(new Animated.Value(0.5)).current;
   const logoOpacity = useRef(new Animated.Value(0)).current;
   const contentTranslateY = useRef(new Animated.Value(20)).current;
   const contentOpacity = useRef(new Animated.Value(0)).current;
 
+  // Track whether minimum display time has elapsed
+  const minTimeElapsed = useRef(false);
+  // Track whether auth has finished loading
+  const authReady = useRef(false);
+  // Guard against calling navigate twice
+  const navigated = useRef(false);
+
+  const tryNavigate = () => {
+    if (minTimeElapsed.current && authReady.current && !navigated.current) {
+      navigated.current = true;
+      navigation.replace('App');
+    }
+  };
+
   useEffect(() => {
-    // Elegant slide & fade animation sequence
+    // Start the brand animation
     Animated.sequence([
       Animated.parallel([
         Animated.spring(logoScale, {
@@ -52,13 +68,24 @@ export const SplashScreen: React.FC<Props> = ({ navigation }) => {
       ]),
     ]).start();
 
-    // Navigate to next screen
+    // Minimum splash display timer
     const timer = setTimeout(() => {
-      navigation.replace('App');
-    }, 2000);
+      minTimeElapsed.current = true;
+      tryNavigate();
+    }, MIN_SPLASH_MS);
 
     return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navigation]);
+
+  // Watch for auth loading to complete
+  useEffect(() => {
+    if (!isLoading) {
+      authReady.current = true;
+      tryNavigate();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoading]);
 
   return (
     <View style={styles.container}>

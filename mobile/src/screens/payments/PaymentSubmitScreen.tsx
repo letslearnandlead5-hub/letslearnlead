@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -11,14 +11,14 @@ import {
   KeyboardAvoidingView,
   Platform,
   Image,
-  Clipboard,
+  Share,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PaymentsStackParamList } from '../../types';
 import { paymentService, CoursePaymentInfo } from '../../services/paymentService';
-import { useAuth } from '../../context/AuthContext';
+import { useAuthStore } from '../../store/useAuthStore';
 import { LoadingSpinner } from '../../components/ui/LoadingSpinner';
 import { Colors } from '../../theme';
 
@@ -27,7 +27,7 @@ type Props = NativeStackScreenProps<PaymentsStackParamList, 'PaymentSubmit'>;
 export const PaymentSubmitScreen: React.FC<Props> = ({ route, navigation }) => {
   const { courseId, courseTitle } = route.params;
   const insets = useSafeAreaInsets();
-  const { user } = useAuth();
+  const user = useAuthStore((state) => state.user);
 
   const [courseInfo, setCourseInfo] = useState<CoursePaymentInfo | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -56,10 +56,13 @@ export const PaymentSubmitScreen: React.FC<Props> = ({ route, navigation }) => {
     }
   };
 
-  const handleCopyUPI = () => {
+  const handleCopyUPI = async () => {
     if (courseInfo?.upiId) {
-      Clipboard.setString(courseInfo.upiId);
-      Alert.alert('Copied!', 'UPI ID copied to clipboard.');
+      try {
+        await Share.share({ message: courseInfo.upiId, title: 'UPI ID' });
+      } catch (err) {
+        Alert.alert('UPI ID', courseInfo.upiId);
+      }
     }
   };
 

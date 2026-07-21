@@ -50,6 +50,7 @@ export const paymentService = {
   getCoursePaymentInfo: async (courseId: string): Promise<{
     success: boolean;
     data: CoursePaymentInfo;
+    message?: string;
   }> => {
     const { data } = await api.get(ENDPOINTS.PAYMENTS.COURSE_INFO(courseId));
     return data;

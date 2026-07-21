@@ -121,11 +121,14 @@ app.use(helmet({
 
 console.log('✅ Security headers configured');
 
-// 🔹 Required middleware - Increase body size limit for image uploads
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+// 🔹 Global body limits — 2MB protects public routes against Out-of-Memory DoS attacks
+app.use(express.json({ limit: '2mb' }));
+app.use(express.urlencoded({ extended: true, limit: '2mb' }));
 app.use(cookieParser());
 app.use(passport.initialize());
+
+// 🔹 Route-specific 50MB JSON parser for base64 image/file uploads
+const uploadJsonParser = express.json({ limit: '50mb' });
 
 // 🔹 Serve static files
 app.use('/invoices', express.static(path.join(__dirname, '../invoices')));
@@ -150,9 +153,9 @@ app.use('/videos', express.static(path.join(__dirname, '../public/videos')));
 
 // 🔹 Routes
 app.use("/api/auth", authRoutes);
-app.use("/api/courses", courseRoutes);
+app.use("/api/courses", uploadJsonParser, courseRoutes);
 app.use("/api/notes", noteRoutes);
-app.use("/api/admin", adminRoutes);
+app.use("/api/admin", uploadJsonParser, adminRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/newsletter", newsletterRoutes);
 app.use("/api/progress", progressRoutes);
@@ -164,8 +167,8 @@ app.use("/api/settings", settingsRoutes);
 app.use("/api/stats", statsRoutes);
 app.use("/api/contact", contactRoutes);
 app.use("/api/user-notes", userNotesRoutes);
-app.use("/api/banners", bannerRoutes);
-app.use("/api/payments", paymentRoutes);
+app.use("/api/banners", uploadJsonParser, bannerRoutes);
+app.use("/api/payments", uploadJsonParser, paymentRoutes);
 
 
 // 🔹 API Health check

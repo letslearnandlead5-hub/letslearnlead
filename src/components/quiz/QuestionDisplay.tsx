@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import type { QuizQuestion } from '../../types';
 import { FileCode, ArrowLeftRight } from 'lucide-react';
 import RichTextDisplay from './RichTextDisplay';
+import { stripHtmlToText } from '../../utils/htmlUtils';
 
 interface QuestionDisplayProps {
     question: QuizQuestion;
@@ -43,9 +44,13 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
     const shuffledRights = useMemo(() => {
         if (question.questionType !== 'match' || !question.matchPairs) return [];
         const seed = question._id || question.questionText.slice(0, 20);
-        const stripHtmlLocal = (html: string) => html.replace(/<[^>]*>/g, '').trim();
         return shuffleWithSeed(
-            question.matchPairs.map((p, i) => ({ originalIdx: i, text: stripHtmlLocal(p.right) })),
+            // Use stripHtmlToText (entity-decoded, tag-stripped) for dropdown labels
+            question.matchPairs.map((p, i) => ({
+                originalIdx: i,
+                pairId: p.id || String(i),
+                text: stripHtmlToText(p.right),
+            })),
             seed
         );
     }, [question.questionType, question.matchPairs, question._id, question.questionText]);
@@ -92,7 +97,8 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
                                     const currentSelection = matchMapping[String(leftIdx)];
                                     const hasAnswer = currentSelection !== undefined && currentSelection !== '';
                                     return (
-                                        <div key={leftIdx} className="grid grid-cols-2 gap-3 items-center">
+                                        // KEY FIX: pair.id (stable UUID) not leftIdx (array index)
+                                        <div key={pair.id || `pair-${leftIdx}`} className="grid grid-cols-2 gap-3 items-center">
                                             {/* Column A item */}
                                             <div className={`px-4 py-3 rounded-lg border-2 text-sm font-medium text-gray-900 dark:text-white ${hasAnswer ? 'border-blue-400 bg-blue-50 dark:bg-blue-950/40' : 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800'}`}>
                                                 <span className="text-xs text-gray-400 mr-2">{leftIdx + 1}.</span>
@@ -106,8 +112,8 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
                                                 className={`px-3 py-3 rounded-lg border-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400 dark:bg-gray-700 dark:text-white transition-all ${hasAnswer ? 'border-green-400 bg-green-50 dark:bg-green-950/40 text-gray-900 dark:text-white' : 'border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400'} ${disabled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
                                             >
                                                 <option value="">— Select match —</option>
-                                                {shuffledRights.map(({ originalIdx, text }) => (
-                                                    <option key={originalIdx} value={String(originalIdx)}>
+                                                {shuffledRights.map(({ originalIdx, pairId, text }) => (
+                                                    <option key={pairId || originalIdx} value={String(originalIdx)}>
                                                         {text}
                                                     </option>
                                                 ))}

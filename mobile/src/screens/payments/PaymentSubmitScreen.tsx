@@ -16,16 +16,18 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { PaymentsStackParamList } from '../../types';
 import { paymentService, CoursePaymentInfo } from '../../services/paymentService';
 import { useAuthStore } from '../../store/useAuthStore';
 import { LoadingSpinner } from '../../components/ui/LoadingSpinner';
 import { Colors } from '../../theme';
 
-type Props = NativeStackScreenProps<PaymentsStackParamList, 'PaymentSubmit'>;
+// Accept any navigation stack that has a PaymentSubmit screen (HomeStack, MyCoursesStack, ProfileStack)
+// Use a concrete param type accepted by HomeStack, MyCoursesStack, and ProfileStack
+type PaymentSubmitParams = { courseId: string; courseTitle: string };
+type Props = { route: { params: PaymentSubmitParams }; navigation: any };
 
 export const PaymentSubmitScreen: React.FC<Props> = ({ route, navigation }) => {
-  const { courseId, courseTitle } = route.params;
+  const { courseId, courseTitle } = route.params as PaymentSubmitParams;
   const insets = useSafeAreaInsets();
   const user = useAuthStore((state) => state.user);
 
@@ -46,11 +48,55 @@ export const PaymentSubmitScreen: React.FC<Props> = ({ route, navigation }) => {
 
   const loadCourseInfo = async () => {
     try {
+      console.log('[PaymentSubmit] Loading payment info for courseId:', courseId);
+
+      if (!courseId || courseId === 'undefined') {
+        Alert.alert('Error', 'Invalid course. Please go back and try again.');
+        navigation.goBack();
+        return;
+      }
+
       const res = await paymentService.getCoursePaymentInfo(courseId);
+      console.log('[PaymentSubmit] Payment info response:', JSON.stringify(res?.data));
+
+      if (!res.data) {
+        Alert.alert('Error', 'No payment information returned from server.');
+        navigation.goBack();
+        return;
+      }
+
+      // Payment is disabled — inform the user instead of crashing
+      if (res.data.paymentEnabled === false) {
+        Alert.alert(
+          '⚠️ Payment Not Configured',
+          res.message ||
+            'Payment is not yet set up for this course. Please contact the institute for enrollment.',
+          [{ text: 'OK', onPress: () => navigation.goBack() }]
+        );
+        return;
+      }
+
       setCourseInfo(res.data);
     } catch (err: any) {
-      Alert.alert('Error', err.userMessage || 'Failed to load payment info.');
-      navigation.goBack();
+      console.error('[PaymentSubmit] Error loading payment info:', err);
+      const code = err.code;
+      let msg = 'Failed to load payment info. Please try again.';
+
+      if (code === 'NO_TOKEN' || code === 'TOKEN_EXPIRED') {
+        msg = 'Your session has expired. Please log in again.';
+      } else if (err.response?.status === 404) {
+        msg = 'Course not found. It may have been removed.';
+      } else if (err.response?.status === 400) {
+        msg = err.userMessage || 'No payment configuration available for this course.';
+      } else if (err.response?.status === 500) {
+        msg = 'Server error. Please try again later.';
+      } else if (!err.response) {
+        msg = 'Network timeout. Check your internet connection.';
+      }
+
+      Alert.alert('Error', msg, [
+        { text: 'OK', onPress: () => navigation.goBack() },
+      ]);
     } finally {
       setIsLoading(false);
     }
@@ -101,6 +147,45 @@ export const PaymentSubmitScreen: React.FC<Props> = ({ route, navigation }) => {
     }
   };
 
+  const handleViewPayments = () => {
+    console.log('[PaymentSuccess] "View My Payments" pressed');
+    try {
+      // First attempt navigation to Profile tab's PaymentsList
+      const parent = navigation.getParent();
+      if (parent) {
+        parent.navigate('ProfileTab', { screen: 'PaymentsList' });
+      } else {
+        navigation.navigate('PaymentsList');
+      }
+    } catch (err: any) {
+      console.error('[PaymentSuccess] Failed to navigate to ProfileTab, falling back to PaymentsList:', err);
+      try {
+        navigation.navigate('PaymentsList');
+      } catch {
+        Alert.alert('Navigation Error', 'Could not open Payments screen.');
+      }
+    }
+  };
+
+  const handleGoBack = () => {
+    console.log('[PaymentSuccess] "Go Back" pressed. canGoBack:', navigation.canGoBack());
+    try {
+      if (navigation.canGoBack()) {
+        navigation.goBack();
+      } else {
+        const parent = navigation.getParent();
+        if (parent) {
+          parent.navigate('HomeTab');
+        } else {
+          navigation.navigate('HomeTab' as any);
+        }
+      }
+    } catch (err: any) {
+      console.error('[PaymentSuccess] Go Back navigation failed:', err);
+      navigation.navigate('PaymentsList');
+    }
+  };
+
   if (isLoading) return <LoadingSpinner fullScreen message="Loading payment info…" />;
 
   // Success state
@@ -108,7 +193,7 @@ export const PaymentSubmitScreen: React.FC<Props> = ({ route, navigation }) => {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <StatusBar barStyle="dark-content" />
-        <ScrollView contentContainerStyle={styles.successScroll}>
+        <ScrollView contentContainerStyle={styles.successScroll} pointerEvents="auto">
           <LinearGradient colors={['#22C55E', '#16A34A']} style={styles.successCircle}>
             <Text style={styles.successTick}>✓</Text>
           </LinearGradient>
@@ -125,18 +210,25 @@ export const PaymentSubmitScreen: React.FC<Props> = ({ route, navigation }) => {
           </View>
           <TouchableOpacity
             style={styles.doneBtn}
-            onPress={() => navigation.navigate('PaymentsList')}>
+            onPress={handleViewPayments}
+            activeOpacity={0.8}
+          >
             <LinearGradient colors={['#4F46E5', '#6366F1']} style={styles.doneBtnGrad}>
               <Text style={styles.doneBtnText}>View My Payments</Text>
             </LinearGradient>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.homeLink} onPress={() => navigation.navigate('PaymentsList')}>
+          <TouchableOpacity
+            style={styles.homeLink}
+            onPress={handleGoBack}
+            activeOpacity={0.7}
+          >
             <Text style={styles.homeLinkText}>Go Back</Text>
           </TouchableOpacity>
         </ScrollView>
       </View>
     );
   }
+
 
   const price = courseInfo?.price || 0;
   const upiId = courseInfo?.upiId;

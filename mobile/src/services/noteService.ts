@@ -21,8 +21,30 @@ export const noteService = {
     return data;
   },
 
+  /** Get notes specifically for a course & subject */
+  getSubjectNotes: async (
+    courseId: string,
+    subjectId: string,
+    params?: {
+      search?: string;
+      fileType?: string;
+      chapterId?: string;
+      sort?: 'newest' | 'oldest' | 'alphabetical';
+    }
+  ): Promise<{
+    success: boolean;
+    course: { _id: string; title: string };
+    subject: { _id: string; name: string };
+    totalNotes: number;
+    notes: Note[];
+  }> => {
+    const { data } = await api.get(ENDPOINTS.NOTES.BY_SUBJECT(courseId, subjectId), { params });
+    return data;
+  },
+
   /** Get download URL for a note */
   getDownloadUrl: (noteId: string): string => {
     return `${api.defaults.baseURL}${ENDPOINTS.NOTES.DOWNLOAD(noteId)}`;
   },
 };
+

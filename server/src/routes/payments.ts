@@ -24,14 +24,63 @@ const router = Router();
 // @access  Private (any logged-in user)
 router.get('/course/:courseId', protect, async (req: AuthRequest, res: Response, next) => {
     try {
-        const course = await Course.findById(req.params.courseId)
-            .select('title currency paymentEnabled paymentMethod upiId merchantName paymentInstructions qrImage thumbnail instructor subjects');
+        const { courseId } = req.params;
+        console.log(`[Payment] GET /course/${courseId} — user: ${req.user?.id}`);
 
-        if (!course) throw new AppError('Course not found', 404);
-        if (!course.paymentEnabled) throw new AppError('This course does not require payment', 400);
+        if (!courseId || courseId === 'undefined' || courseId === 'null') {
+            throw new AppError('Invalid course ID', 400);
+        }
 
-        res.status(200).json({ success: true, data: course });
+        const course = await Course.findById(courseId)
+            .select('title price currency paymentEnabled paymentMethod upiId merchantName paymentInstructions qrImage thumbnail instructor subjects');
+
+        if (!course) {
+            console.log(`[Payment] Course not found: ${courseId}`);
+            throw new AppError('Course not found', 404);
+        }
+
+        console.log(`[Payment] Course found: ${course.title} | paymentEnabled: ${course.paymentEnabled} | price: ${course.price}`);
+
+        // If payment is not configured/enabled, return a safe default payload
+        // so the frontend can show "payment not configured" instead of crashing.
+        if (!course.paymentEnabled) {
+            return res.status(200).json({
+                success: true,
+                data: {
+                    _id: course._id,
+                    title: course.title,
+                    price: course.price || 0,
+                    currency: course.currency || 'INR',
+                    paymentEnabled: false,
+                    paymentMethod: null,
+                    upiId: null,
+                    qrImage: null,
+                    merchantName: null,
+                    paymentInstructions: 'Please contact the institute for payment details.',
+                    subjects: course.subjects || [],
+                },
+                message: 'Payment is not yet configured for this course. Please contact support.',
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            data: {
+                _id: course._id,
+                title: course.title,
+                price: course.price || 0,
+                currency: course.currency || 'INR',
+                paymentEnabled: course.paymentEnabled,
+                paymentMethod: course.paymentMethod,
+                upiId: course.upiId,
+                qrImage: course.qrImage,
+                merchantName: course.merchantName,
+                paymentInstructions: course.paymentInstructions,
+                subjects: course.subjects || [],
+            },
+        });
     } catch (error) {
+        console.error(`[Payment] GET /course error:`, error);
         next(error);
     }
 });

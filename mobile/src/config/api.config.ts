@@ -64,9 +64,11 @@ export const ENDPOINTS = {
   NOTES: {
     LIST: '/notes',
     BY_COURSE: (courseId: string) => `/notes/course/${courseId}`,
+    BY_SUBJECT: (courseId: string, subjectId: string) => `/notes/courses/${courseId}/subjects/${subjectId}/notes`,
     DETAIL: (id: string) => `/notes/${id}`,
     DOWNLOAD: (id: string) => `/notes/${id}/download`,
   },
+
 
   // Payments
   PAYMENTS: {

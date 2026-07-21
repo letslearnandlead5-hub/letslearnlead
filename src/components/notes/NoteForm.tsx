@@ -139,10 +139,19 @@ const NoteForm: React.FC<NoteFormProps> = ({
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
+        if (!formData.courseId) {
+            alert('Please select a course');
+            return;
+        }
+        if (!formData.subjectId) {
+            alert('Please select a subject');
+            return;
+        }
+
         // Validation based on mode
         if (contentMode === 'upload') {
             if (!uploadedFile) {
-                alert('Please upload a file');
+                alert('Please upload a file (PDF, TXT, or DOC)');
                 return;
             }
 
@@ -151,13 +160,12 @@ const NoteForm: React.FC<NoteFormProps> = ({
             formDataToSend.append('title', formData.title);
             formDataToSend.append('description', formData.description);
             formDataToSend.append('courseId', formData.courseId);
-            if (formData.subjectId) {
-                formDataToSend.append('subjectId', formData.subjectId);
-                formDataToSend.append('subjectName', formData.subjectName);
-            }
+            formDataToSend.append('subjectId', formData.subjectId);
+            formDataToSend.append('subjectName', formData.subjectName);
             formDataToSend.append('fileType', 'file');
             formDataToSend.append('category', formData.category);
             formDataToSend.append('tags', JSON.stringify(formData.tags));
+
 
             // Debug logging
             console.log('Uploading file:', uploadedFile);
@@ -182,11 +190,10 @@ const NoteForm: React.FC<NoteFormProps> = ({
             formDataToSend.append('title', formData.title);
             formDataToSend.append('description', formData.description);
             formDataToSend.append('courseId', formData.courseId);
-            if (formData.subjectId) {
-                formDataToSend.append('subjectId', formData.subjectId);
-                formDataToSend.append('subjectName', formData.subjectName);
-            }
+            formDataToSend.append('subjectId', formData.subjectId);
+            formDataToSend.append('subjectName', formData.subjectName);
             formDataToSend.append('fileType', 'html');
+
             formDataToSend.append('category', formData.category);
             formDataToSend.append('tags', JSON.stringify(formData.tags));
             formDataToSend.append('markdownContent', htmlContent);
@@ -251,35 +258,39 @@ const NoteForm: React.FC<NoteFormProps> = ({
                         </div>
                     )}
 
-                    {/* Subject Selection (shown when selected course has subjects) */}
-                    {selectedCourseSubjects.length > 0 && (
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                Subject <span className="text-gray-400 font-normal">(optional)</span>
-                            </label>
-                            <select
-                                value={formData.subjectId}
-                                onChange={(e) => {
-                                    const subject = selectedCourseSubjects.find(s => s._id === e.target.value);
-                                    handleChange('subjectId', e.target.value);
-                                    handleChange('subjectName', subject?.name || '');
-                                }}
-                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-violet-500"
-                            >
-                                <option value="">All subjects (general note)</option>
-                                {selectedCourseSubjects.map((sub) => (
-                                    <option key={sub._id} value={sub._id}>
-                                        {sub.icon ? `${sub.icon} ` : ''}{sub.name}
-                                    </option>
-                                ))}
-                            </select>
-                            {formData.subjectId && (
-                                <p className="mt-1 text-xs text-violet-600 dark:text-violet-400">
-                                    This note will be linked to: <strong>{formData.subjectName}</strong>
-                                </p>
-                            )}
-                        </div>
-                    )}
+                    {/* Subject Selection (REQUIRED for hierarchy) */}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Subject <span className="text-red-500">*</span>
+                        </label>
+                        <select
+                            value={formData.subjectId}
+                            onChange={(e) => {
+                                const subject = selectedCourseSubjects.find(s => s._id === e.target.value);
+                                handleChange('subjectId', e.target.value);
+                                handleChange('subjectName', subject?.name || '');
+                            }}
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-violet-500"
+                            required
+                        >
+                            <option value="">Select a subject</option>
+                            {selectedCourseSubjects.map((sub) => (
+                                <option key={sub._id} value={sub._id}>
+                                    {sub.icon ? `${sub.icon} ` : ''}{sub.name}
+                                </option>
+                            ))}
+                        </select>
+                        {formData.subjectId ? (
+                            <p className="mt-1 text-xs text-violet-600 dark:text-violet-400">
+                                Linked Subject: <strong>{formData.subjectName}</strong>
+                            </p>
+                        ) : (
+                            <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
+                                ⚠️ Notes must belong to a specific subject to be visible to enrolled students.
+                            </p>
+                        )}
+                    </div>
+
 
                     {/* Category */}
                     <Input

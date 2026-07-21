@@ -9,8 +9,10 @@ export interface IQuestionOption {
 
 // Match pair for Match the Following questions
 export interface IMatchPair {
-    left: string;  // Column A item
-    right: string; // Column B item (correct match)
+    id: string;    // Stable client-side UUID assigned at creation
+    left: string;  // Column A item (may contain rich HTML)
+    right: string; // Column B item — correct match (may contain rich HTML)
+    order: number; // Display order
 }
 
 // Quiz Question
@@ -75,10 +77,16 @@ const QuestionOptionSchema = new Schema<IQuestionOption>({
 });
 
 // Match Pair Schema
+// NOTE: left/right use default:'' instead of required:true so that
+// pairs with currently-empty editor content are never silently dropped
+// by Mongoose validation during intermediate saves.
 const MatchPairSchema = new Schema<IMatchPair>({
-    left: { type: String, required: true },
-    right: { type: String, required: true },
-}, { _id: false });
+    id: { type: String, default: '' },
+    left: { type: String, default: '' },
+    right: { type: String, default: '' },
+    order: { type: Number, default: 0 },
+});
+// _id is TRUE (default) so each pair has a stable MongoDB ObjectId
 
 // Quiz Question Schema
 const QuizQuestionSchema = new Schema<IQuizQuestion>({

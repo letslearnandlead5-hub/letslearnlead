@@ -8,11 +8,15 @@ export const createNoteSchema = z.object({
     title: z.string().min(1, 'Title is required').max(200, 'Title must be less than 200 characters'),
     description: z.string().min(1, 'Description is required').max(1000, 'Description must be less than 1000 characters'),
     courseId: objectIdSchema,
+    subjectId: objectIdSchema,
+    chapterId: z.string().optional(),
+    chapterName: z.string().optional(),
     category: z.string().max(100).optional(),
     tags: z.array(z.string().max(50)).max(10, 'Maximum 10 tags allowed').optional(),
-    fileType: z.enum(['html', 'file']),
+    fileType: z.enum(['html', 'file', 'pdf', 'txt', 'doc']),
     markdownContent: z.string().optional(),
 });
+
 
 export const updateNoteSchema = createNoteSchema.partial().extend({
     fileType: z.enum(['html', 'file']).optional(),

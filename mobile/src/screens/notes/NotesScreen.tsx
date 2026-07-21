@@ -22,9 +22,12 @@ import { ErrorMessage } from '../../components/ui/ErrorMessage';
 import { Colors, Spacing } from '../../theme';
 
 // File-type configuration
-const FILE_CONFIG = {
+const FILE_CONFIG: Record<string, { icon: string; color: string; bg: string; label: string }> = {
   pdf: { icon: '📄', color: '#EF4444', bg: '#FEF2F2', label: 'PDF' },
   txt: { icon: '📝', color: '#6366F1', bg: '#EEF2FF', label: 'TXT' },
+  doc: { icon: '📚', color: '#2563EB', bg: '#EFF6FF', label: 'DOC' },
+  file: { icon: '📁', color: '#4F46E5', bg: '#EEF2FF', label: 'FILE' },
+  html: { icon: '🌐', color: '#059669', bg: '#ECFDF5', label: 'HTML' },
 };
 
 const formatSize = (bytes?: number): string => {
@@ -36,7 +39,7 @@ const formatSize = (bytes?: number): string => {
 
 // ─── Note card ────────────────────────────────────────────────────────────────
 const NoteCard = ({ note, onDownload }: { note: Note; onDownload: () => void }) => {
-  const fc = FILE_CONFIG[note.fileType] || FILE_CONFIG.pdf;
+  const fc = FILE_CONFIG[note.fileType] || FILE_CONFIG.file;
   const date = new Date(note.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 
   return (
@@ -57,11 +60,15 @@ const NoteCard = ({ note, onDownload }: { note: Note; onDownload: () => void }) 
           {note.subjectName && (
             <Text style={styles.metaChip}>📚 {note.subjectName}</Text>
           )}
+          {note.chapterName && (
+            <Text style={styles.metaChip}>📌 {note.chapterName}</Text>
+          )}
           {note.fileSize ? (
             <Text style={styles.metaSize}>{formatSize(note.fileSize)}</Text>
           ) : null}
           <Text style={styles.metaDate}>{date}</Text>
         </View>
+
         {note.tags && note.tags.length > 0 && (
           <View style={styles.tagsRow}>
             {note.tags.slice(0, 3).map(tag => (

@@ -100,14 +100,28 @@ export interface Enrollment {
 }
 
 // ─── Quiz ─────────────────────────────────────────────────────────────────────
+export interface MatchPair {
+  id: string;
+  left: string;  // HTML rich text (Column A)
+  right: string; // HTML rich text (Column B)
+  order: number;
+}
+
 export interface QuizQuestion {
   _id: string;
+  questionType: 'text' | 'image' | 'formula' | 'diagram' | 'match';
   questionText: string;
-  options: string[];
-  correctAnswer?: string; // only present after submission
+  questionImage?: string;
+  questionFormula?: string;
+  questionDiagram?: string;
+  options: any[];
+  matchPairs?: MatchPair[]; // populated when questionType === 'match'
+  correctAnswer?: string;   // only present after submission
+  explanation?: string;
   marks: number;
   negativeMarks?: number;
 }
+
 
 export interface QuizSettings {
   timeLimit: number;           // minutes
@@ -179,18 +193,23 @@ export interface Note {
   _id: string;
   title: string;
   description?: string;
-  fileUrl: string;
-  fileType: 'pdf' | 'txt';
+  fileUrl?: string;
+  fileType: 'pdf' | 'txt' | 'doc' | 'file' | 'html';
+  markdownContent?: string;
   fileSize?: number;
   courseId?: string;
   courseName?: string;
   subjectId?: string;
   subjectName?: string;
+  chapterId?: string;
+  chapterName?: string;
   category?: string;
+  status?: 'active' | 'inactive';
   tags?: string[];
   uploadedBy?: { _id: string; name: string };
   createdAt: string;
 }
+
 
 
 
@@ -359,6 +378,7 @@ export type HomeStackParamList = {
   NotificationDetail: { notification: Notification };
   Search: { initialQuery?: string };
   PaymentSubmit: { courseId: string; courseTitle: string };
+  PaymentsList: undefined;
 };
 
 export type MyCoursesStackParamList = {
@@ -367,4 +387,6 @@ export type MyCoursesStackParamList = {
   SubjectSelection: { courseId: string; courseTitle?: string };
   VideoPlayer: { courseId: string; lessonId: string; lessonTitle?: string; subjectId?: string };
   PaymentSubmit: { courseId: string; courseTitle: string };
+  PaymentsList: undefined;
 };
+

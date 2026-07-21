@@ -7,7 +7,9 @@ import {
   TouchableOpacity,
   RefreshControl,
   StatusBar,
+  Alert,
 } from 'react-native';
+
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -130,12 +132,17 @@ export const MyQuizzesScreen: React.FC = () => {
     : quizzes.filter(q => q.status === filter);
 
   const handlePress = (quiz: Quiz) => {
+    if (!quiz || !quiz._id) {
+      Alert.alert('Error', 'Invalid quiz selection.');
+      return;
+    }
     navigation.navigate('QuizAttempt', {
       quizId: quiz._id,
-      quizTitle: quiz.title,
+      quizTitle: quiz.title || 'Quiz',
       attemptId: quiz.status === 'in-progress' ? quiz.inProgressAttemptId : undefined,
     });
   };
+
 
   if (isLoading) return <LoadingSpinner fullScreen message="Loading quizzes..." />;
   if (error) return <ErrorMessage message={error} onRetry={loadQuizzes} />;

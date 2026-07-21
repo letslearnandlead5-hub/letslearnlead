@@ -47,6 +47,7 @@ const HomeStackNavigator = () => (
     <HomeStack.Screen name="Notifications" component={NotificationsScreen} options={{ animation: 'slide_from_right' }} />
     <HomeStack.Screen name="NotificationDetail" component={NotificationDetailScreen} options={{ animation: 'slide_from_right' }} />
     <HomeStack.Screen name="PaymentSubmit" component={PaymentSubmitScreen} options={{ animation: 'slide_from_right' }} />
+    <HomeStack.Screen name="PaymentsList" component={MyPaymentsScreen} options={{ animation: 'slide_from_right' }} />
   </HomeStack.Navigator>
 );
 
@@ -60,8 +61,10 @@ const MyCoursesStackNavigator = () => (
     <MyCoursesStack.Screen name="SubjectSelection" component={SubjectSelectionScreen} options={{ animation: 'slide_from_right' }} />
     <MyCoursesStack.Screen name="VideoPlayer" component={VideoPlayerScreen} options={{ animation: 'slide_from_bottom' }} />
     <MyCoursesStack.Screen name="PaymentSubmit" component={PaymentSubmitScreen} options={{ animation: 'slide_from_right' }} />
+    <MyCoursesStack.Screen name="PaymentsList" component={MyPaymentsScreen} options={{ animation: 'slide_from_right' }} />
   </MyCoursesStack.Navigator>
 );
+
 
 // ─── Practice / Quizzes Stack ──────────────────────────────────────────────────
 const QuizzesStack = createNativeStackNavigator<QuizzesStackParamList>();

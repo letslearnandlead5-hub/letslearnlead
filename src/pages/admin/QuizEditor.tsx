@@ -31,6 +31,7 @@ import { useAuthStore } from '../../store/useAuthStore';
 import ScientificEditor, { stripHtml } from '../../components/quiz/ScientificEditor';
 import RichTextDisplay from '../../components/quiz/RichTextDisplay';
 import LivePreview from '../../components/quiz/LivePreview';
+import { generatePairId, normalizeMatchPairs } from '../../utils/htmlUtils';
 
 // ── Image compression helper (same approach as CourseEditor) ─────────────────
 const compressImage = (file: File, maxW = 900, maxH = 700, quality = 0.82): Promise<string> =>
@@ -154,7 +155,10 @@ const QuizEditor: React.FC = () => {
             { id: '4', text: '' },
         ],
         correctAnswer: '',
-        matchPairs: [],
+        matchPairs: [
+            { id: generatePairId(), left: '', right: '', order: 0 },
+            { id: generatePairId(), left: '', right: '', order: 1 },
+        ],
         explanation: '',
         marks: marksPerQuestion,
         negativeMarks: negativeMarking,
@@ -191,7 +195,10 @@ const QuizEditor: React.FC = () => {
             questionType: newType,
             // Reset type-specific data when switching
             ...(newType === 'match'
-                ? { options: [], correctAnswer: '', matchPairs: [{ left: '', right: '' }, { left: '', right: '' }] }
+                ? { options: [], correctAnswer: '', matchPairs: [
+                    { id: generatePairId(), left: '', right: '', order: 0 },
+                    { id: generatePairId(), left: '', right: '', order: 1 },
+                  ] }
                 : { matchPairs: [], options: questions[index]?.options?.length ? questions[index].options : [{ id: '1', text: '' }, { id: '2', text: '' }, { id: '3', text: '' }, { id: '4', text: '' }] }
             ),
         });
@@ -235,7 +242,13 @@ const QuizEditor: React.FC = () => {
         const question = questions[questionIndex];
         const pairs = question.matchPairs || [];
         if (pairs.length >= 8) { toast.error('Maximum 8 pairs allowed'); return; }
-        updateQuestion(questionIndex, { matchPairs: [...pairs, { left: '', right: '' }] });
+        const newPair: MatchPair = {
+            id: generatePairId(),
+            left: '',
+            right: '',
+            order: pairs.length,
+        };
+        updateQuestion(questionIndex, { matchPairs: [...pairs, newPair] });
     };
 
     const removeMatchPair = (questionIndex: number, pairIndex: number) => {
@@ -248,6 +261,7 @@ const QuizEditor: React.FC = () => {
     const updateMatchPair = (questionIndex: number, pairIndex: number, side: 'left' | 'right', value: string) => {
         const question = questions[questionIndex];
         const pairs = [...(question.matchPairs || [])];
+        // Preserve existing id/order, only update the changed side
         pairs[pairIndex] = { ...pairs[pairIndex], [side]: value };
         updateQuestion(questionIndex, { matchPairs: pairs });
     };
@@ -337,7 +351,13 @@ const QuizEditor: React.FC = () => {
                 subjectId: subjectId || undefined,
                 subjectName: subjectName || undefined,
                 settings: { marksPerQuestion, negativeMarking, timeLimit, passingPercentage, allowRetake, maxAttempts },
-                questions: questions as QuizQuestion[],
+                // Normalize match pairs before saving — assigns stable IDs, cleans HTML, assigns order
+                questions: (questions as QuizQuestion[]).map((q) => ({
+                    ...q,
+                    matchPairs: q.questionType === 'match'
+                        ? normalizeMatchPairs(q.matchPairs || [])
+                        : [],
+                })),
                 isPublished: publish,
             };
 
@@ -731,7 +751,10 @@ const QuizEditor: React.FC = () => {
 
                                                         <div className="space-y-2">
                                                             {(currentQuestion.matchPairs || []).map((pair, pairIndex) => (
-                                                                <div key={pairIndex} className="grid grid-cols-[1fr_auto_1fr_auto] gap-2 items-center">
+                                                                // KEY FIX: use pair.id (stable UUID) NOT pairIndex (array index)
+                                                                // Using index causes React to reconcile wrong elements when
+                                                                // a pair in the middle is deleted, silently dropping siblings.
+                                                                <div key={pair.id || `fallback-${pairIndex}`} className="grid grid-cols-[1fr_auto_1fr_auto] gap-2 items-center">
                                                                     <div className="min-w-0">
                                                                         <ScientificEditor
                                                                             value={pair.left}
@@ -812,7 +835,7 @@ const QuizEditor: React.FC = () => {
                                                         {q.questionType === 'match' ? (
                                                             <div className="ml-5 space-y-2">
                                                                 {(q.matchPairs || []).map((pair, pi) => (
-                                                                    <div key={pi} className="text-sm text-gray-600 dark:text-gray-400 flex flex-wrap items-center gap-1.5">
+                                                                    <div key={pair.id || `preview-${pi}`} className="text-sm text-gray-600 dark:text-gray-400 flex flex-wrap items-center gap-1.5">
                                                                         <span className="text-blue-600 dark:text-blue-400 font-medium">
                                                                             <RichTextDisplay content={pair.left} />
                                                                         </span>

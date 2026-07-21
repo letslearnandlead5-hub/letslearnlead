@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import type { QuizQuestion } from '../../types';
 import RichTextDisplay from './RichTextDisplay';
 import { ArrowLeftRight, X, Eye } from 'lucide-react';
+import { stripHtmlToText } from '../../utils/htmlUtils';
 
 interface LivePreviewProps {
     question: Partial<QuizQuestion>;
@@ -97,7 +98,8 @@ const LivePreview: React.FC<LivePreviewProps> = ({
                                 </div>
                                 <div className="space-y-2">
                                     {(question.matchPairs || []).map((pair, idx) => (
-                                        <div key={idx} className="grid grid-cols-2 gap-2 items-center">
+                                        // KEY FIX: stable pair.id, not array index
+                                        <div key={pair.id || `prev-${idx}`} className="grid grid-cols-2 gap-2 items-center">
                                             <div className="px-3 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-white">
                                                 <RichTextDisplay content={pair.left || `Item ${idx + 1}`} />
                                             </div>
@@ -108,8 +110,9 @@ const LivePreview: React.FC<LivePreviewProps> = ({
                                             >
                                                 <option value="">— Select —</option>
                                                 {(question.matchPairs || []).map((p, pIdx) => (
-                                                    <option key={pIdx} value={p.right}>
-                                                        {p.right || `Match ${pIdx + 1}`}
+                                                    // Use stripHtmlToText so dropdown shows plain text, not HTML entities
+                                                    <option key={p.id || `opt-${pIdx}`} value={p.right}>
+                                                        {stripHtmlToText(p.right) || `Match ${pIdx + 1}`}
                                                     </option>
                                                 ))}
                                             </select>

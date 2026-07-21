@@ -383,12 +383,63 @@ router.get('/available/my', protect, async (req: AuthRequest, res: Response, nex
     }
 });
 
+// Helper: sanitize quiz for student responses (normalizes questions, options, matchPairs, hides correct answers)
+function sanitizeQuizForStudent(quiz: any) {
+    const qObj = quiz.toObject ? quiz.toObject() : JSON.parse(JSON.stringify(quiz));
+
+    qObj.questions = (qObj.questions || []).map((q: any, idx: number) => {
+        // Normalize options array
+        const rawOptions = Array.isArray(q.options) ? q.options : [];
+        const normalizedOptions = rawOptions.map((opt: any, oIdx: number) => {
+            if (typeof opt === 'string') {
+                return { id: String(oIdx + 1), text: opt };
+            }
+            if (opt && typeof opt === 'object') {
+                return {
+                    id: String(opt.id || opt._id || oIdx + 1),
+                    text: String(opt.text || opt.value || opt.label || ''),
+                    imageUrl: opt.imageUrl || undefined,
+                };
+            }
+            return { id: String(oIdx + 1), text: String(opt || '') };
+        });
+
+        // Normalize matchPairs array
+        const rawMatchPairs = Array.isArray(q.matchPairs) ? q.matchPairs : [];
+        const normalizedMatchPairs = rawMatchPairs.map((p: any, pIdx: number) => ({
+            id: String(p.id || p._id || `pair_${pIdx + 1}`),
+            left: String(p.left || ''),
+            right: String(p.right || ''),
+            order: typeof p.order === 'number' ? p.order : pIdx,
+        }));
+
+        return {
+            _id: q._id ? q._id.toString() : `q_${idx}_${Date.now()}`,
+            questionType: q.questionType || 'text',
+            questionText: q.questionText || '',
+            questionImage: q.questionImage || undefined,
+            questionFormula: q.questionFormula || undefined,
+            questionDiagram: q.questionDiagram || undefined,
+            options: normalizedOptions,
+            matchPairs: normalizedMatchPairs,
+            explanation: q.explanation || '',
+            marks: typeof q.marks === 'number' ? q.marks : 1,
+            negativeMarks: typeof q.negativeMarks === 'number' ? q.negativeMarks : 0,
+            order: typeof q.order === 'number' ? q.order : idx,
+        };
+    });
+
+    return qObj;
+}
+
 // @route   GET /api/quizzes/:id/preview
-// @desc    Preview quiz (rules and settings, but not questions)
+// @desc    Get quiz details for student preview (rules, settings, previous attempts)
 // @access  Private (Student)
 router.get('/:id/preview', protect, async (req: AuthRequest, res: Response, next) => {
     try {
-        const quiz = await Quiz.findById(req.params.id).select('-questions');
+
+        console.log(`[QUIZ API SERVER] GET Preview quizId: ${req.params.id}, userId: ${req.user?.id}`);
+        const quiz = await Quiz.findById(req.params.id);
 
         if (!quiz) {
             throw new AppError('Quiz not found', 404);
@@ -403,13 +454,11 @@ router.get('/:id/preview', protect, async (req: AuthRequest, res: Response, next
             throw new AppError('User not found', 404);
         }
 
-        // Verify quiz access using robust multi-check helper
         const hasAccess = await canAccessQuiz(user, quiz);
         if (!hasAccess) {
             throw new AppError('You must be enrolled in the course to access this quiz', 403);
         }
 
-        // Get user's previous attempts
         const attempts = await QuizAttempt.find({
             quizId: quiz._id,
             studentId: user._id,
@@ -420,10 +469,12 @@ router.get('/:id/preview', protect, async (req: AuthRequest, res: Response, next
             studentId: user._id,
         }).sort({ createdAt: -1 });
 
+        const sanitized = sanitizeQuizForStudent(quiz);
+
         res.status(200).json({
             success: true,
             data: {
-                quiz,
+                quiz: sanitized,
                 attempts: attempts.length,
                 completedAttempts: results.length,
                 previousResults: results,
@@ -440,6 +491,7 @@ router.get('/:id/preview', protect, async (req: AuthRequest, res: Response, next
 // @access  Private (Student)
 router.post('/:id/start', protect, async (req: AuthRequest, res: Response, next) => {
     try {
+        console.log(`[QUIZ API SERVER] POST Start attempt quizId: ${req.params.id}, userId: ${req.user?.id}`);
         const quiz = await Quiz.findById(req.params.id);
 
         if (!quiz) {
@@ -455,11 +507,12 @@ router.post('/:id/start', protect, async (req: AuthRequest, res: Response, next)
             throw new AppError('User not found', 404);
         }
 
-        // Verify quiz access using robust multi-check helper
         const hasAccess = await canAccessQuiz(user, quiz);
         if (!hasAccess) {
             throw new AppError('You must be enrolled in the course to attempt this quiz', 403);
         }
+
+        const sanitized = sanitizeQuizForStudent(quiz);
 
         // Check for existing in-progress attempt
         const existingAttempt = await QuizAttempt.findOne({
@@ -469,18 +522,16 @@ router.post('/:id/start', protect, async (req: AuthRequest, res: Response, next)
         });
 
         if (existingAttempt) {
-            // Return existing attempt
             return res.status(200).json({
                 success: true,
                 data: {
                     attemptId: existingAttempt._id,
-                    quiz,
+                    quiz: sanitized,
                     startedAt: existingAttempt.startedAt,
                 },
             });
         }
 
-        // Check attempt limit
         const completedAttempts = await QuizResult.countDocuments({
             quizId: quiz._id,
             studentId: user._id,
@@ -494,7 +545,6 @@ router.post('/:id/start', protect, async (req: AuthRequest, res: Response, next)
             throw new AppError(`Maximum attempts (${quiz.settings.maxAttempts}) reached`, 403);
         }
 
-        // Create new attempt
         const attempt = await QuizAttempt.create({
             quizId: quiz._id,
             studentId: user._id,
@@ -510,7 +560,7 @@ router.post('/:id/start', protect, async (req: AuthRequest, res: Response, next)
             success: true,
             data: {
                 attemptId: attempt._id,
-                quiz,
+                quiz: sanitized,
                 startedAt: attempt.startedAt,
             },
         });
@@ -518,6 +568,7 @@ router.post('/:id/start', protect, async (req: AuthRequest, res: Response, next)
         next(error);
     }
 });
+
 
 // @route   PUT /api/quizzes/attempts/:attemptId/answer
 // @desc    Save/update answer for a question

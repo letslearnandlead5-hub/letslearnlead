@@ -200,8 +200,10 @@ export interface QuestionOption {
 }
 
 export interface MatchPair {
-    left: string;
-    right: string;
+    id: string;    // Stable UUID — used as React key, persisted to MongoDB
+    left: string;  // Column A rich HTML content
+    right: string; // Column B rich HTML content
+    order: number; // Display order
 }
 
 export interface QuizQuestion {

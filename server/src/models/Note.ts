@@ -2,16 +2,19 @@ import mongoose, { Document, Schema } from 'mongoose';
 
 export interface INote extends Document {
     courseId: mongoose.Types.ObjectId;
-    subjectId?: mongoose.Types.ObjectId; // Subject within the class-course
+    subjectId: mongoose.Types.ObjectId;   // Required subject link
     subjectName?: string;                // Denormalized e.g. "Mathematics"
+    chapterId?: string;                  // Optional chapter link
+    chapterName?: string;                // Denormalized e.g. "Cell Structure"
     title: string;
     description: string;
     fileUrl?: string;
-    fileType: string;
+    fileType: 'pdf' | 'txt' | 'doc' | 'file' | 'html';
     markdownContent?: string;
     tags?: string[];
     category?: string;
     isPublic: boolean;
+    status: 'active' | 'inactive';
     uploadedBy: mongoose.Types.ObjectId;
     createdAt: Date;
     updatedAt: Date;
@@ -26,9 +29,17 @@ const NoteSchema = new Schema<INote>(
         },
         subjectId: {
             type: Schema.Types.ObjectId,
-            // References the embedded subject _id inside Course.subjects[]
+            required: true,
         },
         subjectName: {
+            type: String,
+            default: '',
+        },
+        chapterId: {
+            type: String,
+            default: '',
+        },
+        chapterName: {
             type: String,
             default: '',
         },
@@ -46,8 +57,8 @@ const NoteSchema = new Schema<INote>(
         fileType: {
             type: String,
             required: true,
-            enum: ['pdf', 'text', 'file', 'html'],
-            default: 'file',
+            enum: ['pdf', 'txt', 'doc', 'file', 'html'],
+            default: 'pdf',
         },
         markdownContent: {
             type: String,
@@ -63,6 +74,11 @@ const NoteSchema = new Schema<INote>(
             type: Boolean,
             default: true,
         },
+        status: {
+            type: String,
+            enum: ['active', 'inactive'],
+            default: 'active',
+        },
         uploadedBy: {
             type: Schema.Types.ObjectId,
             ref: 'User',
@@ -74,4 +90,11 @@ const NoteSchema = new Schema<INote>(
     }
 );
 
+// Compound & Text Indexes for fast hierarchy & search performance
+NoteSchema.index({ title: 'text', description: 'text', tags: 'text', category: 'text' });
+NoteSchema.index({ courseId: 1, subjectId: 1, status: 1, createdAt: -1 });
+NoteSchema.index({ courseId: 1, subjectId: 1, chapterId: 1 });
+NoteSchema.index({ createdAt: -1 });
+
 export const Note = mongoose.models.Note || mongoose.model<INote>('Note', NoteSchema);
+

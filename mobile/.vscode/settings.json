@@ -1,5 +1,20 @@
 {
+  "java.import.disabled": true,
+  "java.autobuild.enabled": false,
+  "java.import.gradle.enabled": false,
+  "java.import.maven.enabled": false,
   "java.project.exclusionFilters": [
-    "**/node_modules/**"
-  ]
+    "**/*"
+  ],
+  "files.watcherExclude": {
+    "**/node_modules/**": true
+  },
+  "files.exclude": {
+    "**/node_modules/**/.project": true,
+    "**/node_modules/**/.classpath": true,
+    "**/node_modules/**/.settings": true,
+    "**/.project": true,
+    "**/.classpath": true,
+    "**/.settings": true
+  }
 }

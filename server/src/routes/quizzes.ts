@@ -13,12 +13,51 @@ const router = Router();
 
 // ==================== ADMIN ROUTES ====================
 
+/**
+ * Helper to validate and sanitize quiz questions & marks on Quiz creation/update.
+ * Ensures:
+ * 1. Every question has a valid positive numeric 'marks' field.
+ * 2. Defaults missing/invalid marks to quiz.settings.marksPerQuestion or 4.
+ * 3. Keeps totalQuestions equal to questions.length.
+ * 4. Rejects questions with negative or non-numeric marks.
+ */
+function validateAndSanitizeQuiz(quizData: any) {
+    const defaultMarks = Number(quizData.settings?.marksPerQuestion) || 4;
+    const defaultNegative = Number(quizData.settings?.negativeMarking) || 0;
+
+    if (Array.isArray(quizData.questions)) {
+        quizData.questions = quizData.questions.map((q: any, idx: number) => {
+            const marks = typeof q.marks === 'number' && !isNaN(q.marks) && q.marks > 0
+                ? q.marks
+                : defaultMarks;
+
+            if (marks <= 0) {
+                throw new AppError(`Question ${idx + 1} has invalid marks (${q.marks}). Marks must be greater than 0.`, 400);
+            }
+
+            const negativeMarks = typeof q.negativeMarks === 'number' && !isNaN(q.negativeMarks) && q.negativeMarks >= 0
+                ? q.negativeMarks
+                : defaultNegative;
+
+            return {
+                ...q,
+                marks,
+                negativeMarks,
+            };
+        });
+
+        quizData.totalQuestions = quizData.questions.length;
+    }
+
+    return quizData;
+}
+
 // @route   POST /api/quizzes
 // @desc    Create a new quiz
 // @access  Private (Admin)
 router.post('/', protect, authorize('admin'), async (req: AuthRequest, res: Response, next) => {
     try {
-        const { courseId, ...quizData } = req.body;
+        const { courseId, ...rawQuizData } = req.body;
 
         // Verify course exists
         const course = await Course.findById(courseId);
@@ -26,14 +65,18 @@ router.post('/', protect, authorize('admin'), async (req: AuthRequest, res: Resp
             throw new AppError('Course not found', 404);
         }
 
+        const sanitizedData = validateAndSanitizeQuiz(rawQuizData);
+
         // Create quiz
         const quiz = await Quiz.create({
-            ...quizData,
+            ...sanitizedData,
             courseId,
             courseName: course.title,
             createdBy: req.user?.id,
             isPublished: false,
         });
+
+        console.log(`[QUIZ CREATED] ID=${quiz._id} Questions=${quiz.questions.length} MarksPerQ=${quiz.settings?.marksPerQuestion}`);
 
         res.status(201).json({
             success: true,
@@ -92,7 +135,9 @@ router.get('/:id/admin', protect, authorize('admin'), async (req: Request, res: 
 // @access  Private (Admin)
 router.put('/:id', protect, authorize('admin'), async (req: Request, res: Response, next) => {
     try {
-        const quiz = await Quiz.findByIdAndUpdate(req.params.id, req.body, {
+        const sanitizedBody = validateAndSanitizeQuiz(req.body);
+
+        const quiz = await Quiz.findByIdAndUpdate(req.params.id, sanitizedBody, {
             new: true,
             runValidators: true,
         });
@@ -100,6 +145,8 @@ router.put('/:id', protect, authorize('admin'), async (req: Request, res: Respon
         if (!quiz) {
             throw new AppError('Quiz not found', 404);
         }
+
+        console.log(`[QUIZ UPDATED] ID=${quiz._id} Questions=${quiz.questions.length}`);
 
         res.status(200).json({
             success: true,
@@ -696,16 +743,26 @@ router.post('/attempts/:attemptId/submit', protect, async (req: AuthRequest, res
         let marksObtained = 0;
         let totalMarks = 0;
 
-        const questionResults = quiz.questions.map((question: any) => {
+        const defaultMarks = Number(quiz.settings?.marksPerQuestion) || 4;
+        const defaultNegative = Number(quiz.settings?.negativeMarking) || 0;
+
+        const questionResults = quiz.questions.map((question: any, idx: number) => {
             const studentAnswer = attempt.answers.find((a: any) => a.questionId.toString() === question._id?.toString());
 
-            const marks = question.marks || quiz.settings.marksPerQuestion;
-            const negativeMarks = question.negativeMarks !== undefined ? question.negativeMarks : quiz.settings.negativeMarking;
+            const marks = typeof question.marks === 'number' && !isNaN(question.marks) && question.marks > 0
+                ? question.marks
+                : defaultMarks;
 
+            const negativeMarks = typeof question.negativeMarks === 'number' && !isNaN(question.negativeMarks) && question.negativeMarks >= 0
+                ? question.negativeMarks
+                : defaultNegative;
+
+            // Total marks = sum of max potential marks for EVERY question
             totalMarks += marks;
 
-            if (!studentAnswer) {
+            if (!studentAnswer || !studentAnswer.selectedAnswer) {
                 unansweredQuestions++;
+                console.log(`[QUESTION EVAL #${idx + 1}] Q_ID: ${question._id} | Type: ${question.questionType} | Base Marks: ${marks} | Correct: "${question.correctAnswer}" | Student: [SKIPPED] | Awarded: 0`);
                 return {
                     questionId: question._id!,
                     questionText: question.questionText,
@@ -723,10 +780,7 @@ router.post('/attempts/:attemptId/submit', protect, async (req: AuthRequest, res
                 let correctPairs = 0;
 
                 try {
-                    // Student answer format: JSON object { "0": "1", "1": "0", ... }
-                    // Keys = left-item index, values = right-item index selected by student
                     const mapping: Record<string, string> = JSON.parse(studentAnswer.selectedAnswer || '{}');
-
                     pairs.forEach((pair, leftIdx) => {
                         const selectedRightIdx = parseInt(mapping[String(leftIdx)], 10);
                         const correctRightItem = pair.right;
@@ -746,6 +800,8 @@ router.post('/attempts/:attemptId/submit', protect, async (req: AuthRequest, res
 
                 marksObtained += awarded;
 
+                console.log(`[QUESTION EVAL #${idx + 1}] Q_ID: ${question._id} | Type: match | Base Marks: ${marks} | CorrectPairs: ${correctPairs}/${pairs.length} | Awarded: ${awarded}`);
+
                 return {
                     questionId: question._id!,
                     questionText: question.questionText,
@@ -759,6 +815,7 @@ router.post('/attempts/:attemptId/submit', protect, async (req: AuthRequest, res
 
             // ── Standard MCQ scoring ─────────────────────────────────────────
             const isCorrect = studentAnswer.selectedAnswer === question.correctAnswer;
+            const awardedMarks = isCorrect ? marks : -negativeMarks;
 
             if (isCorrect) {
                 correctAnswers++;
@@ -768,13 +825,15 @@ router.post('/attempts/:attemptId/submit', protect, async (req: AuthRequest, res
                 marksObtained -= negativeMarks;
             }
 
+            console.log(`[QUESTION EVAL #${idx + 1}] Q_ID: ${question._id} | Type: ${question.questionType} | Base Marks: ${marks} | Correct: "${question.correctAnswer}" | Student: "${studentAnswer.selectedAnswer}" | Result: ${isCorrect ? 'CORRECT' : 'WRONG'} | Awarded: ${awardedMarks}`);
+
             return {
                 questionId: question._id!,
                 questionText: question.questionText,
                 selectedAnswer: studentAnswer.selectedAnswer,
                 correctAnswer: question.correctAnswer,
                 isCorrect,
-                marksAwarded: isCorrect ? marks : -negativeMarks,
+                marksAwarded: awardedMarks,
                 explanation: question.explanation,
             };
         });
@@ -782,8 +841,11 @@ router.post('/attempts/:attemptId/submit', protect, async (req: AuthRequest, res
         // Ensure marksObtained is not negative
         marksObtained = Math.max(0, marksObtained);
 
-        const percentage = (marksObtained / totalMarks) * 100;
-        const isPassed = percentage >= (quiz.settings.passingPercentage || 40);
+        const totalQuestions = quiz.questions.length;
+        const percentage = totalMarks > 0 ? (marksObtained / totalMarks) * 100 : 0;
+        const isPassed = percentage >= (quiz.settings?.passingPercentage || 40);
+
+        console.log(`[QUIZ EVAL COMPLETE] quizId=${quiz._id} | totalQuestions=${totalQuestions} | totalMarks=${totalMarks} | obtainedMarks=${marksObtained} | correct=${correctAnswers} | wrong=${incorrectAnswers} | skipped=${unansweredQuestions} | percentage=${percentage.toFixed(2)}%`);
 
         // Create result
         const result = await QuizResult.create({
@@ -795,7 +857,7 @@ router.post('/attempts/:attemptId/submit', protect, async (req: AuthRequest, res
             studentEmail: attempt.studentEmail,
             courseId: quiz.courseId,
             courseName: quiz.courseName,
-            totalQuestions: quiz.totalQuestions,
+            totalQuestions,
             correctAnswers,
             incorrectAnswers,
             unansweredQuestions,

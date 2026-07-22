@@ -351,9 +351,11 @@ const QuizEditor: React.FC = () => {
                 subjectId: subjectId || undefined,
                 subjectName: subjectName || undefined,
                 settings: { marksPerQuestion, negativeMarking, timeLimit, passingPercentage, allowRetake, maxAttempts },
-                // Normalize match pairs before saving — assigns stable IDs, cleans HTML, assigns order
+                // Normalize match pairs and ensure every question has explicit numeric marks
                 questions: (questions as QuizQuestion[]).map((q) => ({
                     ...q,
+                    marks: typeof q.marks === 'number' && q.marks > 0 ? q.marks : (marksPerQuestion || 4),
+                    negativeMarks: typeof q.negativeMarks === 'number' ? q.negativeMarks : (negativeMarking || 0),
                     matchPairs: q.questionType === 'match'
                         ? normalizeMatchPairs(q.matchPairs || [])
                         : [],

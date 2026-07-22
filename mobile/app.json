@@ -9,7 +9,7 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#0F0F1A"
+      "backgroundColor": "#050A18"
     },
     "assetBundlePatterns": [
       "**/*"
@@ -22,7 +22,7 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/android-icon-foreground.png",
         "monochromeImage": "./assets/android-icon-monochrome.png",
-        "backgroundColor": "#0F0F1A"
+        "backgroundColor": "#050A18"
       },
       "package": "com.letslearnlead.app",
       "versionCode": 1,

@@ -156,16 +156,21 @@ export interface Quiz {
 
 export interface QuizResultItem {
   _id: string;
+  resultId?: string;          // returned by submit endpoint
+  attemptId?: string;
   quizId: string;
   studentId: string;
   marksObtained: number;
   totalMarks: number;
   percentage: number;
   isPassed: boolean;
-  timeTaken: number;       // seconds
+  timeTaken: number;          // seconds
   correctAnswers: number;
   incorrectAnswers: number;
   unansweredQuestions: number;
+  rank?: number;
+  feedback?: string;
+  questionResults?: any[];
   createdAt: string;
 }
 

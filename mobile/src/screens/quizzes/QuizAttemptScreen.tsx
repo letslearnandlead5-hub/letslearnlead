@@ -123,6 +123,8 @@ const QuizAttemptContent: React.FC<Props> = ({ route, navigation }) => {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  // Ref-based submit lock: prevents timer expiry + manual tap from racing
+  const isSubmittingRef = useRef(false);
 
   // STEP 1 Validation: Route parameters safety guard
   if (!quizId) {
@@ -197,9 +199,13 @@ const QuizAttemptContent: React.FC<Props> = ({ route, navigation }) => {
 
   useEffect(() => { loadPreview(); }, [loadPreview]);
 
+  // Use a stable ref so the timer interval closure always sees the latest doSubmit
+  const doSubmitRef = useRef<(() => Promise<void>) | undefined>(undefined);
+
   const handleAutoSubmit = useCallback(() => {
+    console.log('[QUIZ] Timer expired — auto-submitting');
     Alert.alert('⏰ Time Up!', 'Your time is up. Submitting answers.');
-    doSubmit();
+    doSubmitRef.current?.();
   }, []);
 
   const startTimer = useCallback((seconds: number) => {
@@ -266,21 +272,49 @@ const QuizAttemptContent: React.FC<Props> = ({ route, navigation }) => {
   };
 
   const doSubmit = async () => {
-    if (!attemptId || submitting) return;
+    // Double-guard: both state (for UI) and ref (for timer/race conditions)
+    if (!attemptId || isSubmittingRef.current) {
+      console.log('[QUIZ] Submit blocked — already submitting or no attemptId');
+      return;
+    }
+    isSubmittingRef.current = true;
     setSubmitting(true);
     if (timerRef.current) clearInterval(timerRef.current);
     try {
-      console.log(`[QUIZ ATTEMPT SCREEN] Submitting attemptId: ${attemptId}`);
+      console.log(`[QUIZ] Submitting attemptId: ${attemptId}`);
       const res = await quizService.submitAttempt(attemptId);
-      setResult(res.data);
-      setPhase('result');
+      const data = res.data;
+      console.log(`[QUIZ] Submit response — alreadySubmitted=${res.alreadySubmitted} resultId=${data?.resultId}`);
+
+      // Whether fresh submit or already-submitted recovery, navigate to results
+      if (res.success && data) {
+        setResult(data);
+        setPhase('result');
+      } else {
+        Alert.alert('Error', 'Unexpected response from server. Please try again.');
+      }
     } catch (err: any) {
-      console.error('[SUBMIT QUIZ ERROR]', err);
-      Alert.alert('Error', err.userMessage || 'Failed to submit quiz attempt.');
+      console.error('[QUIZ SUBMIT ERROR]', err);
+      // Network or server error — show alert but allow retry
+      isSubmittingRef.current = false;
+      setSubmitting(false);
+      Alert.alert(
+        'Submission Failed',
+        err.userMessage || err.message || 'Could not submit quiz. Please check your connection and try again.',
+        [
+          { text: 'Retry', onPress: () => doSubmit() },
+          { text: 'Cancel', style: 'cancel' },
+        ]
+      );
+      return;
     } finally {
+      isSubmittingRef.current = false;
       setSubmitting(false);
     }
   };
+
+  // Keep ref in sync so the timer closure always calls the latest version
+  doSubmitRef.current = doSubmit;
 
   const handleSubmit = () => {
     const unanswered = (questions.length || 0) - Object.keys(answers).length;

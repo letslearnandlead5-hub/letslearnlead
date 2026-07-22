@@ -630,6 +630,7 @@ router.put('/attempts/:attemptId/answer', protect, async (req: AuthRequest, res:
 // @access  Private (Student)
 router.post('/attempts/:attemptId/submit', protect, async (req: AuthRequest, res: Response, next) => {
     try {
+        console.log(`[QUIZ SUBMIT] attemptId=${req.params.attemptId} userId=${req.user?.id}`);
         const attempt = await QuizAttempt.findById(req.params.attemptId);
 
         if (!attempt) {
@@ -640,8 +641,41 @@ router.post('/attempts/:attemptId/submit', protect, async (req: AuthRequest, res
             throw new AppError('Unauthorized', 403);
         }
 
+        // ── GRACEFUL DUPLICATE-SUBMIT RECOVERY ──────────────────────────────────
+        // If the attempt is already completed (duplicate tap / timer race / network retry),
+        // do NOT throw an error. Instead, return the existing result so the frontend
+        // can navigate directly to the Result Screen.
         if (attempt.status !== 'in-progress') {
-            throw new AppError('Attempt already submitted', 400);
+            console.log(`[QUIZ SUBMIT] Attempt ${attempt._id} already ${attempt.status}. Looking up existing result…`);
+            const existingResult = await QuizResult.findOne({ attemptId: attempt._id });
+
+            if (existingResult) {
+                console.log(`[QUIZ SUBMIT] Returning existing resultId=${existingResult._id}`);
+                return res.status(200).json({
+                    success: true,
+                    alreadySubmitted: true,
+                    message: 'You have already completed this quiz. Opening your result…',
+                    data: {
+                        resultId: existingResult._id,
+                        attemptId: attempt._id,
+                        marksObtained: existingResult.marksObtained,
+                        totalMarks: existingResult.totalMarks,
+                        correctAnswers: existingResult.correctAnswers,
+                        incorrectAnswers: existingResult.incorrectAnswers,
+                        unansweredQuestions: existingResult.unansweredQuestions,
+                        percentage: existingResult.percentage,
+                        isPassed: existingResult.isPassed,
+                        timeTaken: existingResult.timeTaken,
+                        rank: existingResult.rank,
+                        feedback: existingResult.feedback,
+                        questionResults: existingResult.questionResults,
+                    },
+                });
+            }
+
+            // Result not yet created (edge case: attempt marked completed but result write failed)
+            // Fall through to re-calculate and save result below.
+            console.log(`[QUIZ SUBMIT] No existing result found for completed attempt. Re-calculating…`);
         }
 
         // Get quiz details
@@ -782,16 +816,26 @@ router.post('/attempts/:attemptId/submit', protect, async (req: AuthRequest, res
 
         await Promise.all(allResults.map((r) => r.save()));
 
+        console.log(`[QUIZ SUBMIT] Result saved. resultId=${result._id} score=${marksObtained}/${totalMarks} (${percentage.toFixed(1)}%)`);
+
         res.status(200).json({
             success: true,
+            alreadySubmitted: false,
             message: 'Quiz submitted successfully',
             data: {
                 resultId: result._id,
+                attemptId: attempt._id,
                 marksObtained,
                 totalMarks,
+                correctAnswers,
+                incorrectAnswers,
+                unansweredQuestions,
                 percentage,
                 isPassed,
+                timeTaken: attempt.timeTaken || 0,
                 rank: result.rank,
+                feedback: result.feedback,
+                questionResults,
             },
         });
     } catch (error) {

@@ -56,11 +56,13 @@ export const quizService = {
   /** Submit the entire attempt for evaluation */
   submitAttempt: async (attemptId: string): Promise<{
     success: boolean;
+    alreadySubmitted?: boolean;
+    message?: string;
     data: QuizResultItem & { questionResults: any[] };
   }> => {
     console.log(`[QUIZ API] POST Submit attemptId=${attemptId}`);
     const { data } = await api.post(ENDPOINTS.QUIZZES.SUBMIT(attemptId));
-    console.log(`[QUIZ API RESP] Submitted successfully score=${data?.data?.marksObtained}`);
+    console.log(`[QUIZ API RESP] Submitted successfully score=${data?.data?.marksObtained} alreadySubmitted=${data?.alreadySubmitted}`);
     return data;
   },
 };

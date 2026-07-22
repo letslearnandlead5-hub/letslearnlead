@@ -30,6 +30,7 @@ import { NotesScreen } from '../screens/notes/NotesScreen';
 import { CertificatesScreen } from '../screens/certificates/CertificatesScreen';
 import { MyPaymentsScreen } from '../screens/payments/MyPaymentsScreen';
 import { PaymentSubmitScreen } from '../screens/payments/PaymentSubmitScreen';
+import { MyNotesScreen } from '../screens/profile/MyNotesScreen';
 import { Colors, Shadows } from '../theme';
 
 // ─── Home Stack ──────────────────────────────────────────────────────────────
@@ -95,6 +96,7 @@ const ProfileStackNavigator = () => (
     <ProfileStack.Screen name="PaymentsList" component={MyPaymentsScreen} options={{ animation: 'slide_from_right' }} />
     <ProfileStack.Screen name="PaymentSubmit" component={PaymentSubmitScreen} options={{ animation: 'slide_from_right' }} />
     <ProfileStack.Screen name="NotesList" component={NotesScreen} options={{ animation: 'slide_from_right' }} />
+    <ProfileStack.Screen name="MyNotes" component={MyNotesScreen} options={{ animation: 'slide_from_right' }} />
   </ProfileStack.Navigator>
 );
 

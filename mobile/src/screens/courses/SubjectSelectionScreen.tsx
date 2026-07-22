@@ -9,7 +9,6 @@ import {
   RefreshControl,
   Alert,
   TextInput,
-  Linking,
   ScrollView,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -22,6 +21,7 @@ import { noteService } from '../../services/noteService';
 import { LoadingSpinner } from '../../components/ui/LoadingSpinner';
 import { ErrorMessage } from '../../components/ui/ErrorMessage';
 import { Colors, Spacing } from '../../theme';
+import { SecurePdfViewer } from '../notes/SecurePdfViewer';
 
 type Props = NativeStackScreenProps<HomeStackParamList, 'SubjectSelection'>;
 
@@ -150,18 +150,18 @@ const SubjectNotesView = ({
     fetchNotes();
   }, [fetchNotes]);
 
-  const handleDownload = async (note: Note) => {
-    const url = noteService.getDownloadUrl(note._id);
-    try {
-      const supported = await Linking.canOpenURL(url);
-      if (supported) {
-        await Linking.openURL(url);
-      } else {
-        Alert.alert('Error', 'Cannot open file on this device.');
-      }
-    } catch {
-      Alert.alert('Error', 'Failed to download note. Please try again.');
-    }
+  // Viewer state
+  const [viewerVisible, setViewerVisible] = useState(false);
+  const [activeNote, setActiveNote] = useState<Note | null>(null);
+
+  const handleView = (note: Note) => {
+    setActiveNote(note);
+    setViewerVisible(true);
+  };
+
+  const handlePrint = (note: Note) => {
+    setActiveNote(note);
+    setViewerVisible(true);
   };
 
   if (isLoading) return <LoadingSpinner message="Loading subject notes..." />;
@@ -169,6 +169,16 @@ const SubjectNotesView = ({
 
   return (
     <View style={styles.notesContainer}>
+      {/* Secure PDF Viewer */}
+      {activeNote && (
+        <SecurePdfViewer
+          visible={viewerVisible}
+          noteId={activeNote._id}
+          noteTitle={activeNote.title}
+          fileType={activeNote.fileType}
+          onClose={() => { setViewerVisible(false); setActiveNote(null); }}
+        />
+      )}
       {/* Search & Sort Controls */}
       <View style={styles.notesControls}>
         <View style={styles.notesSearchBox}>
@@ -244,9 +254,16 @@ const SubjectNotesView = ({
                 <Text style={styles.noteDate}>Uploaded on {date}</Text>
               </View>
 
-              <TouchableOpacity style={styles.downloadBtn} onPress={() => handleDownload(item)}>
-                <Text style={{ fontSize: 18 }}>⬇️</Text>
-              </TouchableOpacity>
+              <View style={styles.noteActions}>
+                <TouchableOpacity style={styles.viewNoteBtn} onPress={() => handleView(item)} activeOpacity={0.8}>
+                  <Text style={{ fontSize: 13 }}>👁</Text>
+                  <Text style={styles.viewNoteBtnText}>View</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.printNoteBtn} onPress={() => handlePrint(item)} activeOpacity={0.8}>
+                  <Text style={{ fontSize: 13 }}>🖨</Text>
+                  <Text style={styles.printNoteBtnText}>Print</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           );
         }}
@@ -533,7 +550,27 @@ const styles = StyleSheet.create({
   noteDesc: { fontSize: 12, color: Colors.textSecondary, marginBottom: 4 },
   chapterBadge: { fontSize: 11, color: '#4F46E5', fontWeight: '600', marginBottom: 2 },
   noteDate: { fontSize: 11, color: Colors.textMuted },
-  downloadBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#EEF2FF', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  noteActions: { flexDirection: 'column', gap: 6, flexShrink: 0 },
+  viewNoteBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EEF2FF',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    gap: 4,
+  },
+  viewNoteBtnText: { fontSize: 11, fontWeight: '700', color: '#4F46E5' },
+  printNoteBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0FDF4',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    gap: 4,
+  },
+  printNoteBtnText: { fontSize: 11, fontWeight: '700', color: '#059669' },
   sectionCard: { backgroundColor: '#FFFFFF', borderRadius: 14, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: '#E5E7EB' },
   sectionTitle: { fontSize: 16, fontWeight: '800', color: Colors.text, marginBottom: 8 },
   subSectionTitle: { fontSize: 13, fontWeight: '700', color: Colors.textSecondary, marginBottom: 6, textTransform: 'uppercase' },

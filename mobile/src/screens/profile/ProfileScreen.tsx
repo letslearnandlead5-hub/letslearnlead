@@ -186,7 +186,20 @@ export const ProfileScreen = () => {
               </View>
               <View style={styles.actionMeta}>
                 <Text style={styles.actionText}>Study Notes Library</Text>
-                <Text style={styles.actionSub}>Download course PDFs & guides</Text>
+                <Text style={styles.actionSub}>View study materials securely</Text>
+              </View>
+              <Text style={styles.actionArrow}>›</Text>
+            </TouchableOpacity>
+
+            <View style={styles.actionDivider} />
+
+            <TouchableOpacity style={styles.actionRow} onPress={() => navigation.navigate('MyNotes')} activeOpacity={0.7}>
+              <View style={[styles.actionIconBg, { backgroundColor: '#EEF2FF' }]}>
+                <Text style={styles.actionEmoji}>📋</Text>
+              </View>
+              <View style={styles.actionMeta}>
+                <Text style={styles.actionText}>My Notes</Text>
+                <Text style={styles.actionSub}>Notes grouped by course & subject</Text>
               </View>
               <Text style={styles.actionArrow}>›</Text>
             </TouchableOpacity>

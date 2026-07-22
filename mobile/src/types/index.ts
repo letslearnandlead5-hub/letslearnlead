@@ -198,9 +198,8 @@ export interface Note {
   _id: string;
   title: string;
   description?: string;
-  fileUrl?: string;
+  // fileUrl intentionally omitted — never exposed to client (security)
   fileType: 'pdf' | 'txt' | 'doc' | 'file' | 'html';
-  markdownContent?: string;
   fileSize?: number;
   courseId?: string;
   courseName?: string;
@@ -213,6 +212,18 @@ export interface Note {
   tags?: string[];
   uploadedBy?: { _id: string; name: string };
   createdAt: string;
+  updatedAt?: string;
+}
+
+/** Grouped My Notes structure returned by GET /api/notes/my-notes */
+export interface MyNotesGroup {
+  courseId: string;
+  courseTitle: string;
+  subjects: Array<{
+    subjectId: string;
+    subjectName: string;
+    notes: Note[];
+  }>;
 }
 
 
@@ -347,6 +358,7 @@ export type ProfileStackParamList = {
   PaymentsList: undefined;
   PaymentSubmit: { courseId: string; courseTitle: string };
   NotesList: undefined;
+  MyNotes: undefined;
 };
 
 export type QuizzesStackParamList = {
@@ -361,6 +373,12 @@ export type DoubtsStackParamList = {
 
 export type NotesStackParamList = {
   NotesList: undefined;
+  NoteViewer: {
+    noteId: string;
+    noteTitle: string;
+    viewToken: string;
+    fileType: string;
+  };
 };
 
 export type CertificatesStackParamList = {

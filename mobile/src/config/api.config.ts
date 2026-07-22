@@ -66,8 +66,18 @@ export const ENDPOINTS = {
     BY_COURSE: (courseId: string) => `/notes/course/${courseId}`,
     BY_SUBJECT: (courseId: string, subjectId: string) => `/notes/courses/${courseId}/subjects/${subjectId}/notes`,
     DETAIL: (id: string) => `/notes/${id}`,
+    // Secure viewer: issues a short-lived signed token (never exposes fileUrl)
+    VIEW_TOKEN: (id: string) => `/notes/${id}/view`,
+    // Token-gated file stream URL (used by WebView — not called via axios)
+    STREAM: (id: string, token: string) => `/notes/${id}/view/stream?token=${encodeURIComponent(token)}`,
+    // My Notes grouped by course → subject
+    MY_NOTES: '/notes/my-notes',
+    // Log print event
+    PRINT_LOG: (id: string) => `/notes/${id}/print-log`,
+    // Admin/Teacher only — blocked for students
     DOWNLOAD: (id: string) => `/notes/${id}/download`,
   },
+
 
 
   // Payments

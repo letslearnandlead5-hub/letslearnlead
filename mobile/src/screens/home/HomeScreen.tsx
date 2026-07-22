@@ -21,6 +21,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { HomeStackParamList, Course } from '../../types';
 import { useCourses } from '../../context/CourseContext';
 import { useAuthStore } from '../../store/useAuthStore';
+import { useAuthModalStore } from '../../store/useAuthModalStore';
 import { bannerService, Banner } from '../../services/bannerService';
 import { notificationService } from '../../services/notificationService';
 import { Colors, Typography, Spacing, Radius, Shadows, Gradients, CardSizes } from '../../theme';
@@ -324,7 +325,16 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.avatarBtn}
-              onPress={() => navigation.navigate('ProfileTab' as any)}>
+              onPress={() => {
+                const isAuthenticated = useAuthStore.getState().isAuthenticated;
+                const authUser = useAuthStore.getState().user;
+                console.log(`[AVATAR CLICK] isAuthenticated=${isAuthenticated} user=${authUser?.name || 'none'}`);
+                if (isAuthenticated) {
+                  navigation.navigate('ProfileTab' as any);
+                } else {
+                  useAuthModalStore.getState().openModal({ name: 'ProfileTab' });
+                }
+              }}>
               <LinearGradient colors={Gradients.primary as [string, string]} style={styles.avatarGrad}>
                 <Text style={styles.avatarText}>{(user?.name?.[0] || 'L').toUpperCase()}</Text>
               </LinearGradient>

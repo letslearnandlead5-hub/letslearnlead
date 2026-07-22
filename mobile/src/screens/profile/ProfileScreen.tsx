@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAuthStore } from '../../store/useAuthStore';
+import { useAuthModalStore } from '../../store/useAuthModalStore';
 import { AppInput } from '../../components/ui/AppInput';
 import { AppButton } from '../../components/ui/AppButton';
 import { LoadingSpinner } from '../../components/ui/LoadingSpinner';
@@ -100,7 +101,37 @@ export const ProfileScreen = () => {
     }
   };
 
-  if (!user) return <LoadingSpinner fullScreen />;
+  if (!user || !useAuthStore.getState().isAuthenticated) {
+    return (
+      <ScreenContainer edges={['left', 'right']}>
+        <View style={[styles.loginRequiredBox, { paddingTop: topInset + 30 }]}>
+          <View style={styles.loginRequiredIconBg}>
+            <Text style={styles.loginRequiredIcon}>🔒</Text>
+          </View>
+          <Text style={styles.loginRequiredTitle}>Login Required</Text>
+          <Text style={styles.loginRequiredSub}>
+            Please log in to view your profile, course progress, payment receipts, and certificates.
+          </Text>
+
+          <TouchableOpacity
+            style={styles.loginPrimaryBtn}
+            onPress={() => useAuthModalStore.getState().openModal({ name: 'ProfileTab' })}
+            activeOpacity={0.85}>
+            <LinearGradient colors={Gradients.primary as [string, string]} style={styles.loginBtnGrad}>
+              <Text style={styles.loginPrimaryText}>Log In</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.loginSecondaryBtn}
+            onPress={() => useAuthModalStore.getState().openModal({ name: 'ProfileTab' })}
+            activeOpacity={0.85}>
+            <Text style={styles.loginSecondaryText}>Create Account</Text>
+          </TouchableOpacity>
+        </View>
+      </ScreenContainer>
+    );
+  }
 
   const initials = user.name
     ?.split(' ')
@@ -446,4 +477,67 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   modalTitle: { ...Typography.h4, color: Colors.text, marginBottom: Spacing.sm, fontWeight: '800' },
+
+  // ── Login Required Screen ──────────────────────────────────────────────────
+  loginRequiredBox: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 32,
+  },
+  loginRequiredIconBg: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#EEF2FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+  },
+  loginRequiredIcon: {
+    fontSize: 40,
+  },
+  loginRequiredTitle: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: Colors.text,
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  loginRequiredSub: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 28,
+  },
+  loginPrimaryBtn: {
+    width: '100%',
+    borderRadius: Radius.lg,
+    overflow: 'hidden',
+    marginBottom: 12,
+  },
+  loginBtnGrad: {
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loginPrimaryText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  loginSecondaryBtn: {
+    width: '100%',
+    paddingVertical: 14,
+    borderRadius: Radius.lg,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loginSecondaryText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: Colors.text,
+  },
 });

@@ -55,30 +55,36 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const accessToken = await secureStorage.getItem('accessToken');
       const refreshToken = await secureStorage.getItem('refreshToken');
 
+      console.log(`[AUTH INIT] Checking stored tokens... tokenPresent=${!!accessToken}`);
+
       if (!accessToken || !refreshToken) {
-        set({ user: null, accessToken: null, refreshToken: null, isAuthenticated: false, isLoading: false });
+        console.log('[AUTH INIT] No tokens found in secure storage. State: Unauthenticated.');
+        await get().clearAuth();
         return;
       }
 
-      // Set tokens in store temporarily so the getMe call can use them in the interceptor
+      // Set tokens in store temporarily so getMe can pass Authorization header
       set({ accessToken, refreshToken });
 
       // Validate the token with the backend
       const response = await authService.getMe();
       if (response.success && response.user) {
+        console.log(`[AUTH INIT SUCCESS] User authenticated: ${response.user.name} (${response.user.email})`);
         set({
           user: response.user,
           isAuthenticated: true,
           isLoading: false,
         });
       } else {
-        // Token is invalid, clear auth
+        console.warn('[AUTH INIT FAILED] Token validation failed. Purging stale auth.');
         await get().clearAuth();
       }
-    } catch (e) {
-      console.error('Failed to initialize auth', e);
-      // Network error or token validation failed, clear auth
+    } catch (e: any) {
+      console.error('[AUTH INIT ERROR] Token initialization failed:', e?.message || e);
+      // Network error or token validation failed -> clear stale state safely
       await get().clearAuth();
+    } finally {
+      set({ isLoading: false });
     }
   },
 

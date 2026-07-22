@@ -120,11 +120,13 @@ api.interceptors.response.use(
         processQueue(refreshError, null);
         isRefreshing = false;
         
-        // Log out user on refresh failure
+        console.warn('[AXIOS 401] Token expired and refresh failed -> clearing auth state');
         await getAuthStore().getState().clearAuth();
-        if (navigationRef.isReady()) {
-          (navigationRef as any).navigate('App');
-        }
+        try {
+          const { useAuthModalStore } = require('../store/useAuthModalStore');
+          useAuthModalStore.getState().openModal({ name: 'ProfileTab' });
+        } catch {}
+        
         return Promise.reject(refreshError);
       }
     }

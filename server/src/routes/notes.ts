@@ -391,9 +391,12 @@ router.get('/:noteId/view/stream', async (req: Request, res: Response, next) => 
         const contentType = mimeTypes[ext] || 'application/pdf';
 
         const stat = fs.statSync(filePath);
+        const fileSize = stat.size;
 
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Range, Authorization');
         res.setHeader('Content-Type', contentType);
-        res.setHeader('Content-Length', stat.size);
+        res.setHeader('Accept-Ranges', 'bytes');
         res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(note.title)}${ext}"`);
         res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
         res.setHeader('Pragma', 'no-cache');
@@ -412,10 +415,26 @@ router.get('/:noteId/view/stream', async (req: Request, res: Response, next) => 
             userAgent: req.get('user-agent'),
         });
 
-        console.log(`[NOTE STREAM GRANTED] studentId=${decoded.studentId} noteId=${note._id} filePath=${filePath} size=${stat.size}`);
+        console.log(`[NOTE STREAM GRANTED] studentId=${decoded.studentId} noteId=${note._id} filePath=${filePath} size=${fileSize}`);
 
-        const stream = fs.createReadStream(filePath);
-        stream.pipe(res);
+        // Handle HTTP Range Requests for fast streaming of large PDFs
+        const range = req.headers.range;
+        if (range) {
+            const parts = range.replace(/bytes=/, "").split("-");
+            const start = parseInt(parts[0], 10);
+            const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+            const chunksize = (end - start) + 1;
+            const file = fs.createReadStream(filePath, { start, end });
+
+            res.status(206);
+            res.setHeader('Content-Range', `bytes ${start}-${end}/${fileSize}`);
+            res.setHeader('Content-Length', chunksize);
+            return file.pipe(res);
+        } else {
+            res.setHeader('Content-Length', fileSize);
+            const file = fs.createReadStream(filePath);
+            return file.pipe(res);
+        }
     } catch (error) {
         next(error);
     }

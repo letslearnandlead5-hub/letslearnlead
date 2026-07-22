@@ -14,6 +14,74 @@ import { WebView, WebViewNavigation } from 'react-native-webview';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { noteService } from '../../services/noteService';
+import { API_BASE_URL } from '../../config/api.config';
+
+function buildPdfViewerHtml(streamUrl: string, title: string): string {
+  const safeTitle = title.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=3.0, user-scalable=yes">
+  <title>${safeTitle}</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { background-color: #1F2937; width: 100%; min-height: 100%; user-select: none; -webkit-user-select: none; }
+    #pdf-container { display: flex; flex-direction: column; align-items: center; padding: 12px 0; gap: 14px; width: 100%; }
+    canvas { box-shadow: 0 4px 16px rgba(0,0,0,0.4); background: white; max-width: 98%; height: auto !important; border-radius: 4px; }
+    #loading-box { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 60vh; color: #F3F4F6; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; gap: 12px; }
+    .spinner { width: 36px; height: 36px; border: 4px solid rgba(255,255,255,0.2); border-top-color: #6366F1; border-radius: 50%; animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #error-box { display: none; color: #FCA5A5; font-family: sans-serif; text-align: center; padding: 30px; font-size: 14px; line-height: 1.5; }
+  </style>
+</head>
+<body>
+  <div id="loading-box">
+    <div class="spinner"></div>
+    <div style="font-size: 15px; font-weight: 600;">Rendering Document…</div>
+  </div>
+  <div id="error-box"></div>
+  <div id="pdf-container"></div>
+  <script>
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    
+    var url = '${streamUrl}';
+    
+    pdfjsLib.getDocument({ url: url, withCredentials: false }).promise.then(function(pdf) {
+      document.getElementById('loading-box').style.display = 'none';
+      var container = document.getElementById('pdf-container');
+      
+      for (var pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+        (function(num) {
+          pdf.getPage(num).then(function(page) {
+            var scale = window.devicePixelRatio && window.devicePixelRatio > 1 ? 1.6 : 1.3;
+            var viewport = page.getViewport({ scale: scale });
+            var canvas = document.createElement('canvas');
+            var context = canvas.getContext('2d');
+            canvas.height = viewport.height;
+            canvas.width = viewport.width;
+            container.appendChild(canvas);
+            
+            var renderContext = { canvasContext: context, viewport: viewport };
+            page.render(renderContext);
+          });
+        })(pageNum);
+      }
+    }).catch(function(err) {
+      console.error('PDF.js error:', err);
+      document.getElementById('loading-box').style.display = 'none';
+      var errBox = document.getElementById('error-box');
+      errBox.style.display = 'block';
+      errBox.innerHTML = '⚠️ Failed to render PDF document.<br/><br/>' + (err.message || 'Error loading document content.');
+    });
+
+    document.addEventListener('contextmenu', function(e) { e.preventDefault(); });
+    document.addEventListener('selectstart', function(e) { e.preventDefault(); });
+  </script>
+</body>
+</html>`;
+}
 
 interface SecurePdfViewerProps {
   visible: boolean;
@@ -271,7 +339,11 @@ export const SecurePdfViewer: React.FC<SecurePdfViewerProps> = ({
               )}
               <WebView
                 ref={webViewRef}
-                source={{ uri: viewerState.streamUrl }}
+                source={
+                  fileType === 'pdf'
+                    ? { html: buildPdfViewerHtml(viewerState.streamUrl, noteTitle), baseUrl: API_BASE_URL }
+                    : { uri: viewerState.streamUrl }
+                }
                 style={[styles.webView, webViewLoading && styles.hidden]}
                 onLoadStart={() => setWebViewLoading(true)}
                 onLoadEnd={() => setWebViewLoading(false)}
@@ -303,25 +375,23 @@ export const SecurePdfViewer: React.FC<SecurePdfViewerProps> = ({
                   }
                 }}
                 onShouldStartLoadWithRequest={handleNavigationChange}
-                // Security settings
                 allowsInlineMediaPlayback={false}
                 mediaPlaybackRequiresUserAction={true}
                 allowsBackForwardNavigationGestures={false}
-                // Prevent text selection & context menus where possible
                 allowsLinkPreview={false}
-                // Disable file system access
-                originWhitelist={['https://', 'http://']}
+                originWhitelist={['*']}
                 javaScriptEnabled={true}
-                domStorageEnabled={false}
+                domStorageEnabled={true}
                 cacheEnabled={false}
                 incognito={true}
-                // Inject CSS to disable right-click context menu and text selection
                 injectedJavaScript={`
                   (function() {
                     document.addEventListener('contextmenu', function(e) { e.preventDefault(); });
                     document.addEventListener('selectstart', function(e) { e.preventDefault(); });
-                    document.body.style.userSelect = 'none';
-                    document.body.style.webkitUserSelect = 'none';
+                    if (document.body) {
+                      document.body.style.userSelect = 'none';
+                      document.body.style.webkitUserSelect = 'none';
+                    }
                   })();
                   true;
                 `}

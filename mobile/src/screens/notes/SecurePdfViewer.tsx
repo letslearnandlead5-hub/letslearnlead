@@ -43,17 +43,23 @@ export const SecurePdfViewer: React.FC<SecurePdfViewerProps> = ({
   const [isPrinting, setIsPrinting] = useState(false);
   const tokenRefreshTimer = useRef<NodeJS.Timeout | null>(null);
 
+  const hasRetriedRef = useRef(false);
+
   // ── Fetch a signed view token and build the stream URL ──────────────────────
   const fetchViewToken = useCallback(async (id: string) => {
     try {
       setViewerState({ status: 'loading' });
       setWebViewLoading(true);
 
-      console.log(`[PDF VIEWER] Fetching view token for noteId=${id}`);
+      console.log(`[PDF VIEWER REQUEST] Fetching view token for noteId=${id}`);
       const res = await noteService.getViewToken(id);
 
+      if (!res?.viewToken) {
+        throw new Error('Server returned empty view token.');
+      }
+
       const streamUrl = noteService.buildStreamUrl(id, res.viewToken);
-      console.log(`[PDF VIEWER] Stream URL built (token valid for ${res.expiresIn}s)`);
+      console.log(`[PDF VIEWER SUCCESS] Stream URL: ${streamUrl}`);
 
       setViewerState({
         status: 'ready',
@@ -61,6 +67,8 @@ export const SecurePdfViewer: React.FC<SecurePdfViewerProps> = ({
         viewToken: res.viewToken,
         noteId: id,
       });
+
+      hasRetriedRef.current = false;
 
       // Schedule token refresh at 80% of TTL (e.g., 4 min if TTL=5 min)
       const refreshAt = (res.expiresIn * 0.8) * 1000;
@@ -70,19 +78,40 @@ export const SecurePdfViewer: React.FC<SecurePdfViewerProps> = ({
         fetchViewToken(id);
       }, refreshAt);
     } catch (err: any) {
-      console.error('[PDF VIEWER ERROR]', err);
+      console.error('[PDF VIEWER ERROR]', err?.response?.status, err?.response?.data || err.message);
+
+      // Auto retry 1 time on transient network error
+      if (!hasRetriedRef.current && (!err?.response || err?.response?.status >= 500)) {
+        console.log('[PDF VIEWER] Retrying token fetch 1 time...');
+        hasRetriedRef.current = true;
+        setTimeout(() => fetchViewToken(id), 1000);
+        return;
+      }
+
       const status = err?.response?.status;
-      if (status === 403) {
+      const backendMessage = err?.response?.data?.message || err?.userMessage || err?.message;
+
+      if (status === 401) {
+        setViewerState({ status: 'expired' });
+      } else if (status === 403) {
         setViewerState({
           status: 'error',
-          message: "You don't have permission to view this note.\n\nPlease ensure you are enrolled in this course.",
+          message: backendMessage || 'You are not enrolled in this course.',
         });
-      } else if (status === 401) {
-        setViewerState({ status: 'expired' });
+      } else if (status === 404) {
+        setViewerState({
+          status: 'error',
+          message: backendMessage || 'Note file missing on server.',
+        });
+      } else if (status === 500) {
+        setViewerState({
+          status: 'error',
+          message: 'Server error while loading note. Please try again later.',
+        });
       } else {
         setViewerState({
           status: 'error',
-          message: err.userMessage || err.message || 'Failed to load note. Please try again.',
+          message: backendMessage || 'Failed to load note document.',
         });
       }
     }

@@ -64,6 +64,38 @@ const upload = multer({
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+/**
+ * Resolves a note's fileUrl to an absolute disk path on the server.
+ * Handles legacy URLs (http://...), relative paths (/notes/...), and alternative dirs.
+ */
+function resolveNoteFilePath(fileUrl?: string): { filePath: string | null; errorDetails?: string } {
+    if (!fileUrl) return { filePath: null, errorDetails: 'Note fileUrl is empty or not attached.' };
+
+    // Strip hostname if fileUrl is a full URL (e.g. http://localhost:5000/notes/xyz.pdf -> /notes/xyz.pdf)
+    let cleanPath = fileUrl.replace(/^https?:\/\/[^\/]+/, '');
+    if (cleanPath.startsWith('/public')) cleanPath = cleanPath.replace('/public', '');
+    if (!cleanPath.startsWith('/')) cleanPath = '/' + cleanPath;
+
+    const candidates = [
+        path.join(__dirname, '../../public', cleanPath),
+        path.join(__dirname, '../../public/notes', path.basename(cleanPath)),
+        path.join(__dirname, '../../uploads/notes', path.basename(cleanPath)),
+        path.join(process.cwd(), 'public', cleanPath),
+        path.join(process.cwd(), 'public/notes', path.basename(cleanPath)),
+    ];
+
+    for (const candidate of candidates) {
+        if (fs.existsSync(candidate)) {
+            return { filePath: candidate };
+        }
+    }
+
+    return {
+        filePath: null,
+        errorDetails: `File missing on disk. Stored URL: "${fileUrl}". Searched paths: ${candidates.join(', ')}`,
+    };
+}
+
 interface StudentNoteAccess {
     courseIds: Set<string>;
     subjectIds: Set<string>;
@@ -142,7 +174,7 @@ async function getAccessibleNoteQuery(req: Request, forcedCourseId?: string) {
         const subjectIds = Array.from(studentAccess.subjectIds);
         const courseIds = Array.from(studentAccess.courseIds);
         if (subjectIds.length > 0) accessFilters.push({ subjectId: { $in: subjectIds } });
-        if (courseIds.length > 0) accessFilters.push(generalNoteFilter(courseIds));
+        if (courseIds.length > 0) accessFilters.push({ courseId: { $in: courseIds } });
         filters.push(accessFilters.length > 0 ? { $or: accessFilters } : { _id: { $exists: false } });
     }
 
@@ -151,32 +183,32 @@ async function getAccessibleNoteQuery(req: Request, forcedCourseId?: string) {
     return { $and: filters };
 }
 
+/**
+ * Access Control Evaluator for a Single Note:
+ * Grants access if:
+ * 1. User is Admin or Teacher.
+ * 2. Student is enrolled at Course level (courseIds.has(noteCourseId)) -> Grants access to ALL subjects/notes in that course!
+ * 3. Student is enrolled at Subject level (subjectIds.has(noteSubjectId)).
+ */
 async function canAccessSingleNote(req: Request, note: any): Promise<{ allowed: boolean; studentId?: string }> {
     const requester = await getRequestUser(req);
     if (!requester) return { allowed: false };
     if (requester.role === 'admin' || requester.role === 'teacher') return { allowed: true };
 
-    const studentAccess = await getStudentNoteAccess(req, note.courseId?.toString());
-    if (!studentAccess) return { allowed: true };
-
     const noteCourseId = note.courseId?.toString();
     const noteSubjectId = note.subjectId?.toString();
 
-    const allowed = noteSubjectId
-        ? studentAccess.subjectIds.has(noteSubjectId)
-        : (noteCourseId ? studentAccess.courseIds.has(noteCourseId) : false);
+    const studentAccess = await getStudentNoteAccess(req, noteCourseId);
+    if (!studentAccess) return { allowed: true };
+
+    const hasCourseAccess = noteCourseId ? studentAccess.courseIds.has(noteCourseId) : false;
+    const hasSubjectAccess = noteSubjectId ? studentAccess.subjectIds.has(noteSubjectId) : false;
+
+    const allowed = hasCourseAccess || hasSubjectAccess;
+
+    console.log(`[CAN ACCESS NOTE] studentId=${requester.id} noteId=${note._id} courseId=${noteCourseId} subjectId=${noteSubjectId} hasCourseAccess=${hasCourseAccess} hasSubjectAccess=${hasSubjectAccess} => ALLOWED=${allowed}`);
 
     return { allowed, studentId: requester.id };
-}
-
-/** Remove fileUrl from note before sending to students */
-function sanitizeNoteForStudent(note: any, isPrivileged: boolean): any {
-    const obj = note.toObject ? note.toObject() : { ...note };
-    if (!isPrivileged) {
-        delete obj.fileUrl;          // Never expose storage path
-        delete obj.markdownContent;  // Served via stream only
-    }
-    return obj;
 }
 
 async function logNoteAccess(params: {
@@ -190,7 +222,7 @@ async function logNoteAccess(params: {
 }) {
     try {
         await NoteAccessLog.create(params);
-        console.log(`[NOTE ACCESS] action=${params.action} studentId=${params.studentId} noteId=${params.noteId} courseId=${params.courseId}`);
+        console.log(`[NOTE ACCESS LOG] action=${params.action} studentId=${params.studentId} noteId=${params.noteId} courseId=${params.courseId}`);
     } catch (err) {
         console.error('[NOTE ACCESS LOG ERROR]', err);
     }
@@ -202,8 +234,8 @@ async function logNoteAccess(params: {
 
 /**
  * @route   GET /api/notes/:noteId/view
- * @desc    Issue a short-lived signed view token for an enrolled student
- *          Token is valid for 5 minutes. Never exposes fileUrl.
+ * @desc    Issue a short-lived signed view token for an enrolled student.
+ *          Never exposes fileUrl. Returns HTTP 403 if not enrolled. Returns HTTP 404 only if note does not exist in DB.
  * @access  Private (Student / Admin / Teacher)
  */
 router.get('/:noteId/view', protect, async (req: AuthRequest, res: Response, next) => {
@@ -211,20 +243,25 @@ router.get('/:noteId/view', protect, async (req: AuthRequest, res: Response, nex
         const { noteId } = req.params;
         const userId = req.user?.id;
 
-        console.log(`[NOTE VIEW TOKEN] noteId=${noteId} userId=${userId}`);
+        console.log(`[NOTE VIEW REQUEST] noteId=${noteId} userId=${userId}`);
 
         const note = await Note.findById(noteId);
-        if (!note) throw new AppError('Note not found', 404);
-        if (note.status !== 'active') throw new AppError('Note is not available', 403);
+        if (!note) {
+            throw new AppError('Note not found', 404);
+        }
+        if (note.status !== 'active') {
+            throw new AppError('Note is currently inactive', 403);
+        }
 
         const { allowed, studentId } = await canAccessSingleNote(req, note);
         if (!allowed) {
-            throw new AppError('You don\'t have permission to view this note.', 403);
+            console.warn(`[NOTE ACCESS DENIED] studentId=${userId} not enrolled in courseId=${note.courseId}`);
+            throw new AppError('You are not enrolled in this course.', 403);
         }
 
         const isPrivileged = req.user?.role === 'admin' || req.user?.role === 'teacher';
 
-        // Generate short-lived token
+        // Generate short-lived view token (5 minutes)
         const payload: NoteViewTokenPayload = {
             noteId: note._id!.toString(),
             studentId: userId,
@@ -235,7 +272,6 @@ router.get('/:noteId/view', protect, async (req: AuthRequest, res: Response, nex
             expiresIn: NOTE_VIEW_TOKEN_TTL,
         });
 
-        // Log the token issuance
         if (!isPrivileged && studentId) {
             await logNoteAccess({
                 studentId,
@@ -264,9 +300,8 @@ router.get('/:noteId/view', protect, async (req: AuthRequest, res: Response, nex
 /**
  * @route   GET /api/notes/:noteId/view/stream
  * @desc    Token-gated file stream — validates short-lived view token and streams
- *          the note file inline. No permanent URL ever exposed to client.
- *          Sets: Content-Disposition: inline, Cache-Control: no-store, no-cache
- * @access  Via short-lived token (no Authorization header required)
+ *          the note file inline.
+ * @access  Via short-lived token
  */
 router.get('/:noteId/view/stream', async (req: Request, res: Response, next) => {
     try {
@@ -282,7 +317,7 @@ router.get('/:noteId/view/stream', async (req: Request, res: Response, next) => 
         } catch (err: any) {
             const isExpired = err.name === 'TokenExpiredError';
             throw new AppError(
-                isExpired ? 'View link has expired. Please request a new one.' : 'Invalid view token.',
+                isExpired ? 'View session has expired. Please request a new token.' : 'Invalid view token.',
                 401
             );
         }
@@ -292,7 +327,9 @@ router.get('/:noteId/view/stream', async (req: Request, res: Response, next) => 
         }
 
         const note = await Note.findById(noteId);
-        if (!note || note.status !== 'active') throw new AppError('Note not found', 404);
+        if (!note || note.status !== 'active') {
+            throw new AppError('Note not found or inactive', 404);
+        }
 
         // ── HTML/Markdown notes: serve inline HTML ──────────────────────────
         if (note.fileType === 'html' && note.markdownContent) {
@@ -302,7 +339,6 @@ router.get('/:noteId/view/stream', async (req: Request, res: Response, next) => 
             res.setHeader('X-Content-Type-Options', 'nosniff');
             res.setHeader('Content-Disposition', 'inline');
 
-            // Log view
             await logNoteAccess({
                 studentId: decoded.studentId,
                 courseId: note.courseId.toString(),
@@ -333,24 +369,29 @@ router.get('/:noteId/view/stream', async (req: Request, res: Response, next) => 
             return res.send(html);
         }
 
-        // ── File-based notes: stream file ────────────────────────────────────
-        if (!note.fileUrl) throw new AppError('This note does not have an attached file.', 404);
+        // ── File-based notes: resolve disk path & stream ─────────────────────
+        const resolved = resolveNoteFilePath(note.fileUrl);
+        if (!resolved.filePath) {
+            console.error(`[NOTE FILE MISSING] noteId=${note._id} ${resolved.errorDetails}`);
+            return res.status(404).json({
+                success: false,
+                code: 'FILE_MISSING',
+                message: 'Note file missing on server.',
+            });
+        }
 
-        const filePath = path.join(__dirname, '../../public', note.fileUrl);
-        if (!fs.existsSync(filePath)) throw new AppError('File not found on server.', 404);
-
-        const ext = path.extname(note.fileUrl).toLowerCase();
+        const filePath = resolved.filePath;
+        const ext = path.extname(filePath).toLowerCase();
         const mimeTypes: Record<string, string> = {
             '.pdf': 'application/pdf',
             '.txt': 'text/plain; charset=utf-8',
             '.doc': 'application/msword',
             '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         };
-        const contentType = mimeTypes[ext] || 'application/octet-stream';
+        const contentType = mimeTypes[ext] || 'application/pdf';
 
         const stat = fs.statSync(filePath);
 
-        // Security headers: inline viewing only, no save/download
         res.setHeader('Content-Type', contentType);
         res.setHeader('Content-Length', stat.size);
         res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(note.title)}${ext}"`);
@@ -359,10 +400,8 @@ router.get('/:noteId/view/stream', async (req: Request, res: Response, next) => 
         res.setHeader('Expires', '0');
         res.setHeader('X-Frame-Options', 'SAMEORIGIN');
         res.setHeader('X-Content-Type-Options', 'nosniff');
-        // Prevent saving from browser "Save As"
         res.setHeader('X-Download-Options', 'noopen');
 
-        // Log the view
         await logNoteAccess({
             studentId: decoded.studentId,
             courseId: note.courseId.toString(),
@@ -373,6 +412,8 @@ router.get('/:noteId/view/stream', async (req: Request, res: Response, next) => 
             userAgent: req.get('user-agent'),
         });
 
+        console.log(`[NOTE STREAM GRANTED] studentId=${decoded.studentId} noteId=${note._id} filePath=${filePath} size=${stat.size}`);
+
         const stream = fs.createReadStream(filePath);
         stream.pipe(res);
     } catch (error) {
@@ -382,7 +423,7 @@ router.get('/:noteId/view/stream', async (req: Request, res: Response, next) => 
 
 /**
  * @route   POST /api/notes/:noteId/print-log
- * @desc    Log that a student printed a note
+ * @desc    Log student print action
  * @access  Private
  */
 router.post('/:noteId/print-log', protect, async (req: AuthRequest, res: Response, next) => {
@@ -392,7 +433,7 @@ router.post('/:noteId/print-log', protect, async (req: AuthRequest, res: Respons
 
         const note = await Note.findById(noteId).select('courseId subjectId status');
         if (!note || note.status !== 'active') {
-            return res.status(200).json({ success: true }); // Silent fail — don't block UI
+            return res.status(200).json({ success: true });
         }
 
         await logNoteAccess({
@@ -418,7 +459,6 @@ router.post('/:noteId/print-log', protect, async (req: AuthRequest, res: Respons
 /**
  * @route   GET /api/notes/my-notes
  * @desc    All notes from enrolled courses, grouped by course → subject.
- *          fileUrl is NEVER included in the response.
  * @access  Private (Student)
  */
 router.get('/my-notes', protect, async (req: AuthRequest, res: Response, next) => {
@@ -428,7 +468,6 @@ router.get('/my-notes', protect, async (req: AuthRequest, res: Response, next) =
         const limit = parseInt(String(req.query.limit || '50'), 10);
         const skip = (page - 1) * limit;
 
-        // 1. Get all paid enrollments for this student
         const enrollments = await Enrollment.find({ userId, status: 'paid' })
             .select('courseId subjectId')
             .lean();
@@ -446,18 +485,16 @@ router.get('/my-notes', protect, async (req: AuthRequest, res: Response, next) =
             .filter((e: any) => e.subjectId)
             .map((e: any) => e.subjectId.toString());
 
-        // 2. Fetch accessible notes
         const query: any = {
             status: 'active',
             $or: [
-                { courseId: { $in: courseIds }, subjectId: null },
-                { courseId: { $in: courseIds }, subjectId: { $exists: false } },
+                { courseId: { $in: courseIds } },
                 ...(subjectIds.length > 0 ? [{ subjectId: { $in: subjectIds } }] : []),
             ],
         };
 
         const notes = await Note.find(query)
-            .select('-fileUrl -markdownContent')  // Never expose raw file paths
+            .select('-fileUrl -markdownContent')
             .sort({ courseId: 1, subjectName: 1, createdAt: -1 })
             .skip(skip)
             .limit(limit)
@@ -465,7 +502,6 @@ router.get('/my-notes', protect, async (req: AuthRequest, res: Response, next) =
 
         const totalNotes = await Note.countDocuments(query);
 
-        // 3. Fetch course titles for display
         const courseDocs = await Course.find({ _id: { $in: courseIds } })
             .select('title')
             .lean();
@@ -474,7 +510,6 @@ router.get('/my-notes', protect, async (req: AuthRequest, res: Response, next) =
             courseMap[c._id.toString()] = c.title;
         }
 
-        // 4. Group: { courseId, courseTitle, subjects: [{ subjectId, subjectName, notes[] }] }
         const grouped: Record<string, {
             courseId: string;
             courseTitle: string;
@@ -499,7 +534,6 @@ router.get('/my-notes', protect, async (req: AuthRequest, res: Response, next) =
             grouped[cId].subjects[sId].notes.push(note);
         }
 
-        // Convert to array form
         const groupedArray = Object.values(grouped).map(course => ({
             courseId: course.courseId,
             courseTitle: course.courseTitle,
@@ -524,7 +558,7 @@ router.get('/my-notes', protect, async (req: AuthRequest, res: Response, next) =
 
 /**
  * @route   GET /api/notes/courses/:courseId/subjects/:subjectId/notes
- * @desc    Notes for a specific course & subject (enrollment-gated, no fileUrl)
+ * @desc    Notes for a specific course & subject (enrollment-gated)
  * @access  Private/Public (enrollment validated for students)
  */
 router.get('/courses/:courseId/subjects/:subjectId/notes', async (req: Request, res: Response, next) => {
@@ -592,11 +626,6 @@ router.get('/courses/:courseId/subjects/:subjectId/notes', async (req: Request, 
 // GENERAL NOTES LIST
 // ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * @route   GET /api/notes
- * @desc    All notes (filtered by enrollment for students, fileUrl stripped)
- * @access  Public (enrollment-filtered)
- */
 router.get('/', async (req: Request, res: Response, next) => {
     try {
         const requester = await getRequestUser(req);
@@ -614,11 +643,6 @@ router.get('/', async (req: Request, res: Response, next) => {
     }
 });
 
-/**
- * @route   GET /api/notes/course/:courseId
- * @desc    Notes for a specific course (enrollment-filtered, no fileUrl for students)
- * @access  Public
- */
 router.get('/course/:courseId', async (req: Request, res: Response, next) => {
     try {
         const requester = await getRequestUser(req);
@@ -637,39 +661,26 @@ router.get('/course/:courseId', async (req: Request, res: Response, next) => {
     }
 });
 
-/**
- * @route   GET /api/notes/:id/download
- * @desc    BLOCKED for students — returns 403. Admins/teachers can still download.
- * @access  Restricted
- */
 router.get('/:id/download', async (req: Request, res: Response, next) => {
     try {
         const requester = await getRequestUser(req);
 
-        // Block students entirely
         if (!requester || requester.role === 'student') {
             throw new AppError('Direct download is not allowed. Use the in-app viewer to access notes.', 403);
         }
 
-        // Admin / Teacher can download
         const note = await Note.findById(req.params.id);
         if (!note) throw new AppError('Note not found', 404);
-        if (!note.fileUrl) throw new AppError('Note does not have an attached file', 400);
 
-        const filePath = path.join(__dirname, '../../public', note.fileUrl);
-        if (!fs.existsSync(filePath)) throw new AppError('File not found on server', 404);
+        const resolved = resolveNoteFilePath(note.fileUrl);
+        if (!resolved.filePath) throw new AppError('Note file missing on server', 404);
 
-        res.download(filePath, note.title + path.extname(note.fileUrl));
+        res.download(resolved.filePath, note.title + path.extname(resolved.filePath));
     } catch (error) {
         next(error);
     }
 });
 
-/**
- * @route   GET /api/notes/:id
- * @desc    Single note metadata — fileUrl stripped for students
- * @access  Public (enrollment-filtered)
- */
 router.get('/:id', async (req: Request, res: Response, next) => {
     try {
         const requester = await getRequestUser(req);
@@ -683,7 +694,7 @@ router.get('/:id', async (req: Request, res: Response, next) => {
 
         const { allowed } = await canAccessSingleNote(req, note);
         if (!allowed) {
-            throw new AppError('You don\'t have permission to view this note.', 403);
+            throw new AppError('You are not enrolled in this course.', 403);
         }
 
         res.status(200).json({ success: true, data: note });
@@ -696,15 +707,8 @@ router.get('/:id', async (req: Request, res: Response, next) => {
 // ADMIN / TEACHER — CRUD
 // ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * @route   POST /api/notes
- * @desc    Create note (file upload or markdown)
- * @access  Private (Admin/Teacher)
- */
 router.post('/', protect, authorize('admin', 'teacher'), fileUploadLimiter, upload.single('file'), async (req: any, res: Response, next) => {
     try {
-        console.log('[ADMIN NOTE UPLOAD] Body:', req.body, 'File:', req.file?.originalname);
-
         const { title, description, courseId, subjectId, subjectName, chapterId, chapterName, fileType } = req.body;
 
         if (!courseId?.trim()) throw new AppError('Course selection is required.', 400);
@@ -745,7 +749,7 @@ router.post('/', protect, authorize('admin', 'teacher'), fileUploadLimiter, uplo
         }
 
         const note = await Note.create(noteData);
-        console.log('[NOTE CREATED]', note._id);
+        console.log('[NOTE CREATED]', note._id, 'fileUrl:', note.fileUrl);
         res.status(201).json({ success: true, data: note });
     } catch (error) {
         if (req.file) { try { fs.unlinkSync(req.file.path); } catch {} }
@@ -753,11 +757,6 @@ router.post('/', protect, authorize('admin', 'teacher'), fileUploadLimiter, uplo
     }
 });
 
-/**
- * @route   PUT /api/notes/:id
- * @desc    Update note
- * @access  Private (Admin/Teacher)
- */
 router.put('/:id', protect, authorize('admin', 'teacher'), fileUploadLimiter, upload.single('file'), async (req: any, res: Response, next) => {
     try {
         const note = await Note.findById(req.params.id);
@@ -815,19 +814,16 @@ router.put('/:id', protect, authorize('admin', 'teacher'), fileUploadLimiter, up
     }
 });
 
-/**
- * @route   DELETE /api/notes/:id
- * @desc    Delete note + file
- * @access  Private (Admin/Teacher)
- */
 router.delete('/:id', protect, authorize('admin', 'teacher'), async (req: Request, res: Response, next) => {
     try {
         const note = await Note.findById(req.params.id);
         if (!note) throw new AppError('Note not found', 404);
 
         if (note.fileUrl) {
-            const filePath = path.join(__dirname, '../../public', note.fileUrl);
-            if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+            const resolved = resolveNoteFilePath(note.fileUrl);
+            if (resolved.filePath && fs.existsSync(resolved.filePath)) {
+                fs.unlinkSync(resolved.filePath);
+            }
         }
 
         await note.deleteOne();

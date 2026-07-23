@@ -121,6 +121,7 @@ const Footer: React.FC = () => {
             links: [
                 { name: 'About Us', path: '/about/' },
                 { name: 'Home Page', path: '/' },
+                { name: 'Privacy Policy', path: '/privacy-policy/' },
                 { name: 'Student Login', path: '/login/' },
                 { name: 'Student Register', path: '/signup/' },
             ]
@@ -474,6 +475,7 @@ const Footer: React.FC = () => {
                         {[
                             { name: 'About Us', path: '/about/' },
                             { name: 'Contact Us', path: '/contact/' },
+                            { name: 'Privacy Policy', path: '/privacy-policy/' },
                             { name: 'Browse Courses', path: '/courses/' },
                             { name: 'Study Notes', path: '/notes/' },
                             { name: 'Discussion Forum', path: '/doubts/' },

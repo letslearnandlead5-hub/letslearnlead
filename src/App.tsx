@@ -25,6 +25,7 @@ import NoteEditor from './pages/admin/NoteEditor';
 import { BannerManagement } from './pages/admin/BannerManagement';
 import AboutUs from './pages/AboutUs';
 import Contact from './pages/Contact';
+import PrivacyPolicy from './pages/PrivacyPolicy';
 import DashboardRouter from './pages/DashboardRouter';
 import Toast from './components/ui/Toast';
 import { useToastStore } from './store/useToastStore';
@@ -268,6 +269,7 @@ function App() {
           } />
           <Route path="/about/" element={<MainLayout><AboutUs /></MainLayout>} />
           <Route path="/contact/" element={<MainLayout><Contact /></MainLayout>} />
+          <Route path="/privacy-policy/" element={<MainLayout><PrivacyPolicy /></MainLayout>} />
         </Routes>
 
         {/* Toast Notifications */}

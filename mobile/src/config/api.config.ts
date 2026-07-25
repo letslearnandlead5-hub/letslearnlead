@@ -50,6 +50,7 @@ export const ENDPOINTS = {
     START: (id: string) => `/quizzes/${id}/start`,
     SAVE_ANSWER: (attemptId: string) => `/quizzes/attempts/${attemptId}/answer`,
     SUBMIT: (attemptId: string) => `/quizzes/attempts/${attemptId}/submit`,
+    RESULT: (attemptId: string) => `/quizzes/attempts/${attemptId}/result`,
     LEADERBOARD: (id: string) => `/quizzes/${id}/leaderboard`,
   },
 

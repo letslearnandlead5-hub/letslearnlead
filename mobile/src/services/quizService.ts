@@ -65,5 +65,16 @@ export const quizService = {
     console.log(`[QUIZ API RESP] Submitted successfully score=${data?.data?.marksObtained} alreadySubmitted=${data?.alreadySubmitted}`);
     return data;
   },
+
+  /** Fetch the full result (with per-question breakdown) for the result/review screen */
+  getResult: async (attemptId: string): Promise<{
+    success: boolean;
+    data: { result: QuizResultItem; quiz: { title: string; settings: any } };
+  }> => {
+    console.log(`[QUIZ API] GET Result attemptId=${attemptId}`);
+    const { data } = await api.get(ENDPOINTS.QUIZZES.RESULT(attemptId));
+    console.log(`[QUIZ API RESP] Result loaded score=${data?.data?.result?.marksObtained}`);
+    return data;
+  },
 };
 

@@ -125,7 +125,7 @@ export interface QuizQuestion {
 
 export interface QuizSettings {
   timeLimit: number;           // minutes
-  passingScore: number;        // percentage
+  passingPercentage: number;   // percentage (was wrongly named passingScore)
   allowRetake: boolean;
   maxAttempts?: number;
   shuffleQuestions: boolean;
@@ -135,6 +135,18 @@ export interface QuizSettings {
   negativeMarking: number;
 }
 
+export interface QuizAttemptSummary {
+  attemptId: string;
+  resultId: string;
+  attemptNumber: number;
+  marksObtained: number;
+  totalMarks: number;
+  percentage: number;
+  isPassed: boolean;
+  timeTaken: number;
+  attemptDate: string;
+}
+
 export interface Quiz {
   _id: string;
   title: string;
@@ -142,6 +154,7 @@ export interface Quiz {
   courseId: string;
   courseName?: string;
   subjectId?: string;
+  totalQuestions?: number;         // returned from list endpoint (questions array stripped)
   questions: QuizQuestion[];
   settings: QuizSettings;
   isPublished: boolean;
@@ -152,6 +165,7 @@ export interface Quiz {
   lastScore?: number | null;
   lastPercentage?: number | null;
   inProgressAttemptId?: string;
+  allAttempts?: QuizAttemptSummary[];  // full attempt history (newest first)
 }
 
 export interface QuizResultItem {
@@ -170,8 +184,18 @@ export interface QuizResultItem {
   unansweredQuestions: number;
   rank?: number;
   feedback?: string;
-  questionResults?: any[];
+  questionResults?: QuestionResult[];
   createdAt: string;
+}
+
+export interface QuestionResult {
+  questionId: string;
+  questionText: string;
+  selectedAnswer: string;
+  correctAnswer: string;
+  isCorrect: boolean;
+  marksAwarded: number;
+  explanation?: string;
 }
 
 // ─── Doubt ────────────────────────────────────────────────────────────────────
@@ -364,6 +388,12 @@ export type ProfileStackParamList = {
 export type QuizzesStackParamList = {
   QuizzesList: undefined;
   QuizAttempt: { quizId: string; quizTitle?: string; attemptId?: string };
+  QuizResult: {
+    attemptId: string;
+    quizId: string;
+    quizTitle?: string;
+    allowRetake?: boolean;
+  };
 };
 
 export type DoubtsStackParamList = {

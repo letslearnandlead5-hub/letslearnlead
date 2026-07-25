@@ -48,61 +48,6 @@ function isValidImageUrl(url?: string): boolean {
 
 type Props = NativeStackScreenProps<QuizzesStackParamList, 'QuizAttempt'>;
 
-// ─── Result View ──────────────────────────────────────────────────────────────
-const ResultView = ({
-  result,
-  quiz,
-  onRetry,
-  onBack,
-}: {
-  result: any;
-  quiz?: Quiz | null;
-  onRetry?: () => void;
-  onBack: () => void;
-}) => {
-  if (!result) return null;
-  const isPassed = Boolean(result.isPassed);
-  const pct = Math.round(result.percentage || 0);
-
-  return (
-    <ScrollView contentContainerStyle={styles.resultScroll}>
-      <LinearGradient
-        colors={isPassed ? ['#22C55E', '#16A34A'] : ['#EF4444', '#DC2626']}
-        style={styles.scoreBubble}>
-        <Text style={styles.scorePct}>{pct}%</Text>
-        <Text style={styles.scoreLabel}>{isPassed ? '🎉 Passed!' : '😔 Failed'}</Text>
-      </LinearGradient>
-
-      <View style={styles.resultGrid}>
-        {[
-          { label: 'Marks', val: `${result.marksObtained ?? 0}/${result.totalMarks ?? 0}`, icon: '🎯' },
-          { label: 'Correct', val: result.correctAnswers ?? 0, icon: '✅' },
-          { label: 'Wrong', val: result.incorrectAnswers ?? 0, icon: '❌' },
-          { label: 'Skipped', val: result.unansweredQuestions ?? 0, icon: '⏭' },
-        ].map(s => (
-          <View key={s.label} style={styles.resultCell}>
-            <Text style={styles.resultCellIcon}>{s.icon}</Text>
-            <Text style={styles.resultCellVal}>{s.val}</Text>
-            <Text style={styles.resultCellLabel}>{s.label}</Text>
-          </View>
-        ))}
-      </View>
-
-      {quiz?.settings?.allowRetake && onRetry && (
-        <TouchableOpacity style={styles.retryBtn} onPress={onRetry}>
-          <LinearGradient colors={['#4F46E5', '#6366F1']} style={styles.retryGrad}>
-            <Text style={styles.retryText}>🔄 Retry Quiz</Text>
-          </LinearGradient>
-        </TouchableOpacity>
-      )}
-
-      <TouchableOpacity style={styles.backBtn} onPress={onBack}>
-        <Text style={styles.backBtnText}>← Back to Quizzes</Text>
-      </TouchableOpacity>
-    </ScrollView>
-  );
-};
-
 // ─── Main Quiz Attempt Component ──────────────────────────────────────────────
 const QuizAttemptContent: React.FC<Props> = ({ route, navigation }) => {
   const insets = useSafeAreaInsets();
@@ -286,16 +231,19 @@ const QuizAttemptContent: React.FC<Props> = ({ route, navigation }) => {
       const data = res.data;
       console.log(`[QUIZ] Submit response — alreadySubmitted=${res.alreadySubmitted} resultId=${data?.resultId}`);
 
-      // Whether fresh submit or already-submitted recovery, navigate to results
       if (res.success && data) {
-        setResult(data);
-        setPhase('result');
+        // Navigate to the dedicated result/review screen
+        navigation.replace('QuizResult', {
+          attemptId: data.attemptId || attemptId,
+          quizId,
+          quizTitle,
+          allowRetake: quiz?.settings?.allowRetake ?? false,
+        });
       } else {
         Alert.alert('Error', 'Unexpected response from server. Please try again.');
       }
     } catch (err: any) {
       console.error('[QUIZ SUBMIT ERROR]', err);
-      // Network or server error — show alert but allow retry
       isSubmittingRef.current = false;
       setSubmitting(false);
       Alert.alert(
@@ -344,24 +292,8 @@ const QuizAttemptContent: React.FC<Props> = ({ route, navigation }) => {
   if (isLoading) return <LoadingSpinner message="Loading quiz details..." />;
   if (errorMsg) return <ErrorMessage message={errorMsg} onRetry={loadPreview} />;
 
-  // ── Result View ───────────────────────────────────────────────────────────────
-  if (phase === 'result' && result) {
-    return (
-      <View style={[styles.container, { paddingTop: insets.top }]}>
-        <StatusBar barStyle="dark-content" backgroundColor="#fff" />
-        <ResultView
-          result={result}
-          quiz={quiz}
-          onRetry={() => {
-            setResult(null);
-            setPhase('preview');
-            loadPreview();
-          }}
-          onBack={() => navigation.goBack()}
-        />
-      </View>
-    );
-  }
+  // ── Result View — now handled by QuizResultScreen ──────────────────────────
+  // (phase === 'result' is no longer used; navigation.replace() handles it)
 
   // ── Preview View ──────────────────────────────────────────────────────────────
   if (phase === 'preview' && preview) {
@@ -394,9 +326,9 @@ const QuizAttemptContent: React.FC<Props> = ({ route, navigation }) => {
           <View style={styles.rulesCard}>
             <Text style={styles.rulesTitle}>📋 Quiz Rules</Text>
             {[
-              { icon: '❓', label: 'Questions', val: pQuiz.questions?.length || '—' },
+              { icon: '❓', label: 'Questions', val: pQuiz.totalQuestions || pQuiz.questions?.length || '—' },
               { icon: '⏱', label: 'Time Limit', val: `${pQuiz.settings?.timeLimit || 30} minutes` },
-              { icon: '🎯', label: 'Passing Score', val: `${pQuiz.settings?.passingScore || 50}%` },
+              { icon: '🎯', label: 'Passing Score', val: `${pQuiz.settings?.passingPercentage || 50}%` },
               { icon: '📊', label: 'Marks/Question', val: pQuiz.settings?.marksPerQuestion || 1 },
               { icon: '➖', label: 'Negative Marking', val: (pQuiz.settings?.negativeMarking || 0) > 0 ? `${pQuiz.settings.negativeMarking} marks` : 'None' },
               { icon: '🔄', label: 'Retakes', val: pQuiz.settings?.allowRetake ? (pQuiz.settings?.maxAttempts ? `Up to ${pQuiz.settings.maxAttempts}` : 'Unlimited') : 'Not allowed' },
@@ -549,14 +481,16 @@ const QuizAttemptContent: React.FC<Props> = ({ route, navigation }) => {
             /* ── MCQ options renderer ────────────────────────────────────────── */
             <View style={styles.optionsContainer}>
               {normalizedOptions.map((optObj, idx) => {
-                const selected = answers[currentQ._id!] === optObj.id || answers[currentQ._id!] === optObj.text;
+                // Bug fix: compare against id only (id is what gets saved & sent to server)
+                const selected = answers[currentQ._id!] === optObj.id;
                 const label = ['A', 'B', 'C', 'D', 'E', 'F'][idx] || String(idx + 1);
 
                 return (
                   <TouchableOpacity
                     key={optObj.id || `opt_${idx}`}
                     style={[styles.option, selected && styles.optionSelected]}
-                    onPress={() => handleSelectAnswer(currentQ._id!, optObj.text)}
+                    // Bug fix: save optObj.id (not optObj.text) so server can match correctAnswer
+                    onPress={() => handleSelectAnswer(currentQ._id!, optObj.id)}
                     activeOpacity={0.75}>
                     <View style={[styles.optionLabel, selected && styles.optionLabelSelected]}>
                       <Text style={[styles.optionLabelText, selected && { color: '#fff' }]}>{label}</Text>

@@ -25,6 +25,7 @@ import { NotificationDetailScreen } from '../screens/notifications/NotificationD
 import { SearchScreen } from '../screens/search/SearchScreen';
 import { MyQuizzesScreen } from '../screens/quizzes/MyQuizzesScreen';
 import { QuizAttemptScreen } from '../screens/quizzes/QuizAttemptScreen';
+import { QuizResultScreen } from '../screens/quizzes/QuizResultScreen';
 import { MyDoubtsScreen } from '../screens/doubts/MyDoubtsScreen';
 import { NotesScreen } from '../screens/notes/NotesScreen';
 import { CertificatesScreen } from '../screens/certificates/CertificatesScreen';
@@ -74,6 +75,7 @@ const QuizzesStackNavigator = () => (
   <QuizzesStack.Navigator screenOptions={{ headerShown: false, contentStyle: { backgroundColor: Colors.background } }}>
     <QuizzesStack.Screen name="QuizzesList" component={MyQuizzesScreen} />
     <QuizzesStack.Screen name="QuizAttempt" component={QuizAttemptScreen} options={{ animation: 'slide_from_right' }} />
+    <QuizzesStack.Screen name="QuizResult" component={QuizResultScreen} options={{ animation: 'slide_from_right' }} />
   </QuizzesStack.Navigator>
 );
 

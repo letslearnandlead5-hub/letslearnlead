@@ -8,6 +8,8 @@ import {
   RefreshControl,
   StatusBar,
   Alert,
+  ActionSheetIOS,
+  Platform,
 } from 'react-native';
 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -74,11 +76,13 @@ const QuizCard = ({
           </View>
           <View style={styles.stat}>
             <Text style={styles.statIcon}>❓</Text>
-            <Text style={styles.statVal}>{quiz.questions?.length || '—'} Qs</Text>
+            {/* Bug fix: use totalQuestions (questions array is stripped from list endpoint) */}
+            <Text style={styles.statVal}>{quiz.totalQuestions ?? quiz.questions?.length ?? '—'} Qs</Text>
           </View>
           <View style={styles.stat}>
             <Text style={styles.statIcon}>🎯</Text>
-            <Text style={styles.statVal}>{quiz.settings.passingScore}% pass</Text>
+            {/* Bug fix: passingScore → passingPercentage */}
+            <Text style={styles.statVal}>{quiz.settings.passingPercentage}% pass</Text>
           </View>
           {quiz.status === 'completed' && quiz.lastPercentage != null && (
             <View style={[styles.stat, styles.scoreChip]}>
@@ -136,13 +140,73 @@ export const MyQuizzesScreen: React.FC = () => {
       Alert.alert('Error', 'Invalid quiz selection.');
       return;
     }
+
+    // In-progress: resume directly
+    if (quiz.status === 'in-progress' && quiz.inProgressAttemptId) {
+      navigation.navigate('QuizAttempt', {
+        quizId: quiz._id,
+        quizTitle: quiz.title || 'Quiz',
+        attemptId: quiz.inProgressAttemptId,
+      });
+      return;
+    }
+
+    // Completed: show attempt picker ActionSheet
+    if (quiz.status === 'completed' && quiz.allAttempts && quiz.allAttempts.length > 0) {
+      const attempts = quiz.allAttempts;
+
+      const formatDate = (d: string) =>
+        new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+
+      const optionLabels = attempts.map(
+        (a, i) =>
+          `Attempt ${a.attemptNumber}${i === 0 ? ' (Latest)' : ''} – ${Math.round(a.percentage)}% – ${formatDate(a.attemptDate)}`
+      );
+
+      const navigateToAttempt = (idx: number) => {
+        const selected = attempts[idx];
+        navigation.navigate('QuizResult', {
+          attemptId: selected.attemptId,
+          quizId: quiz._id,
+          quizTitle: quiz.title || 'Quiz',
+          allowRetake: quiz.settings?.allowRetake ?? false,
+        });
+      };
+
+      if (Platform.OS === 'ios') {
+        ActionSheetIOS.showActionSheetWithOptions(
+          {
+            title: `${quiz.title} — Select Attempt`,
+            options: [...optionLabels, 'Cancel'],
+            cancelButtonIndex: optionLabels.length,
+          },
+          (idx) => {
+            if (idx < optionLabels.length) navigateToAttempt(idx);
+          }
+        );
+      } else {
+        // Android: use Alert with buttons (max 3 direct + cancel, overflow handled)
+        const buttons = attempts.slice(0, 5).map((a, i) => ({
+          text: `Attempt ${a.attemptNumber}${i === 0 ? ' ⭐' : ''} — ${Math.round(a.percentage)}%`,
+          onPress: () => navigateToAttempt(i),
+        }));
+        buttons.push({ text: 'Cancel', onPress: () => {} } as any);
+        Alert.alert(
+          `${quiz.title}`,
+          'Select an attempt to review:',
+          buttons,
+          { cancelable: true }
+        );
+      }
+      return;
+    }
+
+    // Not attempted: start quiz
     navigation.navigate('QuizAttempt', {
       quizId: quiz._id,
       quizTitle: quiz.title || 'Quiz',
-      attemptId: quiz.status === 'in-progress' ? quiz.inProgressAttemptId : undefined,
     });
   };
-
 
   if (isLoading) return <LoadingSpinner fullScreen message="Loading quizzes..." />;
   if (error) return <ErrorMessage message={error} onRetry={loadQuizzes} />;

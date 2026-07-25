@@ -18,8 +18,9 @@ import {
     FileQuestion,
     Brain,
     X,
+    Wrench,
 } from 'lucide-react';
-import { getAllQuizzes, deleteQuiz, publishQuiz } from '../../services/quizService';
+import { getAllQuizzes, deleteQuiz, publishQuiz, repairQuizMarks } from '../../services/quizService';
 import type { Quiz } from '../../types';
 import toast from 'react-hot-toast';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -33,6 +34,7 @@ const QuizList: React.FC = () => {
     const [filter, setFilter] = useState<'all' | 'published' | 'draft'>('all');
     const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
     const [showMobileSidebar, setShowMobileSidebar] = useState(false);
+    const [repairing, setRepairing] = useState<string | null>(null); // quizId being repaired
 
     const tabs = [
         { id: 'overview', label: 'Overview', icon: BarChart3 },
@@ -101,6 +103,25 @@ const QuizList: React.FC = () => {
             fetchQuizzes();
         } catch (error: any) {
             toast.error(error.response?.data?.message || 'Failed to update quiz');
+        }
+    };
+
+    const handleRepairMarks = async (quiz: Quiz) => {
+        const quizId = quiz._id || quiz.id || '';
+        if (!quizId) return;
+        try {
+            setRepairing(quizId);
+            const result = await repairQuizMarks(quizId);
+            toast.success(
+                result.data?.fixedCount > 0
+                    ? `✅ ${result.message}`
+                    : `✅ All marks already correct (${result.data?.totalQuestions} questions × ${result.data?.targetMarks} marks)`,
+                { duration: 5000 }
+            );
+        } catch (error: any) {
+            toast.error(error.response?.data?.message || 'Repair failed');
+        } finally {
+            setRepairing(null);
         }
     };
 
@@ -261,6 +282,14 @@ const QuizList: React.FC = () => {
                                                                 </button>
                                                                 <button onClick={() => navigate(`/admin/quizzes/edit/${quiz._id || quiz.id}`)} className="text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300" title="Edit">
                                                                     <Edit className="w-5 h-5" />
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handleRepairMarks(quiz)}
+                                                                    disabled={repairing === (quiz._id || quiz.id)}
+                                                                    title="Repair Marks — fix questions with wrong marks value"
+                                                                    className="text-amber-600 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-300 disabled:opacity-40 disabled:cursor-wait"
+                                                                >
+                                                                    <Wrench className={`w-5 h-5 ${repairing === (quiz._id || quiz.id) ? 'animate-spin' : ''}`} />
                                                                 </button>
                                                                 <button onClick={() => handleTogglePublish(quiz)} className={`${quiz.isPublished ? 'text-orange-600 dark:text-orange-400 hover:text-orange-900 dark:hover:text-orange-300' : 'text-green-600 dark:text-green-400 hover:text-green-900 dark:hover:text-green-300'}`} title={quiz.isPublished ? 'Unpublish' : 'Publish'}>
                                                                     {quiz.isPublished ? <XCircle className="w-5 h-5" /> : <CheckCircle className="w-5 h-5" />}

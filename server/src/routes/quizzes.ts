@@ -181,6 +181,48 @@ router.delete('/:id', protect, authorize('admin'), async (req: Request, res: Res
     }
 });
 
+// @route   POST /api/quizzes/:id/repair-marks
+// @desc    Fix all questions in a quiz whose marks don't match quiz.settings.marksPerQuestion
+// @access  Private (Admin)
+router.post('/:id/repair-marks', protect, authorize('admin'), async (req: Request, res: Response, next) => {
+    try {
+        const quiz = await Quiz.findById(req.params.id);
+        if (!quiz) {
+            throw new AppError('Quiz not found', 404);
+        }
+
+        const targetMarks = Number(quiz.settings?.marksPerQuestion) || 4;
+        const targetNegative = Number(quiz.settings?.negativeMarking) || 0;
+        let fixedCount = 0;
+
+        quiz.questions = quiz.questions.map((q: any) => {
+            const needsFix = !(typeof q.marks === 'number' && !isNaN(q.marks) && q.marks > 0 && q.marks === targetMarks);
+            if (needsFix) {
+                q.marks = targetMarks;
+                fixedCount++;
+            }
+            if (typeof q.negativeMarks !== 'number' || isNaN(q.negativeMarks)) {
+                q.negativeMarks = targetNegative;
+            }
+            return q;
+        }) as any;
+
+        if (fixedCount > 0) {
+            await quiz.save();
+        }
+
+        console.log(`[REPAIR MARKS] quizId=${quiz._id} | targetMarks=${targetMarks} | fixedQuestions=${fixedCount}/${quiz.questions.length}`);
+
+        res.status(200).json({
+            success: true,
+            message: `Repaired ${fixedCount} question(s). All questions now have marks = ${targetMarks}.`,
+            data: { fixedCount, totalQuestions: quiz.questions.length, targetMarks },
+        });
+    } catch (error) {
+        next(error);
+    }
+});
+
 // @route   POST /api/quizzes/:id/publish
 // @desc    Publish/unpublish a quiz
 // @access  Private (Admin)
@@ -407,16 +449,32 @@ router.get('/available/my', protect, async (req: AuthRequest, res: Response, nex
         // Combine data
         const quizzesWithStatus = quizzes.map((quiz) => {
             const quizAttempts = attempts.filter((a) => a.quizId.toString() === quiz._id.toString());
-            const quizResults = results.filter((r) => r.quizId.toString() === quiz._id.toString());
+            const quizResults = results
+                .filter((r) => r.quizId.toString() === quiz._id.toString())
+                .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()); // newest first
             const inProgressAttempt = quizAttempts.find((a) => a.status === 'in-progress');
+
+            // Build compact history list for the attempt picker
+            const allAttempts = quizResults.map((r: any, i: number) => ({
+                attemptId: r.attemptId?.toString() || '',
+                resultId: r._id?.toString() || '',
+                attemptNumber: quizResults.length - i, // newest = highest number
+                marksObtained: r.marksObtained,
+                totalMarks: r.totalMarks,
+                percentage: r.percentage,
+                isPassed: r.isPassed,
+                timeTaken: r.timeTaken,
+                attemptDate: r.createdAt,
+            }));
 
             return {
                 ...quiz.toObject(),
                 attemptCount: quizAttempts.length,
                 status: inProgressAttempt ? 'in-progress' : quizResults.length > 0 ? 'completed' : 'not-attempted',
-                lastScore: quizResults.length > 0 ? quizResults[quizResults.length - 1].marksObtained : null,
-                lastPercentage: quizResults.length > 0 ? quizResults[quizResults.length - 1].percentage : null,
+                lastScore: quizResults.length > 0 ? quizResults[0].marksObtained : null,
+                lastPercentage: quizResults.length > 0 ? quizResults[0].percentage : null,
                 inProgressAttemptId: inProgressAttempt?._id,
+                allAttempts,
             };
         });
 
@@ -433,6 +491,14 @@ router.get('/available/my', protect, async (req: AuthRequest, res: Response, nex
 // Helper: sanitize quiz for student responses (normalizes questions, options, matchPairs, hides correct answers)
 function sanitizeQuizForStudent(quiz: any) {
     const qObj = quiz.toObject ? quiz.toObject() : JSON.parse(JSON.stringify(quiz));
+
+    // Use quiz-level marksPerQuestion as the fallback for any question that lacks its own marks value
+    const quizLevelMarks = typeof qObj.settings?.marksPerQuestion === 'number' && qObj.settings.marksPerQuestion > 0
+        ? qObj.settings.marksPerQuestion
+        : 4;
+    const quizLevelNegative = typeof qObj.settings?.negativeMarking === 'number'
+        ? qObj.settings.negativeMarking
+        : 0;
 
     qObj.questions = (qObj.questions || []).map((q: any, idx: number) => {
         // Normalize options array
@@ -460,6 +526,11 @@ function sanitizeQuizForStudent(quiz: any) {
             order: typeof p.order === 'number' ? p.order : pIdx,
         }));
 
+        // Use question-level marks if valid and > 0; otherwise fall back to quiz-level marksPerQuestion
+        const marks = typeof q.marks === 'number' && !isNaN(q.marks) && q.marks > 0
+            ? q.marks
+            : quizLevelMarks;
+
         return {
             _id: q._id ? q._id.toString() : `q_${idx}_${Date.now()}`,
             questionType: q.questionType || 'text',
@@ -470,8 +541,8 @@ function sanitizeQuizForStudent(quiz: any) {
             options: normalizedOptions,
             matchPairs: normalizedMatchPairs,
             explanation: q.explanation || '',
-            marks: typeof q.marks === 'number' ? q.marks : 1,
-            negativeMarks: typeof q.negativeMarks === 'number' ? q.negativeMarks : 0,
+            marks,
+            negativeMarks: typeof q.negativeMarks === 'number' ? q.negativeMarks : quizLevelNegative,
             order: typeof q.order === 'number' ? q.order : idx,
         };
     });

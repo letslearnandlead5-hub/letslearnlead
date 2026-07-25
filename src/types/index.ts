@@ -312,11 +312,24 @@ export interface LeaderboardEntry {
     attemptDate: Date;
 }
 
+export interface QuizAttemptSummary {
+    attemptId: string;
+    resultId: string;
+    attemptNumber: number;
+    marksObtained: number;
+    totalMarks: number;
+    percentage: number;
+    isPassed: boolean;
+    timeTaken: number;
+    attemptDate: string | Date;
+}
+
 export interface QuizWithStatus extends Quiz {
     attemptCount?: number;
     status?: 'in-progress' | 'completed' | 'not-attempted';
     lastScore?: number;
     lastPercentage?: number;
     inProgressAttemptId?: string;
+    allAttempts?: QuizAttemptSummary[];
 }
 

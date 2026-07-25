@@ -95,6 +95,13 @@ export const getQuizAnalytics = async (quizId: string) => {
     return response.data.data;
 };
 
+export const repairQuizMarks = async (quizId: string) => {
+    const response = await axios.post(`${API_URL}/quizzes/${quizId}/repair-marks`, {}, {
+        headers: getAuthHeader(),
+    });
+    return response.data;
+};
+
 // ==================== STUDENT API ====================
 
 export const getAvailableQuizzes = async (): Promise<QuizWithStatus[]> => {

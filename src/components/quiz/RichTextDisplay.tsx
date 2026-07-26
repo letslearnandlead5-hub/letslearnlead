@@ -2,7 +2,6 @@ import React from 'react';
 import DOMPurify from 'dompurify';
 import { cleanHtml } from '../../utils/htmlUtils';
 import { renderLatexInHtml, hasLatex, FieldType } from '../../utils/latexRenderer';
-import 'katex/dist/katex.min.css';
 
 interface RichTextDisplayProps {
     content: string;

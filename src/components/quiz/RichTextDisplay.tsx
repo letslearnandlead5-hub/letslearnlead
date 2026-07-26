@@ -18,7 +18,8 @@ interface RichTextDisplayProps {
     fieldType?: FieldType;
 }
 
-const SANITIZE_CONFIG: DOMPurify.Config = {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const SANITIZE_CONFIG: Record<string, any> = {
     ALLOWED_TAGS: [
         // Inline formatting
         'b', 'i', 'u', 's', 'em', 'strong', 'sup', 'sub', 'mark', 'code',
@@ -93,7 +94,7 @@ const RichTextDisplay: React.FC<RichTextDisplayProps> = ({
     const withLatex = isLatex ? renderLatexInHtml(cleaned, fieldType) : cleaned;
 
     // Step 4: XSS sanitize (KaTeX output elements are allowed)
-    const sanitizedHtml = DOMPurify.sanitize(withLatex, SANITIZE_CONFIG) as string;
+    const sanitizedHtml = DOMPurify.sanitize(withLatex, SANITIZE_CONFIG) as unknown as string;
 
     return (
         <div

@@ -9,7 +9,7 @@
  *  - Only console.warn on error (no UI error indicators)
  */
 
-import katex from 'katex';
+import * as katex from 'katex';
 
 export type FieldType = 'question' | 'option' | 'match' | 'explanation';
 

@@ -26,7 +26,8 @@ import { cleanHtml } from './htmlUtils';
 
 // ── DOMPurify config for paste (more permissive than display config) ──────────
 
-const PASTE_SANITIZE_CONFIG: DOMPurify.Config = {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const PASTE_SANITIZE_CONFIG: Record<string, any> = {
     ALLOWED_TAGS: [
         // Inline formatting
         'b', 'i', 'u', 's', 'em', 'strong', 'sup', 'sub', 'mark', 'code',
@@ -371,7 +372,7 @@ export function smartPaste(clipboardHtml: string, clipboardText: string): string
     html = applyFractionConversion(html);
 
     // ── Step 8: DOMPurify XSS sanitization ───────────────────────────────────
-    html = DOMPurify.sanitize(html, PASTE_SANITIZE_CONFIG) as string;
+    html = DOMPurify.sanitize(html, PASTE_SANITIZE_CONFIG) as unknown as string;
 
     // ── Step 9: cleanHtml normalization (remove empty tags, decode entities) ──
     html = cleanHtml(html);

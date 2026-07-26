@@ -127,13 +127,19 @@ const QuizEditor: React.FC = () => {
             setCourseId(quiz.courseId);
             setSubjectId(quiz.subjectId || '');
             setSubjectName(quiz.subjectName || '');
-            setMarksPerQuestion(quiz.settings.marksPerQuestion);
-            setNegativeMarking(quiz.settings.negativeMarking);
+            const targetMarks = quiz.settings?.marksPerQuestion || 4;
+            const targetNegative = quiz.settings?.negativeMarking || 0;
+            setMarksPerQuestion(targetMarks);
+            setNegativeMarking(targetNegative);
             setTimeLimit(quiz.settings.timeLimit);
             setPassingPercentage(quiz.settings.passingPercentage || 40);
             setAllowRetake(quiz.settings.allowRetake || false);
             setMaxAttempts(quiz.settings.maxAttempts || 1);
-            setQuestions(quiz.questions || []);
+            setQuestions((quiz.questions || []).map((q: QuizQuestion) => ({
+                ...q,
+                marks: targetMarks,
+                negativeMarks: targetNegative,
+            })));
         } catch (error: any) {
             toast.error(error.response?.data?.message || 'Failed to load quiz');
             navigate('/dashboard/');

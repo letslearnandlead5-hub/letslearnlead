@@ -26,25 +26,11 @@ function validateAndSanitizeQuiz(quizData: any) {
     const defaultNegative = Number(quizData.settings?.negativeMarking) || 0;
 
     if (Array.isArray(quizData.questions)) {
-        quizData.questions = quizData.questions.map((q: any, idx: number) => {
-            const marks = typeof q.marks === 'number' && !isNaN(q.marks) && q.marks > 0
-                ? q.marks
-                : defaultMarks;
-
-            if (marks <= 0) {
-                throw new AppError(`Question ${idx + 1} has invalid marks (${q.marks}). Marks must be greater than 0.`, 400);
-            }
-
-            const negativeMarks = typeof q.negativeMarks === 'number' && !isNaN(q.negativeMarks) && q.negativeMarks >= 0
-                ? q.negativeMarks
-                : defaultNegative;
-
-            return {
-                ...q,
-                marks,
-                negativeMarks,
-            };
-        });
+        quizData.questions = quizData.questions.map((q: any) => ({
+            ...q,
+            marks: defaultMarks,
+            negativeMarks: defaultNegative,
+        }));
 
         quizData.totalQuestions = quizData.questions.length;
     }

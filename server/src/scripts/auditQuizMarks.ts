@@ -42,12 +42,12 @@ async function auditAndSanitizeQuizzes() {
         let questionSum = 0;
         quiz.questions.forEach((q: any, idx: number) => {
             const currentMarks = q.marks;
-            if (typeof currentMarks !== 'number' || isNaN(currentMarks) || currentMarks <= 0) {
-                discrepancies.push(`Question #${idx + 1} (${q._id}) has invalid marks '${currentMarks}'. Resetting to defaultMarks=${defaultMarks}`);
+            if (currentMarks !== defaultMarks) {
+                discrepancies.push(`Question #${idx + 1} (${q._id}) has marks '${currentMarks}' != expected '${defaultMarks}'. Resetting to defaultMarks=${defaultMarks}`);
                 q.marks = defaultMarks;
                 modified = true;
             }
-            if (q.negativeMarks === undefined || q.negativeMarks === null || isNaN(q.negativeMarks)) {
+            if (q.negativeMarks !== defaultNegative) {
                 q.negativeMarks = defaultNegative;
                 modified = true;
             }

@@ -80,7 +80,7 @@ const QuizEditor: React.FC = () => {
     const selectedCourseSubjects: Subject[] = courses.find(c => c._id === courseId)?.subjects || [];
 
     // Quiz settings
-    const [marksPerQuestion, setMarksPerQuestion] = useState(1);
+    const [marksPerQuestion, setMarksPerQuestion] = useState(4);
     const [negativeMarking, setNegativeMarking] = useState(0);
     const [timeLimit, setTimeLimit] = useState(30);
     const [passingPercentage, setPassingPercentage] = useState(40);
@@ -351,11 +351,11 @@ const QuizEditor: React.FC = () => {
                 subjectId: subjectId || undefined,
                 subjectName: subjectName || undefined,
                 settings: { marksPerQuestion, negativeMarking, timeLimit, passingPercentage, allowRetake, maxAttempts },
-                // Normalize match pairs and ensure every question has explicit numeric marks
+                // Normalize match pairs and ensure every question explicitly matches quiz-level marks/negative marking
                 questions: (questions as QuizQuestion[]).map((q) => ({
                     ...q,
-                    marks: typeof q.marks === 'number' && q.marks > 0 ? q.marks : (marksPerQuestion || 4),
-                    negativeMarks: typeof q.negativeMarks === 'number' ? q.negativeMarks : (negativeMarking || 0),
+                    marks: marksPerQuestion || 4,
+                    negativeMarks: negativeMarking || 0,
                     matchPairs: q.questionType === 'match'
                         ? normalizeMatchPairs(q.matchPairs || [])
                         : [],
@@ -549,11 +549,32 @@ const QuizEditor: React.FC = () => {
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                             <div>
                                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Marks per Question *</label>
-                                                <input type="number" value={marksPerQuestion} onChange={(e) => setMarksPerQuestion(Number(e.target.value))} min="1" className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white" />
+                                                <input
+                                                    type="number"
+                                                    value={marksPerQuestion}
+                                                    onChange={(e) => {
+                                                        const val = Number(e.target.value);
+                                                        setMarksPerQuestion(val);
+                                                        setQuestions(prev => prev.map(q => ({ ...q, marks: val })));
+                                                    }}
+                                                    min="1"
+                                                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
+                                                />
                                             </div>
                                             <div>
                                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Negative Marking</label>
-                                                <input type="number" value={negativeMarking} onChange={(e) => setNegativeMarking(Number(e.target.value))} min="0" step="0.25" className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white" />
+                                                <input
+                                                    type="number"
+                                                    value={negativeMarking}
+                                                    onChange={(e) => {
+                                                        const val = Number(e.target.value);
+                                                        setNegativeMarking(val);
+                                                        setQuestions(prev => prev.map(q => ({ ...q, negativeMarks: val })));
+                                                    }}
+                                                    min="0"
+                                                    step="0.25"
+                                                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
+                                                />
                                             </div>
                                             <div>
                                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Time Limit (minutes) *</label>

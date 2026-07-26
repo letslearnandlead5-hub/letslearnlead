@@ -71,6 +71,7 @@ const LivePreview: React.FC<LivePreviewProps> = ({
                             <RichTextDisplay
                                 content={question.questionText || '<p className="text-gray-400 italic">No question text entered yet</p>'}
                                 className="text-gray-900 dark:text-white text-base leading-relaxed"
+                                fieldType="question"
                             />
                         </div>
 
@@ -101,7 +102,7 @@ const LivePreview: React.FC<LivePreviewProps> = ({
                                         // KEY FIX: stable pair.id, not array index
                                         <div key={pair.id || `prev-${idx}`} className="grid grid-cols-2 gap-2 items-center">
                                             <div className="px-3 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-white">
-                                                <RichTextDisplay content={pair.left || `Item ${idx + 1}`} />
+                                                <RichTextDisplay content={pair.left || `Item ${idx + 1}`} fieldType="match" />
                                             </div>
                                             <select
                                                 value={matchAnswers[String(idx)] || ''}
@@ -138,7 +139,7 @@ const LivePreview: React.FC<LivePreviewProps> = ({
                                                 {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
                                             </div>
                                             <div className="ml-3 text-sm text-gray-900 dark:text-white w-full">
-                                                <RichTextDisplay content={opt.text || `Option Option Option`} />
+                                                <RichTextDisplay content={opt.text || `Option Option Option`} fieldType="option" />
                                                 {opt.imageUrl && (
                                                     <img
                                                         src={opt.imageUrl}
@@ -161,6 +162,7 @@ const LivePreview: React.FC<LivePreviewProps> = ({
                             <RichTextDisplay
                                 content={question.explanation}
                                 className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed"
+                                fieldType="explanation"
                             />
                         </div>
                     )}

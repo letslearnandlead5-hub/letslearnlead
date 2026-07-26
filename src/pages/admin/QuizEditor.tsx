@@ -828,7 +828,7 @@ const QuizEditor: React.FC = () => {
                                                         <div className="flex items-start gap-2 mb-2">
                                                             <span className="text-sm font-semibold text-gray-500 dark:text-gray-400 flex-shrink-0">{index + 1}.</span>
                                                             <div className="font-medium text-gray-900 dark:text-white flex-1">
-                                                                <RichTextDisplay content={q.questionText || ''} />
+                                                                <RichTextDisplay content={q.questionText || ''} fieldType="question" />
                                                             </div>
                                                         </div>
                                                         {q.questionImage && (
@@ -839,11 +839,11 @@ const QuizEditor: React.FC = () => {
                                                                 {(q.matchPairs || []).map((pair, pi) => (
                                                                     <div key={pair.id || `preview-${pi}`} className="text-sm text-gray-600 dark:text-gray-400 flex flex-wrap items-center gap-1.5">
                                                                         <span className="text-blue-600 dark:text-blue-400 font-medium">
-                                                                            <RichTextDisplay content={pair.left} />
+                                                                            <RichTextDisplay content={pair.left} fieldType="match" />
                                                                         </span>
                                                                         <span className="mx-2">→</span>
                                                                         <span className="text-green-600 dark:text-green-400 font-medium">
-                                                                            <RichTextDisplay content={pair.right} />
+                                                                            <RichTextDisplay content={pair.right} fieldType="match" />
                                                                         </span>
                                                                     </div>
                                                                 ))}
@@ -854,7 +854,7 @@ const QuizEditor: React.FC = () => {
                                                                     <div key={opt.id} className={`text-sm flex items-start gap-1.5 ${q.correctAnswer === opt.id ? 'text-green-600 dark:text-green-400 font-semibold' : 'text-gray-600 dark:text-gray-400'}`}>
                                                                         <span>{q.correctAnswer === opt.id ? '✓ ' : '○ '}</span>
                                                                         <div className="flex-1">
-                                                                            <RichTextDisplay content={opt.text} />
+                                                                            <RichTextDisplay content={opt.text} fieldType="option" />
                                                                         </div>
                                                                     </div>
                                                                 ))}

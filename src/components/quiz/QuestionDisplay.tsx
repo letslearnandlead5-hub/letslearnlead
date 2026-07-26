@@ -68,7 +68,7 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
                     <div className="space-y-4">
                         {/* Question text with rich formatting */}
                         <div className="text-lg text-gray-900 dark:text-white">
-                            <RichTextDisplay content={question.questionText} />
+                            <RichTextDisplay content={question.questionText} fieldType="question" />
                         </div>
                         {/* Optional question image */}
                         {question.questionImage && (
@@ -102,7 +102,7 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
                                             {/* Column A item */}
                                             <div className={`px-4 py-3 rounded-lg border-2 text-sm font-medium text-gray-900 dark:text-white ${hasAnswer ? 'border-blue-400 bg-blue-50 dark:bg-blue-950/40' : 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800'}`}>
                                                 <span className="text-xs text-gray-400 mr-2">{leftIdx + 1}.</span>
-                                                <RichTextDisplay content={pair.left} className="inline" />
+                                                <RichTextDisplay content={pair.left} className="inline" fieldType="match" />
                                             </div>
                                             {/* Column B dropdown */}
                                             <select
@@ -133,7 +133,7 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
                 return (
                     <div className="space-y-4">
                         <div className="text-lg text-gray-900 dark:text-white">
-                            <RichTextDisplay content={question.questionText} />
+                            <RichTextDisplay content={question.questionText} fieldType="question" />
                         </div>
                         {question.questionImage && (
                             <div className="rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
@@ -147,7 +147,7 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
                                     <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Formula:</span>
                                 </div>
                                 <div className="font-mono text-base text-gray-900 dark:text-white">
-                                    <RichTextDisplay content={question.questionFormula} />
+                                    <RichTextDisplay content={question.questionFormula} fieldType="question" />
                                 </div>
                             </div>
                         )}
@@ -158,7 +158,7 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
                 return (
                     <div className="space-y-4">
                         <div className="text-lg text-gray-900 dark:text-white">
-                            <RichTextDisplay content={question.questionText} />
+                            <RichTextDisplay content={question.questionText} fieldType="question" />
                         </div>
                         {(question.questionImage || question.questionDiagram) && (
                             <div className="rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
@@ -178,7 +178,7 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
                 return (
                     <div className="space-y-4">
                         <div className="text-lg text-gray-900 dark:text-white">
-                            <RichTextDisplay content={question.questionText} />
+                            <RichTextDisplay content={question.questionText} fieldType="question" />
                         </div>
                         {/* Always render image if present (regardless of question type) */}
                         {question.questionImage && (
@@ -251,7 +251,7 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
                                 className="mt-1 w-4 h-4 text-indigo-600 focus:ring-indigo-500"
                             />
                              <div className="ml-3 flex-1 text-gray-900 dark:text-white">
-                                 <RichTextDisplay content={option.text} />
+                                 <RichTextDisplay content={option.text} fieldType="option" />
                                  {option.imageUrl && (
                                      <img src={option.imageUrl} alt="Option image" className="max-h-32 rounded border border-gray-200 dark:border-gray-700 mt-2 object-contain" />
                                  )}

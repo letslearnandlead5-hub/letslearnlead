@@ -18,6 +18,7 @@
 
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import DOMPurify from 'dompurify';
+import { smartPaste } from '../../utils/smartPaste';
 import {
     Bold, Italic, Underline, Strikethrough,
     AlignLeft, AlignCenter, AlignRight,
@@ -132,6 +133,15 @@ export interface ScientificEditorProps {
     minHeight?: string;
     /** Compact mode hides alignment and list buttons — suitable for MCQ option inputs */
     compact?: boolean;
+    /**
+     * fieldType — context for Smart Paste LaTeX rendering.
+     * 'question'    — $$...$$ renders as centered display block
+     * 'option'      — all LaTeX always inline (compact)
+     * 'match'       — all LaTeX always inline
+     * 'explanation' — $$...$$ centered, $...$ inline
+     * Default: 'question'
+     */
+    fieldType?: 'question' | 'option' | 'match' | 'explanation';
 }
 
 const ScientificEditor: React.FC<ScientificEditorProps> = ({
@@ -140,6 +150,7 @@ const ScientificEditor: React.FC<ScientificEditorProps> = ({
     placeholder = 'Type here…',
     minHeight = '96px',
     compact = false,
+    fieldType = 'question',
 }) => {
     const editorRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -224,17 +235,45 @@ const ScientificEditor: React.FC<ScientificEditorProps> = ({
         }
     };
 
-    // ── Paste handler: sanitize pasted HTML ───────────────────────────────
+    // ── Paste handler: Smart Paste pipeline ────────────────────────────
     const handlePaste = (e: React.ClipboardEvent) => {
         e.preventDefault();
+
+        // 1. Check for clipboard image first (screenshots, diagrams)
+        const items = Array.from(e.clipboardData.items);
+        const imageItem = items.find(item => item.type.startsWith('image/'));
+        if (imageItem) {
+            const file = imageItem.getAsFile();
+            if (file) { handleImageFile(file); return; }
+        }
+
+        // 2. Get clipboard data
         const html = e.clipboardData.getData('text/html');
         const text = e.clipboardData.getData('text/plain');
-        const toInsert = html
-            ? sanitize(html)
-            : text.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+        // 3. Run full smart paste pipeline
+        const cleaned = smartPaste(html, text);
+
         // eslint-disable-next-line @typescript-eslint/no-deprecated
-        document.execCommand('insertHTML', false, toInsert);
+        document.execCommand('insertHTML', false, cleaned);
         emitChange();
+    };
+
+    // ── Drag-and-drop image handler ───────────────────────────────────
+    const handleDrop = (e: React.DragEvent) => {
+        const file = e.dataTransfer.files?.[0];
+        if (file?.type.startsWith('image/')) {
+            e.preventDefault();
+            e.stopPropagation();
+            handleImageFile(file);
+        }
+        // Non-image drops: let browser handle (text drag-drop)
+    };
+
+    const handleDragOver = (e: React.DragEvent) => {
+        if (e.dataTransfer.types.includes('Files')) {
+            e.preventDefault(); // Allow image drop
+        }
     };
 
     // ── Keyboard shortcuts ────────────────────────────────────────────────
@@ -504,6 +543,8 @@ const ScientificEditor: React.FC<ScientificEditorProps> = ({
                     onInput={emitChange}
                     onPaste={handlePaste}
                     onKeyDown={handleKeyDown}
+                    onDrop={handleDrop}
+                    onDragOver={handleDragOver}
                     onFocus={() => setIsEmpty(false)}
                     onBlur={() => setIsEmpty(!stripHtml(editorRef.current?.innerHTML ?? ''))}
                     className="px-4 py-3 text-sm text-gray-900 dark:text-white focus:outline-none leading-relaxed"

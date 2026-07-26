@@ -310,7 +310,7 @@ const QuizResultView: React.FC = () => {
                                                     </span>
                                                     <div className="flex-1 min-w-0">
                                                         <div className="text-gray-900 dark:text-white font-medium">
-                                                            <RichTextDisplay content={qResult.questionText} />
+                                                            <RichTextDisplay content={qResult.questionText} fieldType="question" />
                                                         </div>
                                                     </div>
                                                 </div>
@@ -397,7 +397,7 @@ const QuizResultView: React.FC = () => {
                                                                     <BookOpen className="w-4 h-4" /> Explanation
                                                                 </div>
                                                                 <div className="text-sm text-gray-700 dark:text-gray-300">
-                                                                    <RichTextDisplay content={qResult.explanation} />
+                                                                    <RichTextDisplay content={qResult.explanation} fieldType="explanation" />
                                                                 </div>
                                                             </motion.div>
                                                         )}

@@ -82,7 +82,7 @@ export function cleanHtml(html: string): string {
     clean = clean.replace(/<(p|div|li)[^>]*>(\s|&nbsp;|<br\s*\/?>)*<\/\1>/gi, '');
 
     // 2. Remove trailing <br> right before a closing block tag
-    clean = clean.replace(/<br\s*\/?>\s*(<\/(p|div|li|ul|ol)>)/gi, '$1');
+    clean = clean.replace(/<br\s*\/?>(\s*<\/(p|div|li|ul|ol)>)/gi, '$1');
 
     // 3. Decode HTML entities (after removing empty tags to avoid decoding nothing)
     clean = decodeHtmlEntities(clean);
@@ -96,6 +96,82 @@ export function cleanHtml(html: string): string {
 
     // 6. Trim leading/trailing whitespace
     clean = clean.trim();
+
+    return clean;
+}
+
+/**
+ * cleanPastedHtml — Deeper aggressive cleaner for pasted content.
+ *
+ * More aggressive than cleanHtml() — specifically designed to remove
+ * structural junk from Word, Google Docs, ChatGPT, Gemini, PDF sources
+ * while preserving semantically meaningful formatting.
+ *
+ * What it REMOVES (beyond cleanHtml):
+ *   • <span> wrappers with no meaningful style (only font-family/size)
+ *   • <font> tags (maps to modern HTML)
+ *   • <div> wrappers around inline content (promotes to <p> or unwraps)
+ *   • Empty <p> and <div> (same as cleanHtml but deeper)
+ *   • style="" attributes with only layout properties (margin, padding, etc.)
+ *   • class="" attributes (from Word/Docs/ChatGPT internal classes)
+ *   • id="" attributes (from Google Docs internal IDs)
+ *   • <h1>-<h6> → converted to <b><p> for quiz context
+ *
+ * What it KEEPS:
+ *   • <b>, <i>, <u>, <strong>, <em> — inline formatting
+ *   • <sup>, <sub> — scientific notation
+ *   • <mark> — highlights
+ *   • style="color:..." and style="background-color:..." — colors
+ *   • <ul>, <ol>, <li> — lists (critical for ChatGPT answers)
+ *   • <table>, <tr>, <th>, <td> — tables
+ *   • <img src="..."> — inline images
+ *   • <a href="..."> — hyperlinks
+ *   • <p> — paragraph structure (only when non-empty)
+ *   • <code>, <pre> — code blocks (from ChatGPT)
+ */
+export function cleanPastedHtml(html: string): string {
+    if (!html || typeof html !== 'string') return '';
+    let clean = html;
+
+    // 1. Unwrap <font> tags (convert to span with style)
+    clean = clean.replace(/<font\s+color="([^"]+)"[^>]*>([\s\S]*?)<\/font>/gi,
+        (_, color, inner) => `<span style="color:${color}">${inner}</span>`);
+    clean = clean.replace(/<font[^>]*>([\s\S]*?)<\/font>/gi, '$1');
+
+    // 2. Convert headings to bold paragraphs (quiz context doesn't need h1-h6)
+    clean = clean.replace(/<h[1-6][^>]*>([\s\S]*?)<\/h[1-6]>/gi,
+        (_, inner) => `<p><strong>${inner.trim()}</strong></p>`);
+
+    // 3. Remove id="" attributes (Google Docs internal IDs)
+    clean = clean.replace(/\s+id="[^"]*"/gi, '');
+
+    // 4. Remove class="" attributes (Word/Docs/ChatGPT internal classes)
+    //    Exception: keep class="katex" and class="latex-*" (our own classes)
+    clean = clean.replace(/\s+class="(?!katex|latex-)[^"]*"/gi, '');
+
+    // 5. Unwrap semantically empty <span> tags
+    //    (spans with no style, or only layout-junk styles)
+    const LAYOUT_ONLY_STYLE = /^(?:\s*(?:font-family|font-size|margin|padding|line-height|letter-spacing|white-space|word-spacing|orphans|widows|text-indent|background-image|mso-[a-z-]+)\s*:[^;]*(;\s*)?)*$/i;
+    clean = clean.replace(/<span\s+style="([^"]*)">([\s\S]*?)<\/span>/gi, (match, style, inner) => {
+        if (LAYOUT_ONLY_STYLE.test(style)) return inner; // unwrap
+        return match; // keep
+    });
+    // Unwrap completely empty spans (no attributes)
+    clean = clean.replace(/<span>([\s\S]*?)<\/span>/gi, '$1');
+
+    // 6. Unwrap <div> that wrap only inline content → unwrap to just content
+    //    (keep divs that wrap block content like lists/tables)
+    clean = clean.replace(/<div[^>]*>((?:(?!<(?:ul|ol|table|div|p|h[1-6]|pre|blockquote)).)*?)<\/div>/gi,
+        (_, inner) => `<p>${inner.trim()}</p>`);
+
+    // 7. Remove empty block elements
+    clean = clean.replace(/<(p|div|li)[^>]*>(\s|&nbsp;|<br\s*\/?>)*<\/\1>/gi, '');
+
+    // 8. Collapse multiple <br> (3+ → 2 max)
+    clean = clean.replace(/(<br\s*\/?>){3,}/gi, '<br><br>');
+
+    // 9. Apply base cleanHtml normalization
+    clean = cleanHtml(clean);
 
     return clean;
 }

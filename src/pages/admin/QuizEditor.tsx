@@ -96,8 +96,6 @@ const QuizEditor: React.FC = () => {
         fetchCourses();
         if (quizId) {
             loadQuiz();
-        } else {
-            addQuestion();
         }
     }, [quizId]);
 
@@ -302,8 +300,10 @@ const QuizEditor: React.FC = () => {
                 return true;
 
             case 2:
-                if (marksPerQuestion <= 0) { toast.error('Marks per question must be greater than 0'); return false; }
-                if (timeLimit <= 0) { toast.error('Time limit must be greater than 0'); return false; }
+                if (!marksPerQuestion || marksPerQuestion <= 0) { toast.error('Marks per question must be greater than 0'); return false; }
+                if (negativeMarking === undefined || negativeMarking === null || isNaN(negativeMarking) || negativeMarking < 0) { toast.error('Negative marking must be 0 or greater'); return false; }
+                if (!timeLimit || timeLimit <= 0) { toast.error('Time limit must be greater than 0'); return false; }
+                if (passingPercentage === undefined || passingPercentage === null || isNaN(passingPercentage) || passingPercentage < 0 || passingPercentage > 100) { toast.error('Passing percentage must be between 0 and 100%'); return false; }
                 return true;
 
             case 3:
@@ -481,17 +481,33 @@ const QuizEditor: React.FC = () => {
                             {/* Progress Steps */}
                             <div className="mb-8">
                                 <div className="flex items-center justify-between">
-                                    {['Basic Info', 'Settings', 'Questions', 'Review'].map((label, index) => (
-                                        <div key={index} className={`flex-1 ${index < 3 ? 'mr-2' : ''}`}>
-                                            <div className={`flex items-center ${step > index + 1 ? 'text-green-600' : step === index + 1 ? 'text-indigo-600' : 'text-gray-400'}`}>
-                                                <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${step > index + 1 ? 'bg-green-100 dark:bg-green-900' : step === index + 1 ? 'bg-indigo-100 dark:bg-indigo-900' : 'bg-gray-100 dark:bg-gray-800'}`}>
-                                                    {index + 1}
+                                    {['Basic Info', 'Settings', 'Questions', 'Review'].map((label, index) => {
+                                        const targetStep = index + 1;
+                                        return (
+                                            <div
+                                                key={index}
+                                                onClick={() => {
+                                                    if (targetStep < step) {
+                                                        setStep(targetStep);
+                                                    } else if (targetStep > step) {
+                                                        for (let s = 1; s < targetStep; s++) {
+                                                            if (!validateStep(s)) return;
+                                                        }
+                                                        setStep(targetStep);
+                                                    }
+                                                }}
+                                                className={`flex-1 ${index < 3 ? 'mr-2' : ''} cursor-pointer`}
+                                            >
+                                                <div className={`flex items-center ${step > index + 1 ? 'text-green-600' : step === index + 1 ? 'text-indigo-600' : 'text-gray-400'}`}>
+                                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${step > index + 1 ? 'bg-green-100 dark:bg-green-900' : step === index + 1 ? 'bg-indigo-100 dark:bg-indigo-900' : 'bg-gray-100 dark:bg-gray-800'}`}>
+                                                        {index + 1}
+                                                    </div>
+                                                    <span className="ml-2 text-sm font-medium hidden sm:block">{label}</span>
                                                 </div>
-                                                <span className="ml-2 text-sm font-medium hidden sm:block">{label}</span>
+                                                {index < 3 && (<div className={`h-1 mt-2 rounded ${step > index + 1 ? 'bg-green-600' : 'bg-gray-200 dark:bg-gray-700'}`} />)}
                                             </div>
-                                            {index < 3 && (<div className={`h-1 mt-2 rounded ${step > index + 1 ? 'bg-green-600' : 'bg-gray-200 dark:bg-gray-700'}`} />)}
-                                        </div>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
                             </div>
 
@@ -609,225 +625,241 @@ const QuizEditor: React.FC = () => {
                                 {/* ── Step 3: Questions ── */}
                                 {step === 3 && (
                                     <div className="space-y-6">
-                                        {/* Question Navigation */}
-                                        <div className="flex items-center justify-between mb-4">
-                                            <div className="flex items-center gap-2 flex-wrap">
-                                                {questions.map((_, index) => (
-                                                    <button key={index} onClick={() => setCurrentQuestionIndex(index)}
-                                                        className={`w-10 h-10 rounded font-semibold transition-all ${currentQuestionIndex === index ? 'bg-indigo-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}`}>
-                                                        {index + 1}
-                                                    </button>
-                                                ))}
-                                                <button onClick={addQuestion} className="w-10 h-10 rounded bg-green-100 dark:bg-green-900 text-green-600 dark:text-green-300 hover:bg-green-200 dark:hover:bg-green-800 flex items-center justify-center">
-                                                    <Plus className="w-5 h-5" />
-                                                </button>
-                                            </div>
-                                            <div className="flex items-center gap-3">
+                                        {questions.length === 0 ? (
+                                            <div className="text-center py-12 bg-gray-50 dark:bg-gray-800/50 rounded-2xl border-2 border-dashed border-gray-200 dark:border-gray-700 p-8">
+                                                <FileQuestion className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+                                                <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-1">No Questions Added Yet</h3>
+                                                <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
+                                                    Quiz Settings: <span className="font-semibold text-indigo-600 dark:text-indigo-400">{marksPerQuestion} marks</span> per question · <span className="font-semibold text-red-600 dark:text-red-400">-{negativeMarking} negative marking</span>
+                                                </p>
                                                 <button
                                                     type="button"
-                                                    onClick={() => setIsPreviewOpen(true)}
-                                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/60 text-indigo-600 dark:text-indigo-400 text-sm font-semibold transition-colors"
+                                                    onClick={addQuestion}
+                                                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl text-sm transition-all shadow-md hover:shadow-indigo-500/20"
                                                 >
-                                                    <Eye className="w-4 h-4" />
-                                                    Live Preview
+                                                    <Plus className="w-4 h-4" /> Add First Question
                                                 </button>
-                                                {questions.length > 1 && (
-                                                    <button onClick={() => removeQuestion(currentQuestionIndex)} className="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300">
-                                                        <Trash2 className="w-5 h-5" />
-                                                    </button>
-                                                )}
                                             </div>
-                                        </div>
-
-                                        {currentQuestion && (
-                                            <div className="space-y-5">
-                                                {/* ── Question Type Selector ── */}
-                                                <div>
-                                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Question Type</label>
-                                                    <div className="flex flex-wrap gap-2">
-                                                        {([
-                                                            { value: 'text', label: 'Text / MCQ', icon: FileText },
-                                                            { value: 'image', label: 'Text + Image', icon: Image },
-                                                            { value: 'match', label: 'Match the Following', icon: ArrowLeftRight },
-                                                        ] as { value: QuizQuestion['questionType']; label: string; icon: any }[]).map(({ value, label, icon: Icon }) => (
-                                                            <button
-                                                                key={value}
-                                                                type="button"
-                                                                onClick={() => changeQuestionType(currentQuestionIndex, value)}
-                                                                className={`flex items-center gap-2 px-4 py-2 rounded-lg border-2 text-sm font-medium transition-all ${currentQuestion.questionType === value ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300' : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-indigo-300'}`}
-                                                            >
-                                                                <Icon className="w-4 h-4" />
-                                                                {label}
+                                        ) : (
+                                            <>
+                                                {/* Question Navigation */}
+                                                <div className="flex items-center justify-between mb-4">
+                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                        {questions.map((_, index) => (
+                                                            <button key={index} onClick={() => setCurrentQuestionIndex(index)}
+                                                                className={`w-10 h-10 rounded font-semibold transition-all ${currentQuestionIndex === index ? 'bg-indigo-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}`}>
+                                                                {index + 1}
                                                             </button>
                                                         ))}
+                                                        <button onClick={addQuestion} className="w-10 h-10 rounded bg-green-100 dark:bg-green-900 text-green-600 dark:text-green-300 hover:bg-green-200 dark:hover:bg-green-800 flex items-center justify-center">
+                                                            <Plus className="w-5 h-5" />
+                                                        </button>
                                                     </div>
-                                                </div>
-
-                                                {/* ── Question Text ── */}
-                                                <div>
-                                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                                        Question {currentQuestionIndex + 1} *
-                                                    </label>
-                                                    <ScientificEditor
-                                                        value={currentQuestion.questionText || ''}
-                                                        onChange={(html) => updateQuestion(currentQuestionIndex, { questionText: html })}
-                                                        placeholder="Enter question text (supports scientific formatting, chemical equations, and inline diagrams)"
-                                                        minHeight="120px"
-                                                    />
-                                                </div>
-
-                                                {/* ── Question Image Upload (for all question types) ── */}
-                                                <div className="border border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-4">
-                                                    <div className="flex items-center justify-between mb-2">
-                                                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-2">
-                                                            <Image className="w-4 h-4" />
-                                                            Question Image <span className="text-gray-400 font-normal">(optional)</span>
-                                                        </label>
-                                                        <label className="cursor-pointer">
-                                                            <input
-                                                                type="file"
-                                                                accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
-                                                                className="hidden"
-                                                                onChange={(e) => {
-                                                                    const file = e.target.files?.[0];
-                                                                    if (file) handleQuestionImageUpload(currentQuestionIndex, file);
-                                                                    e.target.value = '';
-                                                                }}
-                                                            />
-                                                            <span className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-indigo-500 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950 text-sm font-medium transition-colors">
-                                                                <Upload className="w-3.5 h-3.5" />
-                                                                Upload Image
-                                                            </span>
-                                                        </label>
-                                                    </div>
-                                                    {currentQuestion.questionImage ? (
-                                                        <div className="relative">
-                                                            <img src={currentQuestion.questionImage} alt="Question" className="max-h-48 rounded-lg border border-gray-200 dark:border-gray-700 object-contain bg-gray-50 dark:bg-gray-800" />
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => updateQuestion(currentQuestionIndex, { questionImage: '' })}
-                                                                className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors"
-                                                            >
-                                                                <X className="w-3.5 h-3.5" />
+                                                    <div className="flex items-center gap-3">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setIsPreviewOpen(true)}
+                                                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/60 text-indigo-600 dark:text-indigo-400 text-sm font-semibold transition-colors"
+                                                        >
+                                                            <Eye className="w-4 h-4" />
+                                                            Live Preview
+                                                        </button>
+                                                        {questions.length > 1 && (
+                                                            <button onClick={() => removeQuestion(currentQuestionIndex)} className="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300">
+                                                                <Trash2 className="w-5 h-5" />
                                                             </button>
-                                                        </div>
-                                                    ) : (
-                                                        <p className="text-xs text-gray-400 dark:text-gray-500">Attach a diagram, graph, or illustration (JPEG, PNG, GIF, WebP — max 5MB)</p>
-                                                    )}
+                                                        )}
+                                                    </div>
                                                 </div>
 
-                                                {/* ── MCQ Options (for text/image/formula/diagram types) ── */}
-                                                {currentQuestion.questionType !== 'match' && (
-                                                    <div>
-                                                        <div className="flex items-center justify-between mb-2">
-                                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Options *</label>
-                                                            <button onClick={() => addOption(currentQuestionIndex)} className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1">
-                                                                <Plus className="w-3.5 h-3.5" /> Add Option
-                                                            </button>
+                                                {currentQuestion && (
+                                                    <div className="space-y-5">
+                                                        {/* ── Question Type Selector ── */}
+                                                        <div>
+                                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Question Type</label>
+                                                            <div className="flex flex-wrap gap-2">
+                                                                {([
+                                                                    { value: 'text', label: 'Text / MCQ', icon: FileText },
+                                                                    { value: 'image', label: 'Text + Image', icon: Image },
+                                                                    { value: 'match', label: 'Match the Following', icon: ArrowLeftRight },
+                                                                ] as { value: QuizQuestion['questionType']; label: string; icon: any }[]).map(({ value, label, icon: Icon }) => (
+                                                                    <button
+                                                                        key={value}
+                                                                        type="button"
+                                                                        onClick={() => changeQuestionType(currentQuestionIndex, value)}
+                                                                        className={`flex items-center gap-2 px-4 py-2 rounded-lg border-2 text-sm font-medium transition-all ${currentQuestion.questionType === value ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300' : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-indigo-300'}`}
+                                                                    >
+                                                                        <Icon className="w-4 h-4" />
+                                                                        {label}
+                                                                    </button>
+                                                                ))}
+                                                            </div>
                                                         </div>
-                                                        <div className="space-y-2">
-                                                            {currentQuestion.options?.map((option, optIndex) => (
-                                                                <div key={option.id} className={`flex items-center gap-2 p-2 rounded-lg border ${currentQuestion.correctAnswer === option.id ? 'border-green-500 bg-green-50 dark:bg-green-950/30' : 'border-gray-200 dark:border-gray-700'}`}>
-                                                                    <input
-                                                                        type="radio"
-                                                                        name={`question-${currentQuestionIndex}`}
-                                                                        checked={currentQuestion.correctAnswer === option.id}
-                                                                        onChange={() => updateQuestion(currentQuestionIndex, { correctAnswer: option.id })}
-                                                                        className="w-4 h-4 text-indigo-600 flex-shrink-0"
-                                                                        title="Mark as correct answer"
-                                                                    />
-                                                                    <div className="flex-1 min-w-0">
-                                                                        <ScientificEditor
-                                                                            value={option.text}
-                                                                            onChange={(html) => updateOption(currentQuestionIndex, option.id, html)}
-                                                                            placeholder={`Option ${optIndex + 1}`}
-                                                                            minHeight="44px"
-                                                                            compact
-                                                                        />
-                                                                    </div>
-                                                                    {currentQuestion.options && currentQuestion.options.length > 2 && (
-                                                                        <button onClick={() => removeOption(currentQuestionIndex, option.id)} className="text-red-500 hover:text-red-700 flex-shrink-0">
-                                                                            <X className="w-4 h-4" />
-                                                                        </button>
-                                                                    )}
-                                                                </div>
-                                                            ))}
-                                                        </div>
-                                                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">🔘 Click the radio button to mark the correct answer (highlighted in green)</p>
-                                                    </div>
-                                                )}
 
-                                                {/* ── Match the Following Pairs ── */}
-                                                {currentQuestion.questionType === 'match' && (
-                                                    <div>
-                                                        <div className="flex items-center justify-between mb-3">
-                                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-2">
-                                                                <ArrowLeftRight className="w-4 h-4" />
-                                                                Match Pairs *
+                                                        {/* ── Question Text ── */}
+                                                        <div>
+                                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                                                Question {currentQuestionIndex + 1} *
                                                             </label>
-                                                            <button onClick={() => addMatchPair(currentQuestionIndex)} className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1">
-                                                                <Plus className="w-3.5 h-3.5" /> Add Pair
-                                                            </button>
+                                                            <ScientificEditor
+                                                                value={currentQuestion.questionText || ''}
+                                                                onChange={(html) => updateQuestion(currentQuestionIndex, { questionText: html })}
+                                                                placeholder="Enter question text (supports scientific formatting, chemical equations, and inline diagrams)"
+                                                                minHeight="120px"
+                                                            />
                                                         </div>
 
-                                                        {/* Column headers */}
-                                                        <div className="grid grid-cols-[1fr_auto_1fr_auto] gap-2 mb-2 px-1">
-                                                            <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide text-center bg-blue-50 dark:bg-blue-950 rounded py-1">Column A (Left)</div>
-                                                            <div></div>
-                                                            <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide text-center bg-green-50 dark:bg-green-950 rounded py-1">Column B (Right)</div>
-                                                            <div></div>
-                                                        </div>
-
-                                                        <div className="space-y-2">
-                                                            {(currentQuestion.matchPairs || []).map((pair, pairIndex) => (
-                                                                // KEY FIX: use pair.id (stable UUID) NOT pairIndex (array index)
-                                                                // Using index causes React to reconcile wrong elements when
-                                                                // a pair in the middle is deleted, silently dropping siblings.
-                                                                <div key={pair.id || `fallback-${pairIndex}`} className="grid grid-cols-[1fr_auto_1fr_auto] gap-2 items-center">
-                                                                    <div className="min-w-0">
-                                                                        <ScientificEditor
-                                                                            value={pair.left}
-                                                                            onChange={(html) => updateMatchPair(currentQuestionIndex, pairIndex, 'left', html)}
-                                                                            placeholder={`Item ${pairIndex + 1}`}
-                                                                            minHeight="44px"
-                                                                            compact
-                                                                        />
-                                                                    </div>
-                                                                    <ArrowLeftRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                                                                    <div className="min-w-0">
-                                                                        <ScientificEditor
-                                                                            value={pair.right}
-                                                                            onChange={(html) => updateMatchPair(currentQuestionIndex, pairIndex, 'right', html)}
-                                                                            placeholder={`Match ${pairIndex + 1}`}
-                                                                            minHeight="44px"
-                                                                            compact
-                                                                        />
-                                                                    </div>
-                                                                    {(currentQuestion.matchPairs || []).length > 2 && (
-                                                                        <button onClick={() => removeMatchPair(currentQuestionIndex, pairIndex)} className="text-red-500 hover:text-red-700">
-                                                                            <X className="w-4 h-4" />
-                                                                        </button>
-                                                                    )}
+                                                        {/* ── Question Image Upload (for all question types) ── */}
+                                                        <div className="border border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-4">
+                                                            <div className="flex items-center justify-between mb-2">
+                                                                <label className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                                                                    <Image className="w-4 h-4" />
+                                                                    Question Image <span className="text-gray-400 font-normal">(optional)</span>
+                                                                </label>
+                                                                <label className="cursor-pointer">
+                                                                    <input
+                                                                        type="file"
+                                                                        accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                                                                        className="hidden"
+                                                                        onChange={(e) => {
+                                                                            const file = e.target.files?.[0];
+                                                                            if (file) handleQuestionImageUpload(currentQuestionIndex, file);
+                                                                            e.target.value = '';
+                                                                        }}
+                                                                    />
+                                                                    <span className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-indigo-500 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950 text-sm font-medium transition-colors">
+                                                                        <Upload className="w-3.5 h-3.5" />
+                                                                        Upload Image
+                                                                    </span>
+                                                                </label>
+                                                            </div>
+                                                            {currentQuestion.questionImage ? (
+                                                                <div className="relative">
+                                                                    <img src={currentQuestion.questionImage} alt="Question" className="max-h-48 rounded-lg border border-gray-200 dark:border-gray-700 object-contain bg-gray-50 dark:bg-gray-800" />
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => updateQuestion(currentQuestionIndex, { questionImage: '' })}
+                                                                        className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors"
+                                                                    >
+                                                                        <X className="w-3.5 h-3.5" />
+                                                                    </button>
                                                                 </div>
-                                                            ))}
+                                                            ) : (
+                                                                <p className="text-xs text-gray-400 dark:text-gray-500">Attach a diagram, graph, or illustration (JPEG, PNG, GIF, WebP — max 5MB)</p>
+                                                            )}
                                                         </div>
-                                                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                                                            ℹ️ Students will see Column A items in order and must select the correct Column B match from a dropdown. Partial marks are awarded per correct pair.
-                                                        </p>
+
+                                                        {/* ── MCQ Options (for text/image/formula/diagram types) ── */}
+                                                        {currentQuestion.questionType !== 'match' && (
+                                                            <div>
+                                                                <div className="flex items-center justify-between mb-2">
+                                                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Options *</label>
+                                                                    <button onClick={() => addOption(currentQuestionIndex)} className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1">
+                                                                        <Plus className="w-3.5 h-3.5" /> Add Option
+                                                                    </button>
+                                                                </div>
+                                                                <div className="space-y-2">
+                                                                    {currentQuestion.options?.map((option, optIndex) => (
+                                                                        <div key={option.id} className={`flex items-center gap-2 p-2 rounded-lg border ${currentQuestion.correctAnswer === option.id ? 'border-green-500 bg-green-50 dark:bg-green-950/30' : 'border-gray-200 dark:border-gray-700'}`}>
+                                                                            <input
+                                                                                type="radio"
+                                                                                name={`question-${currentQuestionIndex}`}
+                                                                                checked={currentQuestion.correctAnswer === option.id}
+                                                                                onChange={() => updateQuestion(currentQuestionIndex, { correctAnswer: option.id })}
+                                                                                className="w-4 h-4 text-indigo-600 flex-shrink-0"
+                                                                                title="Mark as correct answer"
+                                                                            />
+                                                                            <div className="flex-1 min-w-0">
+                                                                                <ScientificEditor
+                                                                                    value={option.text}
+                                                                                    onChange={(html) => updateOption(currentQuestionIndex, option.id, html)}
+                                                                                    placeholder={`Option ${optIndex + 1}`}
+                                                                                    minHeight="44px"
+                                                                                    compact
+                                                                                />
+                                                                            </div>
+                                                                            {currentQuestion.options && currentQuestion.options.length > 2 && (
+                                                                                <button onClick={() => removeOption(currentQuestionIndex, option.id)} className="text-red-500 hover:text-red-700 flex-shrink-0">
+                                                                                    <X className="w-4 h-4" />
+                                                                                </button>
+                                                                            )}
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">🔘 Click the radio button to mark the correct answer (highlighted in green)</p>
+                                                            </div>
+                                                        )}
+
+                                                        {/* ── Match the Following Pairs ── */}
+                                                        {currentQuestion.questionType === 'match' && (
+                                                            <div>
+                                                                <div className="flex items-center justify-between mb-3">
+                                                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                                                                        <ArrowLeftRight className="w-4 h-4" />
+                                                                        Match Pairs *
+                                                                    </label>
+                                                                    <button onClick={() => addMatchPair(currentQuestionIndex)} className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1">
+                                                                        <Plus className="w-3.5 h-3.5" /> Add Pair
+                                                                    </button>
+                                                                </div>
+
+                                                                {/* Column headers */}
+                                                                <div className="grid grid-cols-[1fr_auto_1fr_auto] gap-2 mb-2 px-1">
+                                                                    <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide text-center bg-blue-50 dark:bg-blue-950 rounded py-1">Column A (Left)</div>
+                                                                    <div></div>
+                                                                    <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide text-center bg-green-50 dark:bg-green-950 rounded py-1">Column B (Right)</div>
+                                                                    <div></div>
+                                                                </div>
+
+                                                                <div className="space-y-2">
+                                                                    {(currentQuestion.matchPairs || []).map((pair, pairIndex) => (
+                                                                        <div key={pair.id || `fallback-${pairIndex}`} className="grid grid-cols-[1fr_auto_1fr_auto] gap-2 items-center">
+                                                                            <div className="min-w-0">
+                                                                                <ScientificEditor
+                                                                                    value={pair.left}
+                                                                                    onChange={(html) => updateMatchPair(currentQuestionIndex, pairIndex, 'left', html)}
+                                                                                    placeholder={`Item ${pairIndex + 1}`}
+                                                                                    minHeight="44px"
+                                                                                    compact
+                                                                                />
+                                                                            </div>
+                                                                            <ArrowLeftRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                                                                            <div className="min-w-0">
+                                                                                <ScientificEditor
+                                                                                    value={pair.right}
+                                                                                    onChange={(html) => updateMatchPair(currentQuestionIndex, pairIndex, 'right', html)}
+                                                                                    placeholder={`Match ${pairIndex + 1}`}
+                                                                                    minHeight="44px"
+                                                                                    compact
+                                                                                />
+                                                                            </div>
+                                                                            {(currentQuestion.matchPairs || []).length > 2 && (
+                                                                                <button onClick={() => removeMatchPair(currentQuestionIndex, pairIndex)} className="text-red-500 hover:text-red-700">
+                                                                                    <X className="w-4 h-4" />
+                                                                                </button>
+                                                                            )}
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                                                                    ℹ️ Students will see Column A items in order and must select the correct Column B match from a dropdown. Partial marks are awarded per correct pair.
+                                                                </p>
+                                                            </div>
+                                                        )}
+
+                                                        {/* ── Explanation ── */}
+                                                        <div>
+                                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Explanation *</label>
+                                                            <ScientificEditor
+                                                                value={currentQuestion.explanation || ''}
+                                                                onChange={(html) => updateQuestion(currentQuestionIndex, { explanation: html })}
+                                                                placeholder="Explain the correct answer (shown after submission)"
+                                                                minHeight="96px"
+                                                            />
+                                                        </div>
                                                     </div>
                                                 )}
-
-                                                {/* ── Explanation ── */}
-                                                <div>
-                                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Explanation *</label>
-                                                    <ScientificEditor
-                                                        value={currentQuestion.explanation || ''}
-                                                        onChange={(html) => updateQuestion(currentQuestionIndex, { explanation: html })}
-                                                        placeholder="Explain the correct answer (shown after submission)"
-                                                        minHeight="96px"
-                                                    />
-                                                </div>
-                                            </div>
+                                            </>
                                         )}
                                     </div>
                                 )}

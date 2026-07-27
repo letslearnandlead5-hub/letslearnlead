@@ -115,18 +115,40 @@ async function getRequestUser(req: Request): Promise<{ id: string; role: string 
     }
 }
 
-async function getStudentNoteAccess(req: Request, courseId?: string): Promise<StudentNoteAccess | null> {
+function extractIdString(val: any): string | undefined {
+    if (!val) return undefined;
+    if (typeof val === 'string') {
+        if (/^[0-9a-fA-F]{24}$/.test(val)) return val;
+        return undefined;
+    }
+    if (val._id) {
+        return extractIdString(val._id);
+    }
+    if (val.id) {
+        return extractIdString(val.id);
+    }
+    if (typeof val.toString === 'function') {
+        const str = val.toString();
+        if (/^[0-9a-fA-F]{24}$/.test(str)) return str;
+    }
+    return undefined;
+}
+
+async function getStudentNoteAccess(req: Request, courseId?: any): Promise<StudentNoteAccess | null> {
     const requester = await getRequestUser(req);
     if (!requester || requester.role === 'admin' || requester.role === 'teacher') return null;
 
+    const cleanCourseId = extractIdString(courseId);
     const query: any = { userId: requester.id, status: 'paid' };
-    if (courseId) query.courseId = courseId;
+    if (cleanCourseId) query.courseId = cleanCourseId;
 
     const enrollments = await Enrollment.find(query).select('courseId subjectId');
     return enrollments.reduce<StudentNoteAccess>(
         (access, enrollment: any) => {
-            if (enrollment.courseId) access.courseIds.add(enrollment.courseId.toString());
-            if (enrollment.subjectId) access.subjectIds.add(enrollment.subjectId.toString());
+            const cId = extractIdString(enrollment.courseId);
+            const sId = extractIdString(enrollment.subjectId);
+            if (cId) access.courseIds.add(cId);
+            if (sId) access.subjectIds.add(sId);
             return access;
         },
         { courseIds: new Set<string>(), subjectIds: new Set<string>() }
@@ -144,7 +166,7 @@ function buildNotesFilters(req: Request, forcedCourseId?: string) {
     const { courseId, subjectId, chapterId, fileType, category, search } = req.query;
     const filters: any[] = [];
 
-    const resolvedCourseId = forcedCourseId || (courseId as string | undefined);
+    const resolvedCourseId = extractIdString(forcedCourseId || (courseId as string | undefined));
     if (resolvedCourseId) filters.push({ courseId: resolvedCourseId });
     if (subjectId && subjectId !== 'all') filters.push({ subjectId });
     if (chapterId && chapterId !== 'all') filters.push({ chapterId });
@@ -195,8 +217,8 @@ async function canAccessSingleNote(req: Request, note: any): Promise<{ allowed: 
     if (!requester) return { allowed: false };
     if (requester.role === 'admin' || requester.role === 'teacher') return { allowed: true };
 
-    const noteCourseId = note.courseId?.toString();
-    const noteSubjectId = note.subjectId?.toString();
+    const noteCourseId = extractIdString(note.courseId);
+    const noteSubjectId = extractIdString(note.subjectId);
 
     const studentAccess = await getStudentNoteAccess(req, noteCourseId);
     if (!studentAccess) return { allowed: true };
@@ -213,16 +235,22 @@ async function canAccessSingleNote(req: Request, note: any): Promise<{ allowed: 
 
 async function logNoteAccess(params: {
     studentId: string;
-    courseId: string;
-    subjectId?: string;
+    courseId: any;
+    subjectId?: any;
     noteId: string;
     action: 'view' | 'print' | 'token_issued';
     ip?: string;
     userAgent?: string;
 }) {
     try {
-        await NoteAccessLog.create(params);
-        console.log(`[NOTE ACCESS LOG] action=${params.action} studentId=${params.studentId} noteId=${params.noteId} courseId=${params.courseId}`);
+        const cleanCourseId = extractIdString(params.courseId) || '';
+        const cleanSubjectId = extractIdString(params.subjectId);
+        await NoteAccessLog.create({
+            ...params,
+            courseId: cleanCourseId,
+            subjectId: cleanSubjectId,
+        });
+        console.log(`[NOTE ACCESS LOG] action=${params.action} studentId=${params.studentId} noteId=${params.noteId} courseId=${cleanCourseId}`);
     } catch (err) {
         console.error('[NOTE ACCESS LOG ERROR]', err);
     }

@@ -703,20 +703,71 @@ router.get('/:id/download', async (req: Request, res: Response, next) => {
 router.get('/:id', async (req: Request, res: Response, next) => {
     try {
         const requester = await getRequestUser(req);
-        const isPrivileged = requester && (requester.role === 'admin' || requester.role === 'teacher');
 
+        // Fetch full note object including markdownContent and fileUrl
         const note = await Note.findById(req.params.id)
-            .select(isPrivileged ? '' : '-fileUrl -markdownContent')
-            .populate('uploadedBy', 'name');
+            .populate('uploadedBy', 'name')
+            .populate('courseId', 'title');
 
-        if (!note) throw new AppError('Note not found', 404);
+        if (!note) {
+            throw new AppError('Note not found', 404);
+        }
 
-        const { allowed } = await canAccessSingleNote(req, note);
+        if (note.status !== 'active') {
+            throw new AppError('Note is currently inactive', 403);
+        }
+
+        // Validate student enrollment access
+        const { allowed, studentId } = await canAccessSingleNote(req, note);
         if (!allowed) {
+            console.warn(`[NOTE ACCESS DENIED] studentId=${requester?.id || 'anonymous'} noteId=${note._id} courseId=${note.courseId?._id || note.courseId}`);
             throw new AppError('You are not enrolled in this course.', 403);
         }
 
-        res.status(200).json({ success: true, data: note });
+        const isPrivileged = requester && (requester.role === 'admin' || requester.role === 'teacher');
+
+        // Issue a short-lived signed view token for stream route
+        const payload: NoteViewTokenPayload = {
+            noteId: note._id.toString(),
+            studentId: requester?.id || 'privileged',
+            action: 'view',
+        };
+
+        const viewToken = jwt.sign(payload, NOTE_VIEW_TOKEN_SECRET, {
+            expiresIn: NOTE_VIEW_TOKEN_TTL,
+        });
+
+        const streamUrl = `/api/notes/${note._id}/view/stream?token=${viewToken}`;
+
+        if (!isPrivileged && studentId) {
+            await logNoteAccess({
+                studentId,
+                courseId: note.courseId?._id?.toString() || note.courseId?.toString(),
+                subjectId: note.subjectId?.toString(),
+                noteId: note._id.toString(),
+                action: 'view',
+                ip: req.ip,
+                userAgent: req.get('user-agent'),
+            });
+        }
+
+        const noteObj = note.toObject();
+
+        console.log(`[NOTE FETCH SUCCESS] noteId=${note._id} title="${note.title}" fileType=${note.fileType} hasContent=${!!note.markdownContent} hasFileUrl=${!!note.fileUrl}`);
+
+        const resultPayload = {
+            ...noteObj,
+            viewToken,
+            streamUrl,
+            fileUrl: noteObj.fileUrl,
+            markdownContent: noteObj.markdownContent,
+        };
+
+        res.status(200).json({
+            success: true,
+            data: resultPayload,
+            note: resultPayload,
+        });
     } catch (error) {
         next(error);
     }

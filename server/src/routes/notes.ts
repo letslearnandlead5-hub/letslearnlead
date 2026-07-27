@@ -118,17 +118,14 @@ async function getRequestUser(req: Request): Promise<{ id: string; role: string 
 function extractIdString(val: any): string | undefined {
     if (!val) return undefined;
     if (typeof val === 'string') {
-        if (/^[0-9a-fA-F]{24}$/.test(val)) return val;
-        return undefined;
+        return /^[0-9a-fA-F]{24}$/.test(val) ? val : undefined;
     }
-    if (val._id) {
-        return extractIdString(val._id);
+    const raw = (typeof val === 'object' && val._id && val._id !== val) ? val._id : val;
+    if (typeof raw === 'string') {
+        return /^[0-9a-fA-F]{24}$/.test(raw) ? raw : undefined;
     }
-    if (val.id) {
-        return extractIdString(val.id);
-    }
-    if (typeof val.toString === 'function') {
-        const str = val.toString();
+    if (raw && typeof raw.toString === 'function') {
+        const str = raw.toString();
         if (/^[0-9a-fA-F]{24}$/.test(str)) return str;
     }
     return undefined;

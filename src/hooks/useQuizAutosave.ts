@@ -70,7 +70,7 @@ export function useQuizAutosave(params: AutosaveParams): AutosaveResult {
             subjectId: p.subjectId || undefined,
             subjectName: p.subjectName || undefined,
             settings: p.settings,
-            questions: p.questions,
+            questions: p.questions as any,   // Partial<QuizQuestion>[] — drafts allow incomplete questions
             status: 'draft' as const,
             draftMeta: {
                 currentStep: p.currentStep,

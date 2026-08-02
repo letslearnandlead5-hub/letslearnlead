@@ -19,22 +19,49 @@ import {
     Brain,
     X,
     Wrench,
+    Archive,
+    RotateCcw,
+    Clock,
+    PenLine,
+    Save,
 } from 'lucide-react';
-import { getAllQuizzes, deleteQuiz, publishQuiz, repairQuizMarks } from '../../services/quizService';
+import { getAllQuizzes, deleteQuiz, publishQuiz, repairQuizMarks, archiveQuiz, restoreQuiz } from '../../services/quizService';
 import type { Quiz } from '../../types';
 import toast from 'react-hot-toast';
 import { useAuthStore } from '../../store/useAuthStore';
 import AdminHeader from '../../components/admin/AdminHeader';
+
+type QuizStatus = 'all' | 'published' | 'draft' | 'archived';
+
+const STATUS_TABS: { id: QuizStatus; label: string; icon: React.ElementType; color: string }[] = [
+    { id: 'all', label: 'All', icon: FileQuestion, color: 'blue' },
+    { id: 'published', label: 'Published', icon: CheckCircle, color: 'green' },
+    { id: 'draft', label: 'Drafts', icon: PenLine, color: 'amber' },
+    { id: 'archived', label: 'Archived', icon: Archive, color: 'gray' },
+];
+
+function timeAgo(dateStr?: string | Date | null): string {
+    if (!dateStr) return '';
+    const seconds = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
+    if (seconds < 60) return 'just now';
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}m ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    return `${days}d ago`;
+}
 
 const QuizList: React.FC = () => {
     const navigate = useNavigate();
     const { user, logout } = useAuthStore();
     const [quizzes, setQuizzes] = useState<Quiz[]>([]);
     const [loading, setLoading] = useState(true);
-    const [filter, setFilter] = useState<'all' | 'published' | 'draft'>('all');
+    const [filter, setFilter] = useState<QuizStatus>('all');
     const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
     const [showMobileSidebar, setShowMobileSidebar] = useState(false);
-    const [repairing, setRepairing] = useState<string | null>(null); // quizId being repaired
+    const [repairing, setRepairing] = useState<string | null>(null);
+    const [archiving, setArchiving] = useState<string | null>(null);
 
     const tabs = [
         { id: 'overview', label: 'Overview', icon: BarChart3 },
@@ -65,18 +92,16 @@ const QuizList: React.FC = () => {
     const fetchQuizzes = async () => {
         try {
             setLoading(true);
-            const filters = filter === 'all' ? {} : { isPublished: filter === 'published' };
-            const data = await getAllQuizzes(filters);
+            // Pass status filter directly — server supports all | published | draft | archived
+            const data = await getAllQuizzes(filter === 'all' ? {} : { status: filter });
             setQuizzes(data);
         } catch (error: any) {
             console.error('Quiz fetch error:', error);
-            const errorMessage = error.response?.data?.message || error.message || 'Failed to load quizzes';
-
             if (error.response?.status === 401) {
                 toast.error('Session expired. Please login again.');
                 navigate('/login/');
             } else {
-                toast.error(errorMessage);
+                toast.error(error.response?.data?.message || error.message || 'Failed to load quizzes');
             }
         } finally {
             setLoading(false);
@@ -96,13 +121,20 @@ const QuizList: React.FC = () => {
 
     const handleTogglePublish = async (quiz: Quiz) => {
         try {
-            await publishQuiz(quiz._id || quiz.id || '', !quiz.isPublished);
-            toast.success(
-                quiz.isPublished ? 'Quiz unpublished successfully' : 'Quiz published successfully'
-            );
+            const result = await publishQuiz(quiz._id || quiz.id || '', !quiz.isPublished);
+            if (result.errors?.length) {
+                toast.error(`Cannot publish: ${result.errors[0]}`, { duration: 6000 });
+                return;
+            }
+            toast.success(quiz.isPublished ? 'Quiz unpublished successfully' : 'Quiz published successfully');
             fetchQuizzes();
         } catch (error: any) {
-            toast.error(error.response?.data?.message || 'Failed to update quiz');
+            const errors: string[] = error.response?.data?.errors;
+            if (errors?.length) {
+                toast.error(`Cannot publish:\n${errors.slice(0, 3).join('\n')}`, { duration: 8000 });
+            } else {
+                toast.error(error.response?.data?.message || 'Failed to update quiz');
+            }
         }
     };
 
@@ -125,6 +157,53 @@ const QuizList: React.FC = () => {
         }
     };
 
+    const handleArchive = async (quiz: Quiz) => {
+        const quizId = quiz._id || quiz.id || '';
+        if (!quizId) return;
+        try {
+            setArchiving(quizId);
+            await archiveQuiz(quizId);
+            toast.success('Quiz archived');
+            fetchQuizzes();
+        } catch (error: any) {
+            toast.error(error.response?.data?.message || 'Archive failed');
+        } finally {
+            setArchiving(null);
+        }
+    };
+
+    const handleRestore = async (quiz: Quiz) => {
+        const quizId = quiz._id || quiz.id || '';
+        if (!quizId) return;
+        try {
+            await restoreQuiz(quizId);
+            toast.success('Quiz restored to draft');
+            fetchQuizzes();
+        } catch (error: any) {
+            toast.error(error.response?.data?.message || 'Restore failed');
+        }
+    };
+
+    // Status badge renderer
+    const StatusBadge: React.FC<{ quiz: Quiz }> = ({ quiz }) => {
+        const status = quiz.status;
+        if (status === 'published') return (
+            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200">
+                <CheckCircle className="w-3 h-3" /> Published
+            </span>
+        );
+        if (status === 'archived') return (
+            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400">
+                <Archive className="w-3 h-3" /> Archived
+            </span>
+        );
+        return (
+            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-amber-100 dark:bg-amber-900 text-amber-800 dark:text-amber-200">
+                <PenLine className="w-3 h-3" /> Draft
+            </span>
+        );
+    };
+
     if (loading) {
         return (
             <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
@@ -135,13 +214,6 @@ const QuizList: React.FC = () => {
             </div>
         );
     }
-
-    const filteredQuizzes = quizzes.filter((quiz) => {
-        if (filter === 'all') return true;
-        if (filter === 'published') return quiz.isPublished;
-        if (filter === 'draft') return !quiz.isPublished;
-        return true;
-    });
 
     return (
         <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
@@ -164,7 +236,6 @@ const QuizList: React.FC = () => {
                                     if (tab.id === 'quizzes') {
                                         setShowMobileSidebar(false);
                                     } else {
-                                        // Dispatch custom event to switch tab in AdminDashboard
                                         window.dispatchEvent(new CustomEvent('selectAdminTab', { detail: tab.id }));
                                         navigate('/dashboard/');
                                         setShowMobileSidebar(false);
@@ -176,11 +247,7 @@ const QuizList: React.FC = () => {
                                 <span className="font-medium">{tab.label}</span>
                             </button>
                         ))}
-                        <button onClick={() => {
-                            window.dispatchEvent(new CustomEvent('selectAdminTab', { detail: 'settings' }));
-                            navigate('/dashboard/');
-                            setShowMobileSidebar(false);
-                        }} className="w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors mt-6 hover:bg-gray-100 dark:hover:bg-gray-800">
+                        <button onClick={() => { window.dispatchEvent(new CustomEvent('selectAdminTab', { detail: 'settings' })); navigate('/dashboard/'); setShowMobileSidebar(false); }} className="w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors mt-6 hover:bg-gray-100 dark:hover:bg-gray-800">
                             <Settings className="w-5 h-5" />
                             <span className="font-medium">Settings</span>
                         </button>
@@ -198,6 +265,7 @@ const QuizList: React.FC = () => {
                 <div className="flex-1 flex flex-col h-[calc(100vh-5rem)] overflow-hidden">
                     <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
                         <div className="max-w-7xl mx-auto">
+                            {/* Header */}
                             <div className="flex items-center justify-between mb-8">
                                 <div>
                                     <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Quiz Management</h1>
@@ -209,19 +277,49 @@ const QuizList: React.FC = () => {
                                 </button>
                             </div>
 
-                            <div className="mb-6 flex gap-2">
-                                {['all', 'published', 'draft'].map((filterOption) => (
-                                    <button key={filterOption} onClick={() => setFilter(filterOption as any)} className={`px-4 py-2 rounded-lg font-medium capitalize transition-colors ${filter === filterOption ? 'bg-blue-600 text-white' : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'}`}>
-                                        {filterOption}
-                                    </button>
-                                ))}
+                            {/* Status Filter Tabs */}
+                            <div className="mb-6 flex gap-2 flex-wrap">
+                                {STATUS_TABS.map((tab) => {
+                                    const count = tab.id === 'all'
+                                        ? quizzes.length
+                                        : quizzes.filter(q => q.status === tab.id).length;
+                                    const isActive = filter === tab.id;
+                                    const colorMap: Record<string, string> = {
+                                        blue: 'bg-blue-600 text-white',
+                                        green: 'bg-green-600 text-white',
+                                        amber: 'bg-amber-500 text-white',
+                                        gray: 'bg-gray-600 text-white',
+                                    };
+                                    return (
+                                        <button
+                                            key={tab.id}
+                                            onClick={() => setFilter(tab.id)}
+                                            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium capitalize transition-all ${
+                                                isActive
+                                                    ? colorMap[tab.color]
+                                                    : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                                            }`}
+                                        >
+                                            <tab.icon className="w-4 h-4" />
+                                            {tab.label}
+                                            <span className={`text-xs px-1.5 py-0.5 rounded-full ${isActive ? 'bg-white/20' : 'bg-gray-100 dark:bg-gray-700'}`}>
+                                                {count}
+                                            </span>
+                                        </button>
+                                    );
+                                })}
                             </div>
 
-                            {filteredQuizzes.length === 0 ? (
-                                <div className="text-center py-12 bg-white dark:bg-gray-800 rounded-lg">
+                            {quizzes.length === 0 ? (
+                                <div className="text-center py-16 bg-white dark:bg-gray-800 rounded-lg">
                                     <BookOpen className="w-16 h-16 text-gray-400 mx-auto mb-4" />
                                     <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">No quizzes found</h3>
-                                    <p className="text-gray-600 dark:text-gray-400 mb-4">Get started by creating your first quiz</p>
+                                    <p className="text-gray-600 dark:text-gray-400 mb-4">
+                                        {filter === 'draft' ? 'No drafts yet. Start creating a quiz!' :
+                                         filter === 'archived' ? 'No archived quizzes.' :
+                                         filter === 'published' ? 'No published quizzes yet.' :
+                                         'Get started by creating your first quiz'}
+                                    </p>
                                     <button onClick={() => navigate('/admin/quizzes/new')} className="inline-flex items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors">
                                         <Plus className="w-5 h-5" />
                                         Create Quiz
@@ -235,66 +333,135 @@ const QuizList: React.FC = () => {
                                                 <tr>
                                                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Quiz</th>
                                                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Course</th>
-                                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Questions</th>
+                                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Progress</th>
                                                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
-                                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Time Limit</th>
+                                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Last Saved</th>
                                                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                                                {filteredQuizzes.map((quiz, index) => (
-                                                    <motion.tr key={quiz._id || quiz.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.05 }} className="">
+                                                {quizzes.map((quiz, index) => (
+                                                    <motion.tr
+                                                        key={quiz._id || quiz.id}
+                                                        initial={{ opacity: 0, y: 20 }}
+                                                        animate={{ opacity: 1, y: 0 }}
+                                                        transition={{ delay: index * 0.04 }}
+                                                    >
                                                         <td className="px-6 py-4">
                                                             <div className="flex flex-col">
-                                                                <div className="text-sm font-medium text-gray-900 dark:text-white">{quiz.title}</div>
-                                                                <div className="text-sm text-gray-500 dark:text-gray-400 line-clamp-1">{quiz.description}</div>
+                                                                <div className="text-sm font-medium text-gray-900 dark:text-white">
+                                                                    {quiz.title || <em className="text-gray-400">Untitled Draft</em>}
+                                                                </div>
+                                                                <div className="text-sm text-gray-500 dark:text-gray-400 line-clamp-1">
+                                                                    {quiz.description || <em className="text-gray-400">No description</em>}
+                                                                </div>
                                                             </div>
                                                         </td>
                                                         <td className="px-6 py-4 whitespace-nowrap">
-                                                            <div className="text-sm text-gray-900 dark:text-white">{quiz.courseName || 'N/A'}</div>
+                                                            <div className="text-sm text-gray-900 dark:text-white">{quiz.courseName || <span className="text-gray-400">—</span>}</div>
+                                                            {quiz.subjectName && <div className="text-xs text-gray-500 dark:text-gray-400">{quiz.subjectName}</div>}
                                                         </td>
                                                         <td className="px-6 py-4">
-                                                            <div className="flex items-center text-sm text-gray-900 dark:text-white">
-                                                                <BookOpen className="w-4 h-4 mr-2 text-gray-400" />
-                                                                {quiz.totalQuestions || quiz.questions?.length || 0}
+                                                            <div className="flex items-center gap-2 text-sm text-gray-900 dark:text-white">
+                                                                <BookOpen className="w-4 h-4 text-gray-400" />
+                                                                <span>{quiz.totalQuestions || 0} questions</span>
                                                             </div>
+                                                            {quiz.settings?.timeLimit ? (
+                                                                <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                                                                    <Clock className="w-3 h-3" />
+                                                                    {quiz.settings.timeLimit} min
+                                                                </div>
+                                                            ) : null}
                                                         </td>
                                                         <td className="px-6 py-4 whitespace-nowrap">
-                                                            {quiz.isPublished ? (
-                                                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200">
-                                                                    <CheckCircle className="w-3 h-3" />
-                                                                    Published
-                                                                </span>
+                                                            <StatusBadge quiz={quiz} />
+                                                        </td>
+                                                        <td className="px-6 py-4 whitespace-nowrap">
+                                                            {quiz.draftMeta?.lastAutosavedAt ? (
+                                                                <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+                                                                    <Save className="w-3 h-3" />
+                                                                    {timeAgo(quiz.draftMeta.lastAutosavedAt)}
+                                                                </div>
                                                             ) : (
-                                                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200">
-                                                                    <XCircle className="w-3 h-3" />
-                                                                    Draft
-                                                                </span>
+                                                                <span className="text-xs text-gray-400">{timeAgo((quiz.updatedAt as any) || (quiz.createdAt as any))}</span>
                                                             )}
-                                                        </td>
-                                                        <td className="px-6 py-4 whitespace-nowrap">
-                                                            <div className="text-sm text-gray-900 dark:text-white">{quiz.settings?.timeLimit || 'N/A'} {quiz.settings?.timeLimit ? 'min' : ''}</div>
                                                         </td>
                                                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                                             <div className="flex items-center justify-end gap-2">
-                                                                <button onClick={() => navigate(`/admin/quizzes/${quiz._id || quiz.id}/results`)} className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-900 dark:hover:text-indigo-300" title="View Results">
-                                                                    <BarChart3 className="w-5 h-5" />
-                                                                </button>
-                                                                <button onClick={() => navigate(`/admin/quizzes/edit/${quiz._id || quiz.id}`)} className="text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300" title="Edit">
-                                                                    <Edit className="w-5 h-5" />
-                                                                </button>
+                                                                {/* Results — only for published */}
+                                                                {quiz.status === 'published' && (
+                                                                    <button
+                                                                        onClick={() => navigate(`/admin/quizzes/${quiz._id || quiz.id}/results`)}
+                                                                        className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-900 dark:hover:text-indigo-300"
+                                                                        title="View Results"
+                                                                    >
+                                                                        <BarChart3 className="w-5 h-5" />
+                                                                    </button>
+                                                                )}
+
+                                                                {/* Edit / Continue */}
+                                                                {quiz.status !== 'archived' && (
+                                                                    <button
+                                                                        onClick={() => navigate(`/admin/quizzes/edit/${quiz._id || quiz.id}`)}
+                                                                        className="text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300"
+                                                                        title={quiz.status === 'draft' ? 'Continue Editing' : 'Edit'}
+                                                                    >
+                                                                        <Edit className="w-5 h-5" />
+                                                                    </button>
+                                                                )}
+
+                                                                {/* Repair marks */}
+                                                                {quiz.status !== 'archived' && (
+                                                                    <button
+                                                                        onClick={() => handleRepairMarks(quiz)}
+                                                                        disabled={repairing === (quiz._id || quiz.id)}
+                                                                        title="Repair Marks"
+                                                                        className="text-amber-600 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-300 disabled:opacity-40 disabled:cursor-wait"
+                                                                    >
+                                                                        <Wrench className={`w-5 h-5 ${repairing === (quiz._id || quiz.id) ? 'animate-spin' : ''}`} />
+                                                                    </button>
+                                                                )}
+
+                                                                {/* Publish / Unpublish — only for non-archived */}
+                                                                {quiz.status !== 'archived' && (
+                                                                    <button
+                                                                        onClick={() => handleTogglePublish(quiz)}
+                                                                        className={`${quiz.isPublished ? 'text-orange-600 dark:text-orange-400 hover:text-orange-900' : 'text-green-600 dark:text-green-400 hover:text-green-900'}`}
+                                                                        title={quiz.isPublished ? 'Unpublish' : 'Publish'}
+                                                                    >
+                                                                        {quiz.isPublished ? <XCircle className="w-5 h-5" /> : <CheckCircle className="w-5 h-5" />}
+                                                                    </button>
+                                                                )}
+
+                                                                {/* Archive — only for draft/published */}
+                                                                {quiz.status !== 'archived' && (
+                                                                    <button
+                                                                        onClick={() => handleArchive(quiz)}
+                                                                        disabled={archiving === (quiz._id || quiz.id)}
+                                                                        title="Archive"
+                                                                        className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                                                                    >
+                                                                        <Archive className="w-5 h-5" />
+                                                                    </button>
+                                                                )}
+
+                                                                {/* Restore — only for archived */}
+                                                                {quiz.status === 'archived' && (
+                                                                    <button
+                                                                        onClick={() => handleRestore(quiz)}
+                                                                        title="Restore to Draft"
+                                                                        className="text-blue-500 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-200"
+                                                                    >
+                                                                        <RotateCcw className="w-5 h-5" />
+                                                                    </button>
+                                                                )}
+
+                                                                {/* Delete */}
                                                                 <button
-                                                                    onClick={() => handleRepairMarks(quiz)}
-                                                                    disabled={repairing === (quiz._id || quiz.id)}
-                                                                    title="Repair Marks — fix questions with wrong marks value"
-                                                                    className="text-amber-600 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-300 disabled:opacity-40 disabled:cursor-wait"
+                                                                    onClick={() => setDeleteConfirm(quiz._id || quiz.id || '')}
+                                                                    className="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300"
+                                                                    title="Delete"
                                                                 >
-                                                                    <Wrench className={`w-5 h-5 ${repairing === (quiz._id || quiz.id) ? 'animate-spin' : ''}`} />
-                                                                </button>
-                                                                <button onClick={() => handleTogglePublish(quiz)} className={`${quiz.isPublished ? 'text-orange-600 dark:text-orange-400 hover:text-orange-900 dark:hover:text-orange-300' : 'text-green-600 dark:text-green-400 hover:text-green-900 dark:hover:text-green-300'}`} title={quiz.isPublished ? 'Unpublish' : 'Publish'}>
-                                                                    {quiz.isPublished ? <XCircle className="w-5 h-5" /> : <CheckCircle className="w-5 h-5" />}
-                                                                </button>
-                                                                <button onClick={() => setDeleteConfirm(quiz._id || quiz.id || '')} className="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300" title="Delete">
                                                                     <Trash2 className="w-5 h-5" />
                                                                 </button>
                                                             </div>

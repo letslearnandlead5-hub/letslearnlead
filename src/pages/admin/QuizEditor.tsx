@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
@@ -22,8 +22,13 @@ import {
     ArrowLeftRight,
     Upload,
     Eye,
+    Clock,
+    CheckCircle2,
+    AlertCircle,
+    Loader2,
+    PenLine,
 } from 'lucide-react';
-import { createQuiz, getQuizById, updateQuiz } from '../../services/quizService';
+import { createQuiz, getQuizById, updateQuiz, saveDraft, lockQuiz, unlockQuiz, publishQuiz } from '../../services/quizService';
 import type { Quiz, QuizQuestion, QuestionOption, MatchPair, Subject } from '../../types';
 import toast from 'react-hot-toast';
 import AdminHeader from '../../components/admin/AdminHeader';
@@ -59,15 +64,38 @@ const compressImage = (file: File, maxW = 900, maxH = 700, quality = 0.82): Prom
         reader.readAsDataURL(file);
     });
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function formatTimeAgo(date: Date | null): string {
+    if (!date) return '';
+    const s = Math.floor((Date.now() - date.getTime()) / 1000);
+    if (s < 5) return 'just now';
+    if (s < 60) return `${s}s ago`;
+    const m = Math.floor(s / 60);
+    if (m < 60) return `${m}m ago`;
+    return `${Math.floor(m / 60)}h ago`;
+}
+
 const QuizEditor: React.FC = () => {
     const { id: quizId } = useParams<{ id: string }>();
     const navigate = useNavigate();
-    const { logout } = useAuthStore();
+    const { user, logout } = useAuthStore();
     const [loading, setLoading] = useState(false);
     const [step, setStep] = useState(1);
     const [courses, setCourses] = useState<any[]>([]);
     const [showMobileSidebar, setShowMobileSidebar] = useState(false);
     const imageInputRef = useRef<HTMLInputElement>(null);
+
+    // Draft / publish state
+    const [quizStatus, setQuizStatus] = useState<'draft' | 'published' | 'archived'>('draft');
+    const [isDirty, setIsDirty] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
+    const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
+    const [lastSavedAgo, setLastSavedAgo] = useState('');
+    const [currentQuizId, setCurrentQuizId] = useState<string | null>(quizId || null);
+    const [concurrentEditor, setConcurrentEditor] = useState<{ adminName: string; lockedAt: string } | null>(null);
+    const [publishErrors, setPublishErrors] = useState<string[]>([]);
+    const isSavingRef = useRef(false);
 
     // Quiz basic info
     const [title, setTitle] = useState('');
@@ -91,6 +119,41 @@ const QuizEditor: React.FC = () => {
     const [questions, setQuestions] = useState<Partial<QuizQuestion>[]>([]);
     const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
     const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+
+    // ── Dirty tracking helpers ────────────────────────────────────────────────
+    const markDirty = useCallback(() => setIsDirty(true), []);
+
+    // ── "Last saved X ago" ticker ─────────────────────────────────────────────
+    useEffect(() => {
+        const t = setInterval(() => setLastSavedAgo(formatTimeAgo(lastSavedAt)), 1000);
+        return () => clearInterval(t);
+    }, [lastSavedAt]);
+
+    // ── beforeunload guard ────────────────────────────────────────────────────
+    useEffect(() => {
+        const handler = (e: BeforeUnloadEvent) => {
+            if (isDirty) { e.preventDefault(); e.returnValue = ''; }
+        };
+        window.addEventListener('beforeunload', handler);
+        return () => window.removeEventListener('beforeunload', handler);
+    }, [isDirty]);
+
+    // ── 30-second autosave ────────────────────────────────────────────────────
+    useEffect(() => {
+        const interval = setInterval(() => {
+            if (isDirty && !isSavingRef.current) {
+                performSave(false, true);
+            }
+        }, 30_000);
+        return () => clearInterval(interval);
+    }, [isDirty]);
+
+    // ── Lock on mount, unlock on unmount ──────────────────────────────────────
+    useEffect(() => {
+        if (!currentQuizId) return;
+        lockQuiz(currentQuizId).catch(() => {/* ignore if lock fails */});
+        return () => { unlockQuiz(currentQuizId).catch(() => {}); };
+    }, [currentQuizId]);
 
     useEffect(() => {
         fetchCourses();
@@ -120,24 +183,37 @@ const QuizEditor: React.FC = () => {
             setLoading(true);
             const data = await getQuizById(quizId, true);
             const quiz = data.quiz || data;
-            setTitle(quiz.title);
-            setDescription(quiz.description);
-            setCourseId(quiz.courseId);
+            setTitle(quiz.title || '');
+            setDescription(quiz.description || '');
+            setCourseId(quiz.courseId || '');
             setSubjectId(quiz.subjectId || '');
             setSubjectName(quiz.subjectName || '');
             const targetMarks = quiz.settings?.marksPerQuestion || 4;
             const targetNegative = quiz.settings?.negativeMarking || 0;
             setMarksPerQuestion(targetMarks);
             setNegativeMarking(targetNegative);
-            setTimeLimit(quiz.settings.timeLimit);
-            setPassingPercentage(quiz.settings.passingPercentage || 40);
-            setAllowRetake(quiz.settings.allowRetake || false);
-            setMaxAttempts(quiz.settings.maxAttempts || 1);
+            setTimeLimit(quiz.settings?.timeLimit || 30);
+            setPassingPercentage(quiz.settings?.passingPercentage || 40);
+            setAllowRetake(quiz.settings?.allowRetake || false);
+            setMaxAttempts(quiz.settings?.maxAttempts || 1);
             setQuestions((quiz.questions || []).map((q: QuizQuestion) => ({
                 ...q,
                 marks: targetMarks,
                 negativeMarks: targetNegative,
             })));
+            // Restore draft status
+            setQuizStatus(quiz.status || 'draft');
+            // Restore wizard position from draftMeta
+            if (quiz.draftMeta?.currentStep) setStep(quiz.draftMeta.currentStep);
+            if (quiz.draftMeta?.currentQuestionIndex !== undefined) setCurrentQuestionIndex(quiz.draftMeta.currentQuestionIndex);
+            if (quiz.draftMeta?.lastAutosavedAt) setLastSavedAt(new Date(quiz.draftMeta.lastAutosavedAt));
+            // Concurrency check
+            if (quiz.lockedBy && quiz.lockedBy.adminId !== (user as any)?._id && quiz.lockedBy.adminId !== user?.id) {
+                const lockAge = Date.now() - new Date(quiz.lockedBy.lockedAt).getTime();
+                if (lockAge < 5 * 60 * 1000) {
+                    setConcurrentEditor({ adminName: quiz.lockedBy.adminName, lockedAt: quiz.lockedBy.lockedAt });
+                }
+            }
         } catch (error: any) {
             toast.error(error.response?.data?.message || 'Failed to load quiz');
             navigate('/dashboard/');
@@ -345,50 +421,106 @@ const QuizEditor: React.FC = () => {
         if (validateStep(step)) setStep(step + 1);
     };
 
-    const handleSave = async (publish: boolean = false) => {
-        if (!validateStep(1) || !validateStep(2) || !validateStep(3)) return;
+    // ── Build quiz payload ────────────────────────────────────────────────────
+    const buildQuizPayload = (publish: boolean) => ({
+        title,
+        description,
+        courseId: courseId || undefined,
+        subjectId: subjectId || undefined,
+        subjectName: subjectName || undefined,
+        settings: { marksPerQuestion, negativeMarking, timeLimit, passingPercentage, allowRetake, maxAttempts },
+        questions: (questions as QuizQuestion[]).map((q) => ({
+            ...q,
+            marks: marksPerQuestion || 4,
+            negativeMarks: negativeMarking || 0,
+            matchPairs: q.questionType === 'match' ? normalizeMatchPairs(q.matchPairs || []) : [],
+        })),
+        status: publish ? 'published' as const : 'draft' as const,
+        draftMeta: {
+            currentStep: step,
+            currentQuestionIndex,
+        },
+    });
+
+    // ── Perform save (draft or publish) ───────────────────────────────────────
+    const performSave = async (publish: boolean, autosave = false) => {
+        if (isSavingRef.current) return;
+        isSavingRef.current = true;
+        setIsSaving(true);
 
         try {
-            setLoading(true);
-            const quizData: Partial<Quiz> = {
-                title,
-                description,
-                courseId,
-                subjectId: subjectId || undefined,
-                subjectName: subjectName || undefined,
-                settings: { marksPerQuestion, negativeMarking, timeLimit, passingPercentage, allowRetake, maxAttempts },
-                // Normalize match pairs and ensure every question explicitly matches quiz-level marks/negative marking
-                questions: (questions as QuizQuestion[]).map((q) => ({
-                    ...q,
-                    marks: marksPerQuestion || 4,
-                    negativeMarks: negativeMarking || 0,
-                    matchPairs: q.questionType === 'match'
-                        ? normalizeMatchPairs(q.matchPairs || [])
-                        : [],
-                })),
-                isPublished: publish,
-            };
+            const payload: any = { ...buildQuizPayload(publish), autosave };
 
-            if (quizId) {
-                await updateQuiz(quizId, quizData);
-                toast.success('Quiz updated successfully');
-            } else {
-                const newQuiz = await createQuiz(quizData);
-                toast.success('Quiz created successfully');
-                if (publish) {
-                    navigate('/dashboard/');
-                } else {
-                    navigate(`/admin/quizzes/edit/${newQuiz._id}/`);
+            if (publish) {
+                // Client-side pre-flight publish validation
+                const errors: string[] = [];
+                if (!title.trim()) errors.push('Quiz title is required');
+                if (!description.trim()) errors.push('Quiz description is required');
+                if (!courseId) errors.push('Course selection is required');
+                if (!marksPerQuestion || marksPerQuestion <= 0) errors.push('Marks per question must be > 0');
+                if (!timeLimit || timeLimit <= 0) errors.push('Time limit must be > 0');
+                if (questions.length === 0) errors.push('At least one question is required');
+                questions.forEach((q, i) => {
+                    const isHtmlEmpty = (h?: string) => !h || (!h.includes('<img') && !h.replace(/<[^>]*>/g, '').trim());
+                    if (isHtmlEmpty(q.questionText)) errors.push(`Q${i+1}: Text is required`);
+                    if (q.questionType === 'match') {
+                        if ((q.matchPairs || []).length < 2) errors.push(`Q${i+1}: Needs ≥2 match pairs`);
+                    } else {
+                        if ((q.options || []).length < 2) errors.push(`Q${i+1}: Needs ≥2 options`);
+                        if (!q.correctAnswer) errors.push(`Q${i+1}: Correct answer required`);
+                    }
+                    if (isHtmlEmpty(q.explanation)) errors.push(`Q${i+1}: Explanation required`);
+                });
+                if (errors.length > 0) {
+                    setPublishErrors(errors);
+                    return;
                 }
-                return;
             }
-            navigate('/dashboard/');
+
+            let id = currentQuizId;
+            if (!id) {
+                // Create new draft
+                const newQuiz = await createQuiz(payload);
+                id = newQuiz._id || newQuiz.id || null;
+                if (id) {
+                    setCurrentQuizId(id);
+                    navigate(`/admin/quizzes/edit/${id}/`, { replace: true });
+                    lockQuiz(id).catch(() => {});
+                }
+            } else {
+                if (publish) {
+                    await publishQuiz(id, true);
+                } else {
+                    await saveDraft(id, payload);
+                }
+            }
+
+            setLastSavedAt(new Date());
+            setIsDirty(false);
+
+            if (publish) {
+                setQuizStatus('published');
+                toast.success('Quiz published successfully! 🎉');
+                navigate('/admin/quizzes/');
+            } else if (!autosave) {
+                setQuizStatus('draft');
+                toast.success('Draft saved ✓');
+            }
         } catch (error: any) {
-            toast.error(error.response?.data?.message || 'Failed to save quiz');
+            const msgs: string[] = error.response?.data?.errors;
+            if (msgs?.length) {
+                setPublishErrors(msgs);
+            } else {
+                if (!autosave) toast.error(error.response?.data?.message || 'Failed to save quiz');
+                else console.warn('[AUTOSAVE] Failed:', error.message);
+            }
         } finally {
-            setLoading(false);
+            isSavingRef.current = false;
+            setIsSaving(false);
         }
     };
+
+    const handleSave = (publish: boolean) => performSave(publish);
 
     const handleLogout = () => {
         logout();
@@ -473,13 +605,72 @@ const QuizEditor: React.FC = () => {
                                     <ChevronLeft className="w-5 h-5" />
                                     Back to Quizzes
                                 </button>
-                                <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-                                    {quizId ? 'Edit Quiz' : 'Create Quiz'}
-                                </h1>
+                                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                                    <div>
+                                        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+                                            {currentQuizId ? 'Edit Quiz' : 'Create Quiz'}
+                                        </h1>
+                                        {/* Autosave status bar */}
+                                        <div className="flex items-center gap-2 mt-1">
+                                            <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium ${
+                                                quizStatus === 'published' ? 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300' :
+                                                quizStatus === 'archived' ? 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400' :
+                                                'bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300'
+                                            }`}>
+                                                <PenLine className="w-3 h-3" />
+                                                {quizStatus === 'published' ? 'Published' : quizStatus === 'archived' ? 'Archived' : 'Draft'}
+                                            </span>
+                                            {isSaving ? (
+                                                <span className="flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400">
+                                                    <Loader2 className="w-3 h-3 animate-spin" /> Saving...
+                                                </span>
+                                            ) : lastSavedAt ? (
+                                                <span className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+                                                    <CheckCircle2 className="w-3 h-3 text-green-500" /> Saved {lastSavedAgo}
+                                                </span>
+                                            ) : isDirty ? (
+                                                <span className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400">
+                                                    <AlertCircle className="w-3 h-3" /> Unsaved changes
+                                                </span>
+                                            ) : null}
+                                        </div>
+                                    </div>
+                                    {/* Quick actions */}
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            onClick={() => performSave(false)}
+                                            disabled={isSaving}
+                                            className="flex items-center gap-2 px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors disabled:opacity-50"
+                                        >
+                                            {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                                            Save Draft
+                                        </button>
+                                        <button
+                                            onClick={() => performSave(true)}
+                                            disabled={isSaving}
+                                            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors disabled:opacity-50"
+                                        >
+                                            <Send className="w-4 h-4" />
+                                            Publish Quiz
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Concurrency warning */}
+                                {concurrentEditor && (
+                                    <div className="mt-3 flex items-start gap-2 p-3 bg-yellow-50 dark:bg-yellow-950 border border-yellow-200 dark:border-yellow-800 rounded-lg text-sm text-yellow-800 dark:text-yellow-200">
+                                        <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                                        <div>
+                                            <span className="font-medium">{concurrentEditor.adminName}</span> is also editing this quiz.
+                                            <span className="ml-1 text-yellow-600 dark:text-yellow-400 text-xs">Changes may conflict.</span>
+                                        </div>
+                                        <button onClick={() => setConcurrentEditor(null)} className="ml-auto shrink-0"><X className="w-4 h-4" /></button>
+                                    </div>
+                                )}
                             </div>
 
                             {/* Progress Steps */}
-                            <div className="mb-8">
+                            <div className="mb-6">
                                 <div className="flex items-center justify-between">
                                     {['Basic Info', 'Settings', 'Questions', 'Review'].map((label, index) => {
                                         const targetStep = index + 1;
@@ -509,6 +700,30 @@ const QuizEditor: React.FC = () => {
                                         );
                                     })}
                                 </div>
+
+                                {/* Question progress bar — visible on step 3 */}
+                                {step === 3 && questions.length > 0 && (() => {
+                                    const completed = questions.filter(q =>
+                                        q.questionText && q.questionText.trim() !== '' &&
+                                        (q.questionType === 'match' ? (q.matchPairs || []).length >= 2 : (q.options || []).length >= 2 && !!q.correctAnswer) &&
+                                        q.explanation && q.explanation.trim() !== ''
+                                    ).length;
+                                    const pct = Math.round((completed / questions.length) * 100);
+                                    return (
+                                        <div className="mt-4 p-3 bg-gray-50 dark:bg-gray-750 border border-gray-200 dark:border-gray-700 rounded-lg">
+                                            <div className="flex items-center justify-between mb-1 text-sm">
+                                                <span className="font-medium text-gray-700 dark:text-gray-300">Questions: <span className="text-indigo-600">{completed}</span> / {questions.length} Complete</span>
+                                                <span className="text-gray-500 dark:text-gray-400">{pct}%</span>
+                                            </div>
+                                            <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                                                <div
+                                                    className="h-2 bg-indigo-500 rounded-full transition-all duration-500"
+                                                    style={{ width: `${pct}%` }}
+                                                />
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
                             </div>
 
                             {/* Step Content */}
@@ -933,15 +1148,20 @@ const QuizEditor: React.FC = () => {
                                     <ChevronLeft className="w-5 h-5" /> Previous
                                 </button>
                                 <div className="flex gap-2">
+                                    {/* Save Draft button always visible */}
+                                    <button
+                                        onClick={() => performSave(false)}
+                                        disabled={isSaving}
+                                        className="flex items-center gap-2 px-5 py-3 bg-gray-600 text-white rounded-lg font-medium hover:bg-gray-700 transition-colors disabled:opacity-50"
+                                    >
+                                        {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
+                                        Save Draft
+                                    </button>
+
                                     {step === 4 ? (
-                                        <>
-                                            <button onClick={() => handleSave(false)} disabled={loading} className="flex items-center gap-2 px-6 py-3 bg-gray-600 text-white rounded-lg font-medium hover:bg-gray-700 transition-colors disabled:opacity-50">
-                                                <Save className="w-5 h-5" /> Save as Draft
-                                            </button>
-                                            <button onClick={() => handleSave(true)} disabled={loading} className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 transition-colors disabled:opacity-50">
-                                                <Send className="w-5 h-5" /> {loading ? 'Publishing...' : 'Publish Quiz'}
-                                            </button>
-                                        </>
+                                        <button onClick={() => performSave(true)} disabled={isSaving} className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 transition-colors disabled:opacity-50">
+                                            <Send className="w-5 h-5" /> {isSaving ? 'Publishing...' : 'Publish Quiz'}
+                                        </button>
                                     ) : (
                                         <button onClick={handleNext} className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 transition-colors">
                                             Next <ChevronRight className="w-5 h-5" />
@@ -955,7 +1175,35 @@ const QuizEditor: React.FC = () => {
                 </div>
             </div>
 
-            {/* Live Preview Modal */}
+            {/* Publish Validation Error Modal */}
+            {publishErrors.length > 0 && (
+                <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+                    <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="bg-white dark:bg-gray-800 rounded-xl p-6 max-w-lg w-full shadow-2xl">
+                        <div className="flex items-start gap-3 mb-4">
+                            <AlertCircle className="w-6 h-6 text-red-500 shrink-0 mt-0.5" />
+                            <div>
+                                <h3 className="text-lg font-bold text-gray-900 dark:text-white">Cannot Publish</h3>
+                                <p className="text-sm text-gray-500 dark:text-gray-400">Fix these issues before publishing:</p>
+                            </div>
+                        </div>
+                        <ul className="space-y-2 mb-6 max-h-64 overflow-y-auto">
+                            {publishErrors.map((err, i) => (
+                                <li key={i} className="flex items-start gap-2 text-sm text-red-700 dark:text-red-300">
+                                    <span className="text-red-400 shrink-0">•</span>
+                                    {err}
+                                </li>
+                            ))}
+                        </ul>
+                        <button
+                            onClick={() => setPublishErrors([])}
+                            className="w-full bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 py-2 rounded-lg font-medium hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+                        >
+                            Close &amp; Fix Issues
+                        </button>
+                    </motion.div>
+                </div>
+            )}
+
             {currentQuestion && (
                 <LivePreview
                     question={currentQuestion}

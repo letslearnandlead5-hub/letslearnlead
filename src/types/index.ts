@@ -222,6 +222,28 @@ export interface QuizQuestion {
     order: number;
 }
 
+export interface QuizDraftMeta {
+    currentStep?: number;
+    currentQuestionIndex?: number;
+    lastAutosavedAt?: string;
+    autosaveCount?: number;
+    isAutosaved?: boolean;
+}
+
+export interface QuizAuditEntry {
+    action: 'created' | 'autosaved' | 'edited' | 'published' | 'archived' | 'restored';
+    adminId: string;
+    adminName?: string;
+    timestamp: string;
+    meta?: Record<string, any>;
+}
+
+export interface QuizLock {
+    adminId: string;
+    adminName: string;
+    lockedAt: string;
+}
+
 export interface Quiz {
     _id?: string;
     id?: string;
@@ -234,7 +256,13 @@ export interface Quiz {
     totalQuestions: number;
     settings: QuizSettings;
     questions: QuizQuestion[];
+    /** 3-state lifecycle status */
+    status: 'draft' | 'published' | 'archived';
+    /** Backward-compat virtual: true when status === 'published' */
     isPublished: boolean;
+    draftMeta?: QuizDraftMeta;
+    lockedBy?: QuizLock;
+    auditLog?: QuizAuditEntry[];
     createdBy: string;
     createdAt: Date;
     updatedAt: Date;
@@ -324,12 +352,13 @@ export interface QuizAttemptSummary {
     attemptDate: string | Date;
 }
 
-export interface QuizWithStatus extends Quiz {
+/** Student-facing quiz enriched with attempt history */
+export interface QuizWithStatus extends Omit<Quiz, 'status'> {
+    /** Student attempt lifecycle — distinct from admin quiz status */
+    attemptStatus?: 'in-progress' | 'completed' | 'not-attempted';
     attemptCount?: number;
-    status?: 'in-progress' | 'completed' | 'not-attempted';
     lastScore?: number;
     lastPercentage?: number;
     inProgressAttemptId?: string;
     allAttempts?: QuizAttemptSummary[];
 }
-

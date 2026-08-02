@@ -1,4 +1,4 @@
-import { Router, Request, Response } from 'express';
+﻿import { Router, Request, Response } from 'express';
 import { Quiz } from '../models/Quiz';
 import { QuizAttempt } from '../models/QuizAttempt';
 import { QuizResult } from '../models/QuizResult';
@@ -11,17 +11,13 @@ import mongoose from 'mongoose';
 
 const router = Router();
 
-// ==================== ADMIN ROUTES ====================
+// ==================== HELPERS ====================
 
 /**
- * Helper to validate and sanitize quiz questions & marks on Quiz creation/update.
- * Ensures:
- * 1. Every question has a valid positive numeric 'marks' field.
- * 2. Defaults missing/invalid marks to quiz.settings.marksPerQuestion or 4.
- * 3. Keeps totalQuestions equal to questions.length.
- * 4. Rejects questions with negative or non-numeric marks.
+ * Sanitise quiz questions and marks (used for both draft and published saves).
+ * Does NOT enforce required fields â€” that is done at publish-time only.
  */
-function validateAndSanitizeQuiz(quizData: any) {
+function sanitizeQuizData(quizData: any) {
     const defaultMarks = Number(quizData.settings?.marksPerQuestion) || 4;
     const defaultNegative = Number(quizData.settings?.negativeMarking) || 0;
 
@@ -31,151 +27,391 @@ function validateAndSanitizeQuiz(quizData: any) {
             marks: defaultMarks,
             negativeMarks: defaultNegative,
         }));
-
         quizData.totalQuestions = quizData.questions.length;
     }
-
     return quizData;
 }
 
+/**
+ * Strip HTML tags to check if a rich-text field is effectively empty.
+ */
+function isHtmlEmpty(html: string | undefined): boolean {
+    if (!html) return true;
+    if (html.includes('<img')) return false;
+    return !html.replace(/<[^>]*>/g, '').trim();
+}
+
+/**
+ * Full publish-time validation. Returns { valid, errors }.
+ * These exact same rules are checked on the frontend before calling publish,
+ * and here on the server as the authoritative gate.
+ */
+function validateForPublish(quiz: any): { valid: boolean; errors: string[] } {
+    const errors: string[] = [];
+
+    if (!quiz.title?.trim()) errors.push('Quiz title is required');
+    if (!quiz.description?.trim()) errors.push('Quiz description is required');
+    if (!quiz.courseId) errors.push('Course selection is required');
+    if (!quiz.settings?.marksPerQuestion || quiz.settings.marksPerQuestion <= 0)
+        errors.push('Marks per question must be greater than 0');
+    if (!quiz.settings?.timeLimit || quiz.settings.timeLimit <= 0)
+        errors.push('Time limit must be greater than 0');
+    if (!quiz.questions || quiz.questions.length === 0)
+        errors.push('At least one question is required');
+
+    (quiz.questions || []).forEach((q: any, i: number) => {
+        const qNum = i + 1;
+        if (isHtmlEmpty(q.questionText))
+            errors.push(`Question ${qNum}: Question text is required`);
+
+        if (q.questionType === 'match') {
+            const pairs = q.matchPairs || [];
+            if (pairs.length < 2)
+                errors.push(`Question ${qNum}: At least 2 match pairs required`);
+            if (pairs.some((p: any) => isHtmlEmpty(p.left) || isHtmlEmpty(p.right)))
+                errors.push(`Question ${qNum}: All match pairs must have both left and right text`);
+        } else {
+            if (!q.options || q.options.length < 2)
+                errors.push(`Question ${qNum}: At least 2 options required`);
+            else if (q.options.some((opt: any) => isHtmlEmpty(opt.text)))
+                errors.push(`Question ${qNum}: All options must have text`);
+            if (!q.correctAnswer)
+                errors.push(`Question ${qNum}: Correct answer must be selected`);
+        }
+        if (isHtmlEmpty(q.explanation))
+            errors.push(`Question ${qNum}: Explanation is required`);
+    });
+
+    return { valid: errors.length === 0, errors };
+}
+
+/**
+ * Build an audit log entry for the current admin user.
+ */
+function buildAuditEntry(req: AuthRequest, action: string, meta?: Record<string, any>) {
+    return {
+        action,
+        adminId: new mongoose.Types.ObjectId(req.user?.id),
+        adminName: req.user?.name || 'Admin',
+        timestamp: new Date(),
+        meta,
+    };
+}
+
+// ==================== ADMIN ROUTES ====================
+
 // @route   POST /api/quizzes
-// @desc    Create a new quiz
+// @desc    Create a new quiz (draft or published)
 // @access  Private (Admin)
 router.post('/', protect, authorize('admin'), async (req: AuthRequest, res: Response, next) => {
     try {
-        const { courseId, ...rawQuizData } = req.body;
+        const { courseId, status = 'draft', draftMeta, ...rawBody } = req.body;
+        const sanitized = sanitizeQuizData(rawBody);
 
-        // Verify course exists
-        const course = await Course.findById(courseId);
-        if (!course) {
-            throw new AppError('Course not found', 404);
+        // If creating as published, run full validation first
+        if (status === 'published') {
+            const validation = validateForPublish({ ...sanitized, courseId });
+            if (!validation.valid) {
+                return res.status(400).json({ success: false, errors: validation.errors, message: validation.errors[0] });
+            }
         }
 
-        const sanitizedData = validateAndSanitizeQuiz(rawQuizData);
+        // Resolve course name (optional for draft â€” courseId may be absent)
+        let courseName = sanitized.courseName || '';
+        if (courseId) {
+            const course = await Course.findById(courseId);
+            if (!course) throw new AppError('Course not found', 404);
+            courseName = course.title;
+        }
 
-        // Create quiz
         const quiz = await Quiz.create({
-            ...sanitizedData,
-            courseId,
-            courseName: course.title,
+            ...sanitized,
+            courseId: courseId || undefined,
+            courseName,
             createdBy: req.user?.id,
-            isPublished: false,
+            status,
+            draftMeta: draftMeta || { currentStep: 1, currentQuestionIndex: 0, autosaveCount: 0, isAutosaved: false },
+            auditLog: [buildAuditEntry(req, 'created', { questionCount: sanitized.questions?.length || 0 })],
         });
 
-        console.log(`[QUIZ CREATED] ID=${quiz._id} Questions=${quiz.questions.length} MarksPerQ=${quiz.settings?.marksPerQuestion}`);
+        console.log(`[QUIZ CREATED] ID=${quiz._id} Status=${quiz.status} Questions=${quiz.questions.length}`);
 
-        res.status(201).json({
-            success: true,
-            data: quiz,
-        });
+        res.status(201).json({ success: true, data: quiz });
     } catch (error) {
         next(error);
     }
 });
 
 // @route   GET /api/quizzes
-// @desc    Get all quizzes (admin)
+// @desc    Get all quizzes (admin) â€” filterable by status
 // @access  Private (Admin)
 router.get('/', protect, authorize('admin'), async (req: Request, res: Response, next) => {
     try {
-        const { courseId, isPublished } = req.query;
+        const { courseId, status, isPublished } = req.query;
 
         const filter: any = {};
         if (courseId) filter.courseId = courseId;
-        if (isPublished !== undefined) filter.isPublished = isPublished === 'true';
 
-        const quizzes = await Quiz.find(filter).sort({ createdAt: -1 });
+        // Support new ?status= param as well as old ?isPublished= for compatibility
+        if (status && status !== 'all') {
+            filter.status = status;
+        } else if (isPublished !== undefined && status === undefined) {
+            filter.status = isPublished === 'true' ? 'published' : { $in: ['draft', 'archived'] };
+        }
 
-        res.status(200).json({
-            success: true,
-            count: quizzes.length,
-            data: quizzes,
-        });
+        const quizzes = await Quiz.find(filter)
+            .select('-questions -auditLog') // lightweight list â€” omit heavy arrays
+            .sort({ updatedAt: -1 });
+
+        res.status(200).json({ success: true, count: quizzes.length, data: quizzes });
     } catch (error) {
         next(error);
     }
 });
 
-// @route   GET /api/quizzes/:id
-// @desc    Get quiz by ID (admin view with all details)
+// @route   GET /api/quizzes/:id/admin
+// @desc    Get quiz by ID (admin view â€” full details)
 // @access  Private (Admin)
 router.get('/:id/admin', protect, authorize('admin'), async (req: Request, res: Response, next) => {
     try {
         const quiz = await Quiz.findById(req.params.id).populate('courseId');
-
-        if (!quiz) {
-            throw new AppError('Quiz not found', 404);
-        }
-
-        res.status(200).json({
-            success: true,
-            data: quiz,
-        });
+        if (!quiz) throw new AppError('Quiz not found', 404);
+        res.status(200).json({ success: true, data: quiz });
     } catch (error) {
         next(error);
     }
 });
 
 // @route   PUT /api/quizzes/:id
-// @desc    Update a quiz
+// @desc    Update a quiz (draft save / autosave / full edit)
 // @access  Private (Admin)
-router.put('/:id', protect, authorize('admin'), async (req: Request, res: Response, next) => {
+router.put('/:id', protect, authorize('admin'), async (req: AuthRequest, res: Response, next) => {
     try {
-        const sanitizedBody = validateAndSanitizeQuiz(req.body);
+        const { status: newStatus, draftMeta, autosave, ...rawBody } = req.body;
+        const sanitized = sanitizeQuizData(rawBody);
 
-        const quiz = await Quiz.findByIdAndUpdate(req.params.id, sanitizedBody, {
-            new: true,
-            runValidators: true,
-        });
+        const existing = await Quiz.findById(req.params.id);
+        if (!existing) throw new AppError('Quiz not found', 404);
 
-        if (!quiz) {
-            throw new AppError('Quiz not found', 404);
+        // If attempting to change status to published, run full validation
+        if (newStatus === 'published' && existing.status !== 'published') {
+            const validation = validateForPublish({ ...existing.toObject(), ...sanitized });
+            if (!validation.valid) {
+                return res.status(400).json({ success: false, errors: validation.errors, message: validation.errors[0] });
+            }
         }
 
-        console.log(`[QUIZ UPDATED] ID=${quiz._id} Questions=${quiz.questions.length}`);
+        // Resolve course name if courseId changed
+        let courseName = sanitized.courseName || existing.courseName;
+        if (sanitized.courseId && sanitized.courseId !== existing.courseId?.toString()) {
+            const course = await Course.findById(sanitized.courseId);
+            if (!course) throw new AppError('Course not found', 404);
+            courseName = course.title;
+        }
 
-        res.status(200).json({
-            success: true,
-            data: quiz,
+        // Build updated draftMeta
+        const updatedDraftMeta = {
+            ...existing.draftMeta?.toObject?.() || existing.draftMeta || {},
+            ...(draftMeta || {}),
+            lastAutosavedAt: new Date(),
+            autosaveCount: (existing.draftMeta?.autosaveCount || 0) + 1,
+            isAutosaved: true,
+        };
+
+        // Build audit entry
+        const auditAction = autosave ? 'autosaved' : (newStatus === 'published' ? 'published' : 'edited');
+        const newAuditEntry = buildAuditEntry(req as AuthRequest, auditAction, {
+            questionCount: sanitized.questions?.length ?? existing.questions.length,
+            step: draftMeta?.currentStep,
         });
+
+        const updatePayload: any = {
+            ...sanitized,
+            courseName,
+            draftMeta: updatedDraftMeta,
+            $push: { auditLog: newAuditEntry },
+        };
+        if (newStatus) updatePayload.status = newStatus;
+
+        // Use findByIdAndUpdate with runValidators:false so partial drafts pass
+        const quiz = await Quiz.findByIdAndUpdate(
+            req.params.id,
+            updatePayload,
+            { new: true, runValidators: false }
+        );
+
+        if (!quiz) throw new AppError('Quiz not found', 404);
+
+        console.log(`[QUIZ UPDATED] ID=${quiz._id} Status=${quiz.status} Questions=${quiz.questions.length} Autosave=${!!autosave}`);
+
+        // For autosave, return lightweight response to reduce payload
+        if (autosave) {
+            return res.status(200).json({
+                success: true,
+                data: {
+                    _id: quiz._id,
+                    status: quiz.status,
+                    draftMeta: quiz.draftMeta,
+                    updatedAt: quiz.updatedAt,
+                },
+            });
+        }
+
+        res.status(200).json({ success: true, data: quiz });
     } catch (error) {
         next(error);
     }
 });
 
 // @route   DELETE /api/quizzes/:id
-// @desc    Delete a quiz
+// @desc    Delete a quiz and all its attempts/results
 // @access  Private (Admin)
 router.delete('/:id', protect, authorize('admin'), async (req: Request, res: Response, next) => {
     try {
         const quiz = await Quiz.findByIdAndDelete(req.params.id);
-
-        if (!quiz) {
-            throw new AppError('Quiz not found', 404);
-        }
-
-        // Delete all attempts and results
+        if (!quiz) throw new AppError('Quiz not found', 404);
         await QuizAttempt.deleteMany({ quizId: quiz._id });
         await QuizResult.deleteMany({ quizId: quiz._id });
+        res.status(200).json({ success: true, message: 'Quiz deleted successfully' });
+    } catch (error) {
+        next(error);
+    }
+});
+
+// @route   POST /api/quizzes/:id/publish
+// @desc    Publish a quiz (full validation enforced)
+// @access  Private (Admin)
+router.post('/:id/publish', protect, authorize('admin'), async (req: AuthRequest, res: Response, next) => {
+    try {
+        const quiz = await Quiz.findById(req.params.id);
+        if (!quiz) throw new AppError('Quiz not found', 404);
+
+        const { isPublished } = req.body;
+
+        if (isPublished) {
+            // Run full publish validation
+            const validation = validateForPublish(quiz.toObject());
+            if (!validation.valid) {
+                return res.status(400).json({ success: false, errors: validation.errors, message: validation.errors[0] });
+            }
+            quiz.status = 'published';
+        } else {
+            // Unpublish = revert to draft
+            quiz.status = 'draft';
+        }
+
+        // Clear lock on publish
+        quiz.lockedBy = undefined;
+
+        (quiz.auditLog as any[]).push(buildAuditEntry(req, isPublished ? 'published' : 'edited'));
+        await quiz.save({ validateBeforeSave: false });
 
         res.status(200).json({
             success: true,
-            message: 'Quiz deleted successfully',
+            data: quiz,
+            message: `Quiz ${isPublished ? 'published' : 'unpublished'} successfully`,
         });
     } catch (error) {
         next(error);
     }
 });
 
+// @route   POST /api/quizzes/:id/archive
+// @desc    Archive a quiz (hidden from students, kept for history)
+// @access  Private (Admin)
+router.post('/:id/archive', protect, authorize('admin'), async (req: AuthRequest, res: Response, next) => {
+    try {
+        const quiz = await Quiz.findById(req.params.id);
+        if (!quiz) throw new AppError('Quiz not found', 404);
+
+        quiz.status = 'archived';
+        quiz.lockedBy = undefined;
+        (quiz.auditLog as any[]).push(buildAuditEntry(req, 'archived'));
+        await quiz.save({ validateBeforeSave: false });
+
+        res.status(200).json({ success: true, data: quiz, message: 'Quiz archived successfully' });
+    } catch (error) {
+        next(error);
+    }
+});
+
+// @route   POST /api/quizzes/:id/restore
+// @desc    Restore an archived quiz back to draft
+// @access  Private (Admin)
+router.post('/:id/restore', protect, authorize('admin'), async (req: AuthRequest, res: Response, next) => {
+    try {
+        const quiz = await Quiz.findById(req.params.id);
+        if (!quiz) throw new AppError('Quiz not found', 404);
+
+        quiz.status = 'draft';
+        (quiz.auditLog as any[]).push(buildAuditEntry(req, 'restored'));
+        await quiz.save({ validateBeforeSave: false });
+
+        res.status(200).json({ success: true, data: quiz, message: 'Quiz restored to draft' });
+    } catch (error) {
+        next(error);
+    }
+});
+
+// @route   POST /api/quizzes/:id/lock
+// @desc    Acquire an edit lock (concurrency control)
+// @access  Private (Admin)
+router.post('/:id/lock', protect, authorize('admin'), async (req: AuthRequest, res: Response, next) => {
+    try {
+        const quiz = await Quiz.findById(req.params.id).select('lockedBy');
+        if (!quiz) throw new AppError('Quiz not found', 404);
+
+        const LOCK_TTL_MS = 5 * 60 * 1000; // 5 minutes
+        const now = Date.now();
+        const lock = quiz.lockedBy;
+
+        // Check if locked by a DIFFERENT admin and the lock is still fresh
+        if (
+            lock &&
+            lock.adminId.toString() !== req.user?.id &&
+            now - new Date(lock.lockedAt).getTime() < LOCK_TTL_MS
+        ) {
+            return res.status(409).json({
+                success: false,
+                message: `Quiz is being edited by ${lock.adminName}`,
+                lockedBy: lock,
+            });
+        }
+
+        // Acquire / refresh lock
+        await Quiz.findByIdAndUpdate(req.params.id, {
+            lockedBy: {
+                adminId: new mongoose.Types.ObjectId(req.user?.id),
+                adminName: req.user?.name || 'Admin',
+                lockedAt: new Date(),
+            },
+        });
+
+        res.status(200).json({ success: true, message: 'Lock acquired' });
+    } catch (error) {
+        next(error);
+    }
+});
+
+// @route   DELETE /api/quizzes/:id/lock
+// @desc    Release an edit lock
+// @access  Private (Admin)
+router.delete('/:id/lock', protect, authorize('admin'), async (req: AuthRequest, res: Response, next) => {
+    try {
+        await Quiz.findByIdAndUpdate(req.params.id, { $unset: { lockedBy: 1 } });
+        res.status(200).json({ success: true, message: 'Lock released' });
+    } catch (error) {
+        next(error);
+    }
+});
+
 // @route   POST /api/quizzes/:id/repair-marks
-// @desc    Fix all questions in a quiz whose marks don't match quiz.settings.marksPerQuestion
+// @desc    Fix all questions in a quiz whose marks don't match settings
 // @access  Private (Admin)
 router.post('/:id/repair-marks', protect, authorize('admin'), async (req: Request, res: Response, next) => {
     try {
         const quiz = await Quiz.findById(req.params.id);
-        if (!quiz) {
-            throw new AppError('Quiz not found', 404);
-        }
+        if (!quiz) throw new AppError('Quiz not found', 404);
 
         const targetMarks = Number(quiz.settings?.marksPerQuestion) || 4;
         const targetNegative = Number(quiz.settings?.negativeMarking) || 0;
@@ -183,56 +419,19 @@ router.post('/:id/repair-marks', protect, authorize('admin'), async (req: Reques
 
         quiz.questions = quiz.questions.map((q: any) => {
             const needsFix = !(typeof q.marks === 'number' && !isNaN(q.marks) && q.marks > 0 && q.marks === targetMarks);
-            if (needsFix) {
-                q.marks = targetMarks;
-                fixedCount++;
-            }
+            if (needsFix) { q.marks = targetMarks; fixedCount++; }
             if (typeof q.negativeMarks !== 'number' || isNaN(q.negativeMarks)) {
                 q.negativeMarks = targetNegative;
             }
             return q;
         }) as any;
 
-        if (fixedCount > 0) {
-            await quiz.save();
-        }
-
-        console.log(`[REPAIR MARKS] quizId=${quiz._id} | targetMarks=${targetMarks} | fixedQuestions=${fixedCount}/${quiz.questions.length}`);
+        if (fixedCount > 0) await quiz.save({ validateBeforeSave: false });
 
         res.status(200).json({
             success: true,
             message: `Repaired ${fixedCount} question(s). All questions now have marks = ${targetMarks}.`,
             data: { fixedCount, totalQuestions: quiz.questions.length, targetMarks },
-        });
-    } catch (error) {
-        next(error);
-    }
-});
-
-// @route   POST /api/quizzes/:id/publish
-// @desc    Publish/unpublish a quiz
-// @access  Private (Admin)
-router.post('/:id/publish', protect, authorize('admin'), async (req: Request, res: Response, next) => {
-    try {
-        const { isPublished } = req.body;
-
-        const quiz = await Quiz.findById(req.params.id);
-        if (!quiz) {
-            throw new AppError('Quiz not found', 404);
-        }
-
-        // Validate quiz has questions
-        if (isPublished && quiz.questions.length === 0) {
-            throw new AppError('Cannot publish quiz without questions', 400);
-        }
-
-        quiz.isPublished = isPublished;
-        await quiz.save();
-
-        res.status(200).json({
-            success: true,
-            data: quiz,
-            message: `Quiz ${isPublished ? 'published' : 'unpublished'} successfully`,
         });
     } catch (error) {
         next(error);
@@ -248,7 +447,6 @@ router.get('/:id/results', protect, authorize('admin'), async (req: Request, res
             .sort({ marksObtained: -1, timeTaken: 1 })
             .populate('studentId', 'name email');
 
-        // Calculate statistics
         const stats = {
             totalAttempts: results.length,
             averageScore: results.length > 0 ? results.reduce((sum, r) => sum + r.marksObtained, 0) / results.length : 0,
@@ -258,12 +456,7 @@ router.get('/:id/results', protect, authorize('admin'), async (req: Request, res
             passRate: results.length > 0 ? (results.filter((r) => r.isPassed).length / results.length) * 100 : 0,
         };
 
-        res.status(200).json({
-            success: true,
-            count: results.length,
-            stats,
-            data: results,
-        });
+        res.status(200).json({ success: true, count: results.length, stats, data: results });
     } catch (error) {
         next(error);
     }
@@ -275,19 +468,16 @@ router.get('/:id/results', protect, authorize('admin'), async (req: Request, res
 router.get('/:id/analytics', protect, authorize('admin'), async (req: Request, res: Response, next) => {
     try {
         const quiz = await Quiz.findById(req.params.id);
-        if (!quiz) {
-            throw new AppError('Quiz not found', 404);
-        }
+        if (!quiz) throw new AppError('Quiz not found', 404);
 
         const results = await QuizResult.find({ quizId: req.params.id });
 
-        // Question-wise analysis
         const questionAnalysis = quiz.questions.map((question: any) => {
-            const questionResults = results.flatMap((r: any) => r.questionResults.filter((qr: any) => qr.questionId.toString() === question._id?.toString()));
-
+            const questionResults = results.flatMap((r: any) =>
+                r.questionResults.filter((qr: any) => qr.questionId.toString() === question._id?.toString())
+            );
             const correctCount = questionResults.filter((qr) => qr.isCorrect).length;
             const totalAttempts = questionResults.length;
-
             return {
                 questionId: question._id,
                 questionText: question.questionText.substring(0, 100),
@@ -298,14 +488,7 @@ router.get('/:id/analytics', protect, authorize('admin'), async (req: Request, r
             };
         });
 
-        // Score distribution
-        const scoreRanges = {
-            '0-25': 0,
-            '26-50': 0,
-            '51-75': 0,
-            '76-100': 0,
-        };
-
+        const scoreRanges: Record<string, number> = { '0-25': 0, '26-50': 0, '51-75': 0, '76-100': 0 };
         results.forEach((result) => {
             if (result.percentage <= 25) scoreRanges['0-25']++;
             else if (result.percentage <= 50) scoreRanges['26-50']++;
@@ -315,11 +498,7 @@ router.get('/:id/analytics', protect, authorize('admin'), async (req: Request, r
 
         res.status(200).json({
             success: true,
-            data: {
-                questionAnalysis,
-                scoreDistribution: scoreRanges,
-                totalAttempts: results.length,
-            },
+            data: { questionAnalysis, scoreDistribution: scoreRanges, totalAttempts: results.length },
         });
     } catch (error) {
         next(error);
@@ -328,10 +507,11 @@ router.get('/:id/analytics', protect, authorize('admin'), async (req: Request, r
 
 // ==================== STUDENT ROUTES ====================
 
+
 // @route   GET /api/quizzes/available
 // @desc    Get available quizzes for enrolled courses
 // @access  Private (Student)
-// ─── Helper: Verify quiz access for user ─────────────────────────────────────
+// â”€â”€â”€ Helper: Verify quiz access for user â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const canAccessQuiz = async (user: any, quiz: any): Promise<boolean> => {
     // 1. Admins and Teachers have access to all quizzes
     if (user.role === 'admin' || user.role === 'teacher') {
@@ -745,12 +925,12 @@ router.post('/attempts/:attemptId/submit', protect, async (req: AuthRequest, res
             throw new AppError('Unauthorized', 403);
         }
 
-        // ── GRACEFUL DUPLICATE-SUBMIT RECOVERY ──────────────────────────────────
+        // â”€â”€ GRACEFUL DUPLICATE-SUBMIT RECOVERY â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         // If the attempt is already completed (duplicate tap / timer race / network retry),
         // do NOT throw an error. Instead, return the existing result so the frontend
         // can navigate directly to the Result Screen.
         if (attempt.status !== 'in-progress') {
-            console.log(`[QUIZ SUBMIT] Attempt ${attempt._id} already ${attempt.status}. Looking up existing result…`);
+            console.log(`[QUIZ SUBMIT] Attempt ${attempt._id} already ${attempt.status}. Looking up existing resultâ€¦`);
             const existingResult = await QuizResult.findOne({ attemptId: attempt._id });
 
             if (existingResult) {
@@ -758,7 +938,7 @@ router.post('/attempts/:attemptId/submit', protect, async (req: AuthRequest, res
                 return res.status(200).json({
                     success: true,
                     alreadySubmitted: true,
-                    message: 'You have already completed this quiz. Opening your result…',
+                    message: 'You have already completed this quiz. Opening your resultâ€¦',
                     data: {
                         resultId: existingResult._id,
                         attemptId: attempt._id,
@@ -779,7 +959,7 @@ router.post('/attempts/:attemptId/submit', protect, async (req: AuthRequest, res
 
             // Result not yet created (edge case: attempt marked completed but result write failed)
             // Fall through to re-calculate and save result below.
-            console.log(`[QUIZ SUBMIT] No existing result found for completed attempt. Re-calculating…`);
+            console.log(`[QUIZ SUBMIT] No existing result found for completed attempt. Re-calculatingâ€¦`);
         }
 
         // Get quiz details
@@ -831,7 +1011,7 @@ router.post('/attempts/:attemptId/submit', protect, async (req: AuthRequest, res
                 };
             }
 
-            // ── Match the Following scoring ──────────────────────────────────
+            // â”€â”€ Match the Following scoring â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             if (question.questionType === 'match') {
                 const pairs: { left: string; right: string }[] = question.matchPairs || [];
                 let correctPairs = 0;
@@ -845,7 +1025,7 @@ router.post('/attempts/:attemptId/submit', protect, async (req: AuthRequest, res
                         if (selectedRightItem === correctRightItem) correctPairs++;
                     });
                 } catch {
-                    // malformed answer — 0 correct pairs
+                    // malformed answer â€” 0 correct pairs
                 }
 
                 const pairMarks = pairs.length > 0 ? marks / pairs.length : 0;
@@ -870,7 +1050,7 @@ router.post('/attempts/:attemptId/submit', protect, async (req: AuthRequest, res
                 };
             }
 
-            // ── Standard MCQ scoring ─────────────────────────────────────────
+            // â”€â”€ Standard MCQ scoring â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             const isCorrect = studentAnswer.selectedAnswer === question.correctAnswer;
             const awardedMarks = isCorrect ? marks : -negativeMarks;
 

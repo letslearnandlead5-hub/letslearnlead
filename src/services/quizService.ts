@@ -30,17 +30,42 @@ const getAuthHeader = () => {
 
 // ==================== ADMIN API ====================
 
-export const createQuiz = async (quizData: Partial<Quiz>) => {
+export const createQuiz = async (quizData: Partial<Quiz> & { status?: 'draft' | 'published'; draftMeta?: any; autosave?: boolean }) => {
     const response = await axios.post(`${API_URL}/quizzes`, quizData, {
         headers: getAuthHeader(),
     });
     return response.data.data;
 };
 
-export const getAllQuizzes = async (filters?: { courseId?: string; isPublished?: boolean }) => {
+/** Alias for creating a brand-new draft */
+export const createDraft = createQuiz;
+
+/**
+ * Save (autosave or manual) an existing draft quiz.
+ * Sends autosave=true flag so server returns a lightweight response.
+ */
+export const saveDraft = async (
+    quizId: string,
+    payload: Partial<Quiz> & { draftMeta?: any; autosave?: boolean }
+) => {
+    const response = await axios.put(`${API_URL}/quizzes/${quizId}`, payload, {
+        headers: getAuthHeader(),
+    });
+    return response.data.data;
+};
+
+export const getAllQuizzes = async (filters?: {
+    courseId?: string;
+    isPublished?: boolean;
+    status?: 'draft' | 'published' | 'archived' | 'all';
+}) => {
     const params = new URLSearchParams();
     if (filters?.courseId) params.append('courseId', filters.courseId);
-    if (filters?.isPublished !== undefined) params.append('isPublished', String(filters.isPublished));
+    if (filters?.status && filters.status !== 'all') {
+        params.append('status', filters.status);
+    } else if (filters?.isPublished !== undefined) {
+        params.append('isPublished', String(filters.isPublished));
+    }
 
     const response = await axios.get(`${API_URL}/quizzes?${params.toString()}`, {
         headers: getAuthHeader(),
@@ -70,13 +95,51 @@ export const deleteQuiz = async (quizId: string) => {
     return response.data;
 };
 
+/** Publish a quiz — server runs full validation */
 export const publishQuiz = async (quizId: string, isPublished: boolean) => {
     const response = await axios.post(
         `${API_URL}/quizzes/${quizId}/publish`,
         { isPublished },
-        {
-            headers: getAuthHeader(),
-        }
+        { headers: getAuthHeader() }
+    );
+    return response.data;
+};
+
+/** Archive a quiz (hidden from students) */
+export const archiveQuiz = async (quizId: string) => {
+    const response = await axios.post(
+        `${API_URL}/quizzes/${quizId}/archive`,
+        {},
+        { headers: getAuthHeader() }
+    );
+    return response.data;
+};
+
+/** Restore an archived quiz back to draft */
+export const restoreQuiz = async (quizId: string) => {
+    const response = await axios.post(
+        `${API_URL}/quizzes/${quizId}/restore`,
+        {},
+        { headers: getAuthHeader() }
+    );
+    return response.data;
+};
+
+/** Acquire an edit lock (concurrency control) */
+export const lockQuiz = async (quizId: string) => {
+    const response = await axios.post(
+        `${API_URL}/quizzes/${quizId}/lock`,
+        {},
+        { headers: getAuthHeader() }
+    );
+    return response.data;
+};
+
+/** Release an edit lock */
+export const unlockQuiz = async (quizId: string) => {
+    const response = await axios.delete(
+        `${API_URL}/quizzes/${quizId}/lock`,
+        { headers: getAuthHeader() }
     );
     return response.data;
 };

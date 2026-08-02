@@ -182,7 +182,7 @@ const MyQuizzes: React.FC = () => {
 
     const filteredQuizzes = quizzes.filter((quiz) => {
         if (filter === 'all') return true;
-        return quiz.status === filter;
+        return quiz.attemptStatus === filter;
     });
 
     const getStatusColor = (status?: string) => {
@@ -213,9 +213,9 @@ const MyQuizzes: React.FC = () => {
     };
 
     const handleQuizAction = (quiz: QuizWithStatus) => {
-        if (quiz.status === 'in-progress' && quiz.inProgressAttemptId) {
+        if (quiz.attemptStatus === 'in-progress' && quiz.inProgressAttemptId) {
             navigate(`/quizzes/${quiz._id}/attempt/?attemptId=${quiz.inProgressAttemptId}`);
-        } else if (quiz.status === 'completed') {
+        } else if (quiz.attemptStatus === 'completed') {
             // Open the attempt picker modal
             setPickerQuiz(quiz);
         } else {
@@ -234,14 +234,14 @@ const MyQuizzes: React.FC = () => {
     };
 
     const getActionButtonText = (quiz: QuizWithStatus) => {
-        if (quiz.status === 'in-progress') return 'Resume Quiz';
-        if (quiz.status === 'completed') return 'View Results';
+        if (quiz.attemptStatus === 'in-progress') return 'Resume Quiz';
+        if (quiz.attemptStatus === 'completed') return 'View Results';
         return 'Start Quiz';
     };
 
     const getActionButtonIcon = (quiz: QuizWithStatus) => {
-        if (quiz.status === 'in-progress') return <PlayCircle className="w-4 h-4" />;
-        if (quiz.status === 'completed') return <Eye className="w-4 h-4" />;
+        if (quiz.attemptStatus === 'in-progress') return <PlayCircle className="w-4 h-4" />;
+        if (quiz.attemptStatus === 'completed') return <Eye className="w-4 h-4" />;
         return <PlayCircle className="w-4 h-4" />;
     };
 
@@ -279,7 +279,7 @@ const MyQuizzes: React.FC = () => {
                             {filterOption.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
                             {filterOption !== 'all' && (
                                 <span className="ml-1.5 text-xs opacity-70">
-                                    ({quizzes.filter(q => q.status === filterOption).length})
+                                    ({quizzes.filter(q => q.attemptStatus === filterOption).length})
                                 </span>
                             )}
                         </button>
@@ -312,11 +312,11 @@ const MyQuizzes: React.FC = () => {
                                 <div className="p-6 flex flex-col flex-1">
                                     {/* Status Badge + Score */}
                                     <div className="flex items-center justify-between mb-4">
-                                        <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(quiz.status)}`}>
-                                            {getStatusIcon(quiz.status)}
-                                            {getStatusText(quiz.status)}
+                                        <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(quiz.attemptStatus)}`}>
+                                            {getStatusIcon(quiz.attemptStatus)}
+                                            {getStatusText(quiz.attemptStatus)}
                                         </span>
-                                        {quiz.status === 'completed' && quiz.lastPercentage != null && (
+                                        {quiz.attemptStatus === 'completed' && quiz.lastPercentage != null && (
                                             <span className={`text-xl font-bold ${
                                                 quiz.lastPercentage >= 75 ? 'text-green-600 dark:text-green-400'
                                                 : quiz.lastPercentage >= 50 ? 'text-yellow-600 dark:text-yellow-400'
@@ -359,7 +359,7 @@ const MyQuizzes: React.FC = () => {
                                             <Clock className="w-4 h-4 mr-2 flex-shrink-0" />
                                             <span>{quiz.settings?.timeLimit} Minutes</span>
                                         </div>
-                                        {quiz.status === 'completed' && quiz.lastScore != null && (
+                                        {quiz.attemptStatus === 'completed' && quiz.lastScore != null && (
                                             <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
                                                 <Trophy className="w-4 h-4 mr-2 flex-shrink-0 text-yellow-500" />
                                                 <span>
@@ -367,7 +367,7 @@ const MyQuizzes: React.FC = () => {
                                                 </span>
                                             </div>
                                         )}
-                                        {quiz.status === 'completed' && quiz.allAttempts && quiz.allAttempts.length > 0 && (
+                                        {quiz.attemptStatus === 'completed' && quiz.allAttempts && quiz.allAttempts.length > 0 && (
                                             <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
                                                 <Eye className="w-4 h-4 mr-2 flex-shrink-0" />
                                                 <span>{quiz.allAttempts.length} attempt{quiz.allAttempts.length !== 1 ? 's' : ''} completed</span>
@@ -379,7 +379,7 @@ const MyQuizzes: React.FC = () => {
                                     <button
                                         onClick={() => handleQuizAction(quiz)}
                                         className={`w-full font-medium py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 text-sm ${
-                                            quiz.status === 'completed'
+                                            quiz.attemptStatus === 'completed'
                                                 ? 'bg-green-600 hover:bg-green-700 text-white'
                                                 : 'bg-indigo-600 hover:bg-indigo-700 text-white'
                                         }`}

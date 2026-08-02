@@ -171,7 +171,13 @@ export const getAvailableQuizzes = async (): Promise<QuizWithStatus[]> => {
     const response = await axios.get(`${API_URL}/quizzes/available/my`, {
         headers: getAuthHeader(),
     });
-    return response.data.data;
+    // Server returns `status` (in-progress|completed|not-attempted) from the student route.
+    // We remap it to `attemptStatus` so it doesn't collide with the admin-side Quiz.status
+    // (draft|published|archived) that was added as part of the Quiz lifecycle feature.
+    return (response.data.data as any[]).map((q) => ({
+        ...q,
+        attemptStatus: q.status as 'in-progress' | 'completed' | 'not-attempted',
+    })) as QuizWithStatus[];
 };
 
 export const getQuizPreview = async (quizId: string) => {

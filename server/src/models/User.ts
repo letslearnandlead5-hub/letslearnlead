@@ -19,11 +19,17 @@ export interface IUser extends Document {
     isBlocked?: boolean;
     // ── Single Device Login fields ──────────────────────────────────────
     currentDeviceId?: string;        // UUID fingerprint of the active browser
-    activeSessionToken?: string;     // SHA-256 hash of the active refresh token
+    activeSessionToken?: string;     // SHA-256 hash of the active refresh token (students/teachers)
     lastLoginAt?: Date;              // Timestamp of last successful login
     deviceInfo?: string;             // User-agent string at login time
     ipAddress?: string;              // IP address at login time
     sessionStatus?: 'active' | 'invalidated'; // Explicit session state
+    // ── Admin multi-device sessions ─────────────────────────────────────
+    adminSessions?: Array<{
+        deviceFingerprint: string;   // Server-computed fingerprint for this device
+        tokenHash: string;           // SHA-256 of the refresh token for this device
+        lastUsedAt: Date;
+    }>;
     // ────────────────────────────────────────────────────────────────────
     createdAt: Date;
     updatedAt: Date;
@@ -117,6 +123,18 @@ const UserSchema = new Schema<IUser>(
             type: String,
             enum: ['active', 'invalidated'],
             default: null,
+        },
+        // ── Admin multi-device sessions ─────────────────────────────────
+        adminSessions: {
+            type: [
+                {
+                    deviceFingerprint: { type: String, required: true },
+                    tokenHash:         { type: String, required: true, select: false },
+                    lastUsedAt:        { type: Date,   default: Date.now },
+                },
+            ],
+            select: false,  // Never returned in default queries
+            default: [],
         },
         // ────────────────────────────────────────────────────────────────
     },

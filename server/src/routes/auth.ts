@@ -35,9 +35,16 @@ const router = Router();
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
+const MAX_ADMIN_SESSIONS = 10; // max concurrent admin devices
+
 /**
  * Bind a new device session to a user document.
- * Generates refresh token, hashes it, writes all session fields.
+ *
+ * - ADMINS: upsert a slot in adminSessions[] (one per device fingerprint).
+ *   This is what fixes the two-laptop logout bug — each device keeps its own
+ *   independent refresh token so a second login never kills the first.
+ * - STUDENTS/TEACHERS: single-slot behavior unchanged (activeSessionToken).
+ *
  * Returns the raw (unhashed) refresh token for sending to the client.
  */
 const bindDeviceSession = async (
@@ -48,24 +55,71 @@ const bindDeviceSession = async (
     const rawRefreshToken = generateRefreshToken();
     const hashedRefreshToken = hashRefreshToken(rawRefreshToken);
 
-    user.currentDeviceId = deviceFingerprint;
-    user.activeSessionToken = hashedRefreshToken;
-    user.lastLoginAt = new Date();
-    user.deviceInfo = getDeviceInfo(req);
-    user.ipAddress = getClientIp(req);
-    user.sessionStatus = 'active';
-    await user.save();
+    if (user.role === 'admin') {
+        // Ensure adminSessions is loaded (it has select:false by default)
+        if (!user.adminSessions) user.adminSessions = [];
 
+        // Remove any stale slot for this same fingerprint (re-login from same device)
+        user.adminSessions = user.adminSessions.filter(
+            (s: any) => s.deviceFingerprint !== deviceFingerprint
+        );
+
+        // Enforce cap: evict the oldest slot if at limit
+        if (user.adminSessions.length >= MAX_ADMIN_SESSIONS) {
+            user.adminSessions.sort((a: any, b: any) =>
+                new Date(a.lastUsedAt).getTime() - new Date(b.lastUsedAt).getTime()
+            );
+            user.adminSessions.shift(); // remove oldest
+        }
+
+        // Add new session slot for this device
+        user.adminSessions.push({
+            deviceFingerprint,
+            tokenHash: hashedRefreshToken,
+            lastUsedAt: new Date(),
+        });
+
+        // Also update convenience fields (not used for auth, just informational)
+        user.lastLoginAt = new Date();
+        user.deviceInfo  = getDeviceInfo(req);
+        user.ipAddress   = getClientIp(req);
+        user.sessionStatus = 'active';
+    } else {
+        // Students/teachers: existing single-slot behavior
+        user.currentDeviceId    = deviceFingerprint;
+        user.activeSessionToken = hashedRefreshToken;
+        user.lastLoginAt        = new Date();
+        user.deviceInfo         = getDeviceInfo(req);
+        user.ipAddress          = getClientIp(req);
+        user.sessionStatus      = 'active';
+    }
+
+    await user.save();
     return rawRefreshToken;
 };
 
 /**
- * Clear all session fields from a user (called on logout or invalidation).
+ * Clear session fields from a user (called on logout or invalidation).
+ * For admins: removes only the slot matching deviceFingerprint (logs out one device).
+ * Pass deviceFingerprint=undefined to clear ALL admin slots (force-logout all).
  */
-const clearDeviceSession = async (user: any): Promise<void> => {
-    user.currentDeviceId = undefined;
-    user.activeSessionToken = undefined;
-    user.sessionStatus = 'invalidated';
+const clearDeviceSession = async (user: any, deviceFingerprint?: string): Promise<void> => {
+    if (user.role === 'admin') {
+        if (deviceFingerprint && user.adminSessions?.length) {
+            // Log out only this device
+            user.adminSessions = user.adminSessions.filter(
+                (s: any) => s.deviceFingerprint !== deviceFingerprint
+            );
+        } else {
+            // Log out all devices
+            user.adminSessions = [];
+        }
+        if (!user.adminSessions?.length) user.sessionStatus = 'invalidated';
+    } else {
+        user.currentDeviceId    = undefined;
+        user.activeSessionToken = undefined;
+        user.sessionStatus      = 'invalidated';
+    }
     await user.save();
 };
 
@@ -169,7 +223,7 @@ router.post('/login', authLimiter, validate(loginSchema), async (req: Request, r
 
         // 1. Check if user exists
         const user = await User.findOne({ email })
-            .select('+password +currentDeviceId +activeSessionToken +sessionStatus');
+            .select('+password +currentDeviceId +activeSessionToken +sessionStatus +adminSessions');
         if (!user) {
             throw new AppError('Invalid credentials', 401);
         }
@@ -245,17 +299,21 @@ router.post('/login', authLimiter, validate(loginSchema), async (req: Request, r
     }
 });
 
-// ── @route   POST /api/auth/logout ───────────────────────────────────────────
-// @desc    Logout user — clear device session + invalidate cookie
+// ── @route   POST /api/auth/logout ───────────────────────────────────────────────
+// @desc    Logout user — removes only THIS device's session slot
 // @access  Private
 router.post('/logout', protect, async (req: AuthRequest, res: Response, next) => {
     try {
         const user = await User.findById(req.user._id)
-            .select('+currentDeviceId +activeSessionToken');
+            .select('+currentDeviceId +activeSessionToken +adminSessions');
 
         if (user) {
-            await clearDeviceSession(user);
-            console.log(`👋 Logout: ${user.email}`);
+            // For admins: pass the device fingerprint so only THIS device is logged out.
+            // Other admin devices remain active (up to 10 concurrent).
+            // For students/teachers: clears the single active session as before.
+            const thisDeviceFingerprint = req.deviceFingerprint; // set by protect middleware
+            await clearDeviceSession(user, thisDeviceFingerprint);
+            console.log(`👋 Logout: ${user.email} | device: ${thisDeviceFingerprint?.substring(0, 8)}...`);
         }
 
         clearRefreshTokenCookie(res);
@@ -285,10 +343,31 @@ router.post('/refresh', async (req: Request, res: Response, next) => {
             return;
         }
 
-        // Hash the incoming token and find the matching user
+        // Hash the incoming token
         const hashedToken = hashRefreshToken(rawRefreshToken);
-        const user = await User.findOne({ activeSessionToken: hashedToken })
-            .select('+currentDeviceId +activeSessionToken +sessionStatus');
+
+        // ── Admin path: look up by adminSessions slot ───────────────────────────────
+        // Try to find an admin whose adminSessions[] contains a matching tokenHash.
+        let user = await User.findOne(
+            { 'adminSessions.tokenHash': hashedToken, role: 'admin' }
+        ).select('+currentDeviceId +activeSessionToken +sessionStatus +adminSessions');
+
+        let isAdminSession = !!user;
+        let adminSessionSlot: any = null;
+
+        if (user) {
+            // Identify which slot matched
+            adminSessionSlot = user.adminSessions?.find((s: any) => s.tokenHash === hashedToken);
+            if (!adminSessionSlot) {
+                // Shouldn't happen, but guard defensively
+                res.status(401).json({ success: false, code: 'INVALID_REFRESH_TOKEN', message: 'Invalid or expired refresh token' });
+                return;
+            }
+        } else {
+            // ── Student/teacher path: existing single-slot lookup ───────────────────
+            user = await User.findOne({ activeSessionToken: hashedToken })
+                .select('+currentDeviceId +activeSessionToken +sessionStatus');
+        }
 
         if (!user) {
             res.status(401).json({
@@ -320,25 +399,28 @@ router.post('/refresh', async (req: Request, res: Response, next) => {
             return;
         }
 
-        // Extract the original clientDeviceId embedded in the cookie (we need it for the new access token)
-        // We rebuild by looking at what was stored — but we don't store the raw UUID, only the fingerprint.
-        // So instead, we issue a refresh that carries the stored fingerprint as the new "deviceId".
-        // The key insight: the fingerprint IS the server-authoritative device identifier.
-        // We use it directly as the "deviceId" in the refreshed access token.
-        const storedFingerprint = user.currentDeviceId!;
-
-        // Rotate refresh token (invalidate old one, issue new one)
+        // Rotate the refresh token
         const newRawRefreshToken = generateRefreshToken();
         const newHashedRefreshToken = hashRefreshToken(newRawRefreshToken);
-        user.activeSessionToken = newHashedRefreshToken;
-        await user.save();
 
+        let deviceFingerprintForNewToken: string;
+
+        if (isAdminSession && adminSessionSlot) {
+            // Admin: rotate only the matched slot, leave all other device slots intact
+            adminSessionSlot.tokenHash  = newHashedRefreshToken;
+            adminSessionSlot.lastUsedAt = new Date();
+            user.markModified('adminSessions');
+            deviceFingerprintForNewToken = adminSessionSlot.deviceFingerprint;
+        } else {
+            // Student/teacher: single-slot rotation
+            user.activeSessionToken = newHashedRefreshToken;
+            deviceFingerprintForNewToken = user.currentDeviceId!;
+        }
+
+        await user.save();
         setRefreshTokenCookie(res, newRawRefreshToken);
 
-        // Sign new access token — use stored fingerprint as the deviceId value
-        // The protect middleware will recompute the fingerprint on each request
-        // and compare, so this token is device-bound.
-        const newAccessToken = signAccessToken(String(user._id), storedFingerprint);
+        const newAccessToken = signAccessToken(String(user._id), deviceFingerprintForNewToken);
 
         res.status(200).json({
             success: true,
@@ -716,14 +798,15 @@ router.post('/admin/invalidate-session', protect, async (req: AuthRequest, res: 
         }
 
         const targetUser = await User.findById(userId)
-            .select('+currentDeviceId +activeSessionToken');
+            .select('+currentDeviceId +activeSessionToken +adminSessions');
         if (!targetUser) {
             res.status(404).json({ success: false, message: 'User not found' });
             return;
         }
 
-        await clearDeviceSession(targetUser);
-        console.log(`🔐 Admin ${req.user.email} force-logged-out user ${targetUser.email}`);
+        // Pass no fingerprint — clears ALL sessions for this user (all devices)
+        await clearDeviceSession(targetUser, undefined);
+        console.log(`🔐 Admin ${req.user.email} force-logged-out user ${targetUser.email} (all devices)`);
 
         res.status(200).json({
             success: true,

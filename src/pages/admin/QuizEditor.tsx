@@ -120,6 +120,42 @@ const QuizEditor: React.FC = () => {
     const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
     const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
+    // ── Refs so the autosave interval always reads fresh state ────────────────
+    const titleRef = useRef(title);
+    const descriptionRef = useRef(description);
+    const courseIdRef = useRef(courseId);
+    const subjectIdRef = useRef(subjectId);
+    const subjectNameRef = useRef(subjectName);
+    const marksPerQuestionRef = useRef(marksPerQuestion);
+    const negativeMarkingRef = useRef(negativeMarking);
+    const timeLimitRef = useRef(timeLimit);
+    const passingPercentageRef = useRef(passingPercentage);
+    const allowRetakeRef = useRef(allowRetake);
+    const maxAttemptsRef = useRef(maxAttempts);
+    const questionsRef = useRef(questions);
+    const stepRef = useRef(step);
+    const currentQuestionIndexRef = useRef(currentQuestionIndex);
+    const currentQuizIdRef = useRef(currentQuizId);
+    const isDirtyRef = useRef(isDirty);
+
+    // Keep refs in sync with state on every render
+    useEffect(() => { titleRef.current = title; }, [title]);
+    useEffect(() => { descriptionRef.current = description; }, [description]);
+    useEffect(() => { courseIdRef.current = courseId; }, [courseId]);
+    useEffect(() => { subjectIdRef.current = subjectId; }, [subjectId]);
+    useEffect(() => { subjectNameRef.current = subjectName; }, [subjectName]);
+    useEffect(() => { marksPerQuestionRef.current = marksPerQuestion; }, [marksPerQuestion]);
+    useEffect(() => { negativeMarkingRef.current = negativeMarking; }, [negativeMarking]);
+    useEffect(() => { timeLimitRef.current = timeLimit; }, [timeLimit]);
+    useEffect(() => { passingPercentageRef.current = passingPercentage; }, [passingPercentage]);
+    useEffect(() => { allowRetakeRef.current = allowRetake; }, [allowRetake]);
+    useEffect(() => { maxAttemptsRef.current = maxAttempts; }, [maxAttempts]);
+    useEffect(() => { questionsRef.current = questions; }, [questions]);
+    useEffect(() => { stepRef.current = step; }, [step]);
+    useEffect(() => { currentQuestionIndexRef.current = currentQuestionIndex; }, [currentQuestionIndex]);
+    useEffect(() => { currentQuizIdRef.current = currentQuizId; }, [currentQuizId]);
+    useEffect(() => { isDirtyRef.current = isDirty; }, [isDirty]);
+
     // ── Dirty tracking helpers ────────────────────────────────────────────────
     const markDirty = useCallback(() => setIsDirty(true), []);
 
@@ -132,21 +168,21 @@ const QuizEditor: React.FC = () => {
     // ── beforeunload guard ────────────────────────────────────────────────────
     useEffect(() => {
         const handler = (e: BeforeUnloadEvent) => {
-            if (isDirty) { e.preventDefault(); e.returnValue = ''; }
+            if (isDirtyRef.current) { e.preventDefault(); e.returnValue = ''; }
         };
         window.addEventListener('beforeunload', handler);
         return () => window.removeEventListener('beforeunload', handler);
-    }, [isDirty]);
+    }, []);
 
-    // ── 30-second autosave ────────────────────────────────────────────────────
+    // ── 30-second autosave (stable interval — no stale closures) ─────────────
     useEffect(() => {
         const interval = setInterval(() => {
-            if (isDirty && !isSavingRef.current) {
-                performSave(false, true);
+            if (isDirtyRef.current && !isSavingRef.current) {
+                performSaveFromRefs(false, true);
             }
         }, 30_000);
         return () => clearInterval(interval);
-    }, [isDirty]);
+    }, []); // empty deps — interval runs once, reads from refs
 
     // ── Lock on mount, unlock on unmount ──────────────────────────────────────
     useEffect(() => {
@@ -248,9 +284,8 @@ const QuizEditor: React.FC = () => {
     const addQuestion = () => {
         const newQuestion = buildBlankQuestion();
         setQuestions(prev => [...prev, newQuestion]);
-        setCurrentQuestionIndex(prev => prev + (questions.length > 0 ? 0 : 0));
-        // navigate to the new question
         setTimeout(() => setCurrentQuestionIndex(questions.length), 0);
+        markDirty();
     };
 
     const removeQuestion = (index: number) => {
@@ -259,6 +294,7 @@ const QuizEditor: React.FC = () => {
         if (currentQuestionIndex >= newQuestions.length && currentQuestionIndex > 0) {
             setCurrentQuestionIndex(newQuestions.length - 1);
         }
+        markDirty();
     };
 
     const updateQuestion = (index: number, updates: Partial<QuizQuestion>) => {
@@ -267,6 +303,7 @@ const QuizEditor: React.FC = () => {
             copy[index] = { ...copy[index], ...updates };
             return copy;
         });
+        markDirty();
     };
 
     // Change question type — reset type-specific fields
@@ -421,7 +458,35 @@ const QuizEditor: React.FC = () => {
         if (validateStep(step)) setStep(step + 1);
     };
 
-    // ── Build quiz payload ────────────────────────────────────────────────────
+    // ── Build payload from REFS (used by autosave interval) ──────────────────
+    const buildPayloadFromRefs = (publish: boolean) => ({
+        title: titleRef.current,
+        description: descriptionRef.current,
+        courseId: courseIdRef.current || undefined,
+        subjectId: subjectIdRef.current || undefined,
+        subjectName: subjectNameRef.current || undefined,
+        settings: {
+            marksPerQuestion: marksPerQuestionRef.current,
+            negativeMarking: negativeMarkingRef.current,
+            timeLimit: timeLimitRef.current,
+            passingPercentage: passingPercentageRef.current,
+            allowRetake: allowRetakeRef.current,
+            maxAttempts: maxAttemptsRef.current,
+        },
+        questions: (questionsRef.current as QuizQuestion[]).map((q) => ({
+            ...q,
+            marks: marksPerQuestionRef.current || 4,
+            negativeMarks: negativeMarkingRef.current || 0,
+            matchPairs: q.questionType === 'match' ? normalizeMatchPairs(q.matchPairs || []) : [],
+        })),
+        status: publish ? 'published' as const : 'draft' as const,
+        draftMeta: {
+            currentStep: stepRef.current,
+            currentQuestionIndex: currentQuestionIndexRef.current,
+        },
+    });
+
+    // ── Build quiz payload from STATE (used by manual saves) ──────────────────
     const buildQuizPayload = (publish: boolean) => ({
         title,
         description,
@@ -442,7 +507,43 @@ const QuizEditor: React.FC = () => {
         },
     });
 
-    // ── Perform save (draft or publish) ───────────────────────────────────────
+    // ── Perform save from REFS (called by autosave interval — no stale closure) ──
+    const performSaveFromRefs = async (publish: boolean, autosave = false) => {
+        if (isSavingRef.current) return;
+        isSavingRef.current = true;
+        setIsSaving(true);
+
+        try {
+            const payload: any = { ...buildPayloadFromRefs(publish), autosave };
+            let id = currentQuizIdRef.current;
+
+            if (!id) {
+                const newQuiz = await createQuiz(payload);
+                id = newQuiz._id || newQuiz.id || null;
+                if (id) {
+                    setCurrentQuizId(id);
+                    currentQuizIdRef.current = id;
+                    navigate(`/admin/quizzes/edit/${id}/`, { replace: true });
+                    lockQuiz(id).catch(() => {});
+                }
+            } else {
+                await saveDraft(id, payload);
+            }
+
+            setLastSavedAt(new Date());
+            setIsDirty(false);
+            isDirtyRef.current = false;
+            if (!autosave) toast.success('Draft saved ✓');
+        } catch (err: any) {
+            console.warn('[AUTOSAVE] Failed:', err?.message || err);
+            if (!autosave) toast.error('Failed to save draft');
+        } finally {
+            isSavingRef.current = false;
+            setIsSaving(false);
+        }
+    };
+
+    // ── Perform save (draft or publish) — called by manual buttons ────────────
     const performSave = async (publish: boolean, autosave = false) => {
         if (isSavingRef.current) return;
         isSavingRef.current = true;
@@ -734,11 +835,11 @@ const QuizEditor: React.FC = () => {
                                     <div className="space-y-6">
                                         <div>
                                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Quiz Title *</label>
-                                            <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white" placeholder="Enter quiz title" />
+                                            <input type="text" value={title} onChange={(e) => { setTitle(e.target.value); markDirty(); }} className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white" placeholder="Enter quiz title" />
                                         </div>
                                         <div>
                                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Description *</label>
-                                            <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={4} className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white" placeholder="Enter quiz description" />
+                                            <textarea value={description} onChange={(e) => { setDescription(e.target.value); markDirty(); }} rows={4} className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white" placeholder="Enter quiz description" />
                                         </div>
                                         <div>
                                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Course *</label>
@@ -748,6 +849,7 @@ const QuizEditor: React.FC = () => {
                                                     setCourseId(e.target.value);
                                                     setSubjectId('');
                                                     setSubjectName('');
+                                                    markDirty();
                                                 }}
                                                 className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
                                             >
@@ -765,6 +867,7 @@ const QuizEditor: React.FC = () => {
                                                         const s = selectedCourseSubjects.find(sub => sub._id === e.target.value);
                                                         setSubjectId(e.target.value);
                                                         setSubjectName(s?.name || '');
+                                                        markDirty();
                                                     }}
                                                     className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
                                                 >
@@ -793,6 +896,7 @@ const QuizEditor: React.FC = () => {
                                                         const val = Number(e.target.value);
                                                         setMarksPerQuestion(val);
                                                         setQuestions(prev => prev.map(q => ({ ...q, marks: val })));
+                                                        markDirty();
                                                     }}
                                                     min="1"
                                                     className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
@@ -807,6 +911,7 @@ const QuizEditor: React.FC = () => {
                                                         const val = Number(e.target.value);
                                                         setNegativeMarking(val);
                                                         setQuestions(prev => prev.map(q => ({ ...q, negativeMarks: val })));
+                                                        markDirty();
                                                     }}
                                                     min="0"
                                                     step="0.25"
@@ -815,22 +920,22 @@ const QuizEditor: React.FC = () => {
                                             </div>
                                             <div>
                                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Time Limit (minutes) *</label>
-                                                <input type="number" value={timeLimit} onChange={(e) => setTimeLimit(Number(e.target.value))} min="1" className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white" />
+                                                <input type="number" value={timeLimit} onChange={(e) => { setTimeLimit(Number(e.target.value)); markDirty(); }} min="1" className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white" />
                                             </div>
                                             <div>
                                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Passing Percentage (%)</label>
-                                                <input type="number" value={passingPercentage} onChange={(e) => setPassingPercentage(Number(e.target.value))} min="0" max="100" className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white" />
+                                                <input type="number" value={passingPercentage} onChange={(e) => { setPassingPercentage(Number(e.target.value)); markDirty(); }} min="0" max="100" className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white" />
                                             </div>
                                         </div>
                                         <div className="flex items-center gap-4">
                                             <label className="flex items-center">
-                                                <input type="checkbox" checked={allowRetake} onChange={(e) => setAllowRetake(e.target.checked)} className="w-4 h-4 text-indigo-600 focus:ring-indigo-500" />
+                                                <input type="checkbox" checked={allowRetake} onChange={(e) => { setAllowRetake(e.target.checked); markDirty(); }} className="w-4 h-4 text-indigo-600 focus:ring-indigo-500" />
                                                 <span className="ml-2 text-sm text-gray-700 dark:text-gray-300">Allow Retakes</span>
                                             </label>
                                             {allowRetake && (
                                                 <div className="flex items-center gap-2">
                                                     <label className="text-sm text-gray-700 dark:text-gray-300">Max Attempts:</label>
-                                                    <input type="number" value={maxAttempts} onChange={(e) => setMaxAttempts(Number(e.target.value))} min="1" className="w-20 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white" />
+                                                    <input type="number" value={maxAttempts} onChange={(e) => { setMaxAttempts(Number(e.target.value)); markDirty(); }} min="1" className="w-20 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white" />
                                                 </div>
                                             )}
                                         </div>

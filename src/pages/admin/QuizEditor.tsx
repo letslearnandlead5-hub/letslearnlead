@@ -37,6 +37,7 @@ import ScientificEditor, { stripHtml } from '../../components/quiz/ScientificEdi
 import RichTextDisplay from '../../components/quiz/RichTextDisplay';
 import LivePreview from '../../components/quiz/LivePreview';
 import { generatePairId, normalizeMatchPairs } from '../../utils/htmlUtils';
+import api from '../../services/api';
 
 // ── Image compression helper (same approach as CourseEditor) ─────────────────
 const compressImage = (file: File, maxW = 900, maxH = 700, quality = 0.82): Promise<string> =>
@@ -200,14 +201,11 @@ const QuizEditor: React.FC = () => {
 
     const fetchCourses = async () => {
         try {
-            const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-            const response = await fetch(`${API_URL}/api/courses`, {
-                headers: {
-                    Authorization: `Bearer ${localStorage.getItem('token')}`,
-                },
-            });
-            const data = await response.json();
-            setCourses(data.data || []);
+            // Use the shared api instance (auto-attaches token + handles refresh)
+            // Previously used raw fetch() with localStorage.getItem('token') which is
+            // the WRONG key — Zustand stores it under 'auth-storage', not 'token'.
+            const response: any = await api.get('/courses');
+            setCourses(response.data || []);
         } catch (error) {
             toast.error('Failed to load courses');
         }

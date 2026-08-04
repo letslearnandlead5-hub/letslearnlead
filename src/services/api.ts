@@ -163,11 +163,18 @@ api.interceptors.response.use(
         }
       }
 
-      // Generic 401 (e.g., no token on a protected endpoint) — clear state
+      // Generic 401 that isn't TOKEN_EXPIRED and isn't a known code
+      // (e.g. a truly missing/malformed token, or a new server error code we haven't
+      // seen before). Show the session-expiry modal instead of a silent redirect \u2014
+      // this gives the admin a chance to log back in without losing context.
       if (!originalRequest._retry) {
-        localStorage.removeItem("auth-storage");
-        if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
-          window.location.href = "/login";
+        const authPaths = ['/login', '/login/', '/signup', '/signup/'];
+        const isOnAuthPage = authPaths.some(p => window.location.pathname === p);
+        if (!isOnAuthPage) {
+          const { useAuthStore } = await import('../store/useAuthStore');
+          useAuthStore.getState().triggerSessionExpiry(
+            'Your session has expired or is invalid. Please log in again.'
+          );
         }
       }
     }

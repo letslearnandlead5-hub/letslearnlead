@@ -75,7 +75,7 @@ const QuizAttempt: React.FC = () => {
                     setQuizPreview(preview);
                 }
             } catch (error: any) {
-                toast.error(error.response?.data?.message || 'Failed to load quiz');
+                toast.error(error?.message || 'Failed to load quiz');
                 navigate('/my-quizzes/');
             } finally {
                 setLoading(false);
@@ -131,7 +131,7 @@ const QuizAttempt: React.FC = () => {
             startTimer();
             toast.success('Quiz started! Good luck!');
         } catch (error: any) {
-            toast.error(error.response?.data?.message || 'Failed to start quiz');
+            toast.error(error?.message || 'Failed to start quiz');
         } finally {
             setStarting(false);
         }
@@ -152,7 +152,7 @@ const QuizAttempt: React.FC = () => {
 
             navigate(`/quizzes/${quizId}/result/${attemptId}/`);
         } catch (error: any) {
-            toast.error(error.response?.data?.message || 'Failed to submit quiz');
+            toast.error(error?.message || 'Failed to submit quiz');
             if (!autoSubmit) startTimer();
         } finally {
             setSubmitting(false);

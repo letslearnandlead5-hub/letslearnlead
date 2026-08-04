@@ -1,40 +1,29 @@
-import axios from 'axios';
+/**
+ * quizService.ts
+ *
+ * All quiz API calls now go through the shared `api` axios instance (api.ts).
+ * This gives them:
+ *  - Automatic token attachment via request interceptor
+ *  - Automatic silent token refresh on TOKEN_EXPIRED (401) via response interceptor
+ *  - Proper session-expiry UI on DEVICE_MISMATCH / SESSION_INVALIDATED
+ *
+ * Previously this file used raw axios with manual getAuthHeader() extraction,
+ * which had NO refresh logic — causing admin logout after the 15-min access token
+ * expired while editing a quiz.
+ */
+import api from './api';
 import type { Quiz, QuizAttempt, QuizResult, LeaderboardEntry, QuizWithStatus } from '../types';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-const API_URL = `${API_BASE_URL}/api`;
-
-const getAuthHeader = () => {
-    // Get token from Zustand persist storage (auth-storage)
-    const authStorage = localStorage.getItem('auth-storage');
-    let token = null;
-
-    if (authStorage) {
-        try {
-            const parsed = JSON.parse(authStorage);
-            token = parsed?.state?.token;
-
-            // Debug: Log token status
-            if (!token) {
-                console.error('No token found in auth-storage');
-            }
-        } catch (e) {
-            console.error('Failed to parse auth-storage:', e);
-        }
-    } else {
-        console.error('No auth-storage found in localStorage');
-    }
-
-    return token ? { Authorization: `Bearer ${token}` } : {};
-};
+// NOTE: The `api` instance (api.ts) intercepts responses and returns `response.data`
+// directly, so the shape received here is the server's JSON body (e.g. { success, data }).
 
 // ==================== ADMIN API ====================
 
-export const createQuiz = async (quizData: Partial<Quiz> & { status?: 'draft' | 'published'; draftMeta?: any; autosave?: boolean }) => {
-    const response = await axios.post(`${API_URL}/quizzes`, quizData, {
-        headers: getAuthHeader(),
-    });
-    return response.data.data;
+export const createQuiz = async (
+    quizData: Partial<Quiz> & { status?: 'draft' | 'published'; draftMeta?: any; autosave?: boolean }
+) => {
+    const response: any = await api.post('/quizzes', quizData);
+    return response.data;
 };
 
 /** Alias for creating a brand-new draft */
@@ -48,10 +37,8 @@ export const saveDraft = async (
     quizId: string,
     payload: Partial<Quiz> & { draftMeta?: any; autosave?: boolean }
 ) => {
-    const response = await axios.put(`${API_URL}/quizzes/${quizId}`, payload, {
-        headers: getAuthHeader(),
-    });
-    return response.data.data;
+    const response: any = await api.put(`/quizzes/${quizId}`, payload);
+    return response.data;
 };
 
 export const getAllQuizzes = async (filters?: {
@@ -67,171 +54,119 @@ export const getAllQuizzes = async (filters?: {
         params.append('isPublished', String(filters.isPublished));
     }
 
-    const response = await axios.get(`${API_URL}/quizzes?${params.toString()}`, {
-        headers: getAuthHeader(),
-    });
-    return response.data.data;
+    const response: any = await api.get(`/quizzes?${params.toString()}`);
+    return response.data;
 };
 
 export const getQuizById = async (quizId: string, isAdmin: boolean = false) => {
-    const endpoint = isAdmin ? `${API_URL}/quizzes/${quizId}/admin` : `${API_URL}/quizzes/${quizId}/preview`;
-    const response = await axios.get(endpoint, {
-        headers: getAuthHeader(),
-    });
-    return response.data.data;
+    const endpoint = isAdmin ? `/quizzes/${quizId}/admin` : `/quizzes/${quizId}/preview`;
+    const response: any = await api.get(endpoint);
+    return response.data;
 };
 
 export const updateQuiz = async (quizId: string, quizData: Partial<Quiz>) => {
-    const response = await axios.put(`${API_URL}/quizzes/${quizId}`, quizData, {
-        headers: getAuthHeader(),
-    });
-    return response.data.data;
+    const response: any = await api.put(`/quizzes/${quizId}`, quizData);
+    return response.data;
 };
 
 export const deleteQuiz = async (quizId: string) => {
-    const response = await axios.delete(`${API_URL}/quizzes/${quizId}`, {
-        headers: getAuthHeader(),
-    });
-    return response.data;
+    const response: any = await api.delete(`/quizzes/${quizId}`);
+    return response;
 };
 
 /** Publish a quiz — server runs full validation */
 export const publishQuiz = async (quizId: string, isPublished: boolean) => {
-    const response = await axios.post(
-        `${API_URL}/quizzes/${quizId}/publish`,
-        { isPublished },
-        { headers: getAuthHeader() }
-    );
-    return response.data;
+    const response: any = await api.post(`/quizzes/${quizId}/publish`, { isPublished });
+    return response;
 };
 
 /** Archive a quiz (hidden from students) */
 export const archiveQuiz = async (quizId: string) => {
-    const response = await axios.post(
-        `${API_URL}/quizzes/${quizId}/archive`,
-        {},
-        { headers: getAuthHeader() }
-    );
-    return response.data;
+    const response: any = await api.post(`/quizzes/${quizId}/archive`, {});
+    return response;
 };
 
 /** Restore an archived quiz back to draft */
 export const restoreQuiz = async (quizId: string) => {
-    const response = await axios.post(
-        `${API_URL}/quizzes/${quizId}/restore`,
-        {},
-        { headers: getAuthHeader() }
-    );
-    return response.data;
+    const response: any = await api.post(`/quizzes/${quizId}/restore`, {});
+    return response;
 };
 
 /** Acquire an edit lock (concurrency control) */
 export const lockQuiz = async (quizId: string) => {
-    const response = await axios.post(
-        `${API_URL}/quizzes/${quizId}/lock`,
-        {},
-        { headers: getAuthHeader() }
-    );
-    return response.data;
+    const response: any = await api.post(`/quizzes/${quizId}/lock`, {});
+    return response;
 };
 
 /** Release an edit lock */
 export const unlockQuiz = async (quizId: string) => {
-    const response = await axios.delete(
-        `${API_URL}/quizzes/${quizId}/lock`,
-        { headers: getAuthHeader() }
-    );
-    return response.data;
+    const response: any = await api.delete(`/quizzes/${quizId}/lock`);
+    return response;
 };
 
 export const getQuizResults = async (quizId: string) => {
-    const response = await axios.get(`${API_URL}/quizzes/${quizId}/results`, {
-        headers: getAuthHeader(),
-    });
-    return response.data;
+    const response: any = await api.get(`/quizzes/${quizId}/results`);
+    return response;
 };
 
 export const getQuizAnalytics = async (quizId: string) => {
-    const response = await axios.get(`${API_URL}/quizzes/${quizId}/analytics`, {
-        headers: getAuthHeader(),
-    });
-    return response.data.data;
+    const response: any = await api.get(`/quizzes/${quizId}/analytics`);
+    return response.data;
 };
 
 export const repairQuizMarks = async (quizId: string) => {
-    const response = await axios.post(`${API_URL}/quizzes/${quizId}/repair-marks`, {}, {
-        headers: getAuthHeader(),
-    });
-    return response.data;
+    const response: any = await api.post(`/quizzes/${quizId}/repair-marks`, {});
+    return response;
 };
 
 // ==================== STUDENT API ====================
 
 export const getAvailableQuizzes = async (): Promise<QuizWithStatus[]> => {
-    const response = await axios.get(`${API_URL}/quizzes/available/my`, {
-        headers: getAuthHeader(),
-    });
+    const response: any = await api.get('/quizzes/available/my');
     // Server returns `status` (in-progress|completed|not-attempted) from the student route.
     // We remap it to `attemptStatus` so it doesn't collide with the admin-side Quiz.status
     // (draft|published|archived) that was added as part of the Quiz lifecycle feature.
-    return (response.data.data as any[]).map((q) => ({
+    return (response.data as any[]).map((q: any) => ({
         ...q,
         attemptStatus: q.status as 'in-progress' | 'completed' | 'not-attempted',
     })) as QuizWithStatus[];
 };
 
 export const getQuizPreview = async (quizId: string) => {
-    const response = await axios.get(`${API_URL}/quizzes/${quizId}/preview`, {
-        headers: getAuthHeader(),
-    });
-    return response.data.data;
+    const response: any = await api.get(`/quizzes/${quizId}/preview`);
+    return response.data;
 };
 
 export const startQuizAttempt = async (quizId: string) => {
-    const response = await axios.post(
-        `${API_URL}/quizzes/${quizId}/start`,
-        {},
-        {
-            headers: getAuthHeader(),
-        }
-    );
-    return response.data.data;
+    const response: any = await api.post(`/quizzes/${quizId}/start`, {});
+    return response.data;
 };
 
-export const saveQuizAnswer = async (attemptId: string, questionId: string, selectedAnswer: string) => {
-    const response = await axios.put(
-        `${API_URL}/quizzes/attempts/${attemptId}/answer`,
-        { questionId, selectedAnswer },
-        {
-            headers: getAuthHeader(),
-        }
-    );
-    return response.data;
+export const saveQuizAnswer = async (
+    attemptId: string,
+    questionId: string,
+    selectedAnswer: string
+) => {
+    const response: any = await api.put(`/quizzes/attempts/${attemptId}/answer`, {
+        questionId,
+        selectedAnswer,
+    });
+    return response;
 };
 
 export const submitQuiz = async (attemptId: string) => {
-    const response = await axios.post(
-        `${API_URL}/quizzes/attempts/${attemptId}/submit`,
-        {},
-        {
-            headers: getAuthHeader(),
-        }
-    );
-    return response.data;
+    const response: any = await api.post(`/quizzes/attempts/${attemptId}/submit`, {});
+    return response;
 };
 
 export const getQuizResult = async (attemptId: string) => {
-    const response = await axios.get(`${API_URL}/quizzes/attempts/${attemptId}/result`, {
-        headers: getAuthHeader(),
-    });
-    return response.data.data;
+    const response: any = await api.get(`/quizzes/attempts/${attemptId}/result`);
+    return response.data;
 };
 
 export const getQuizLeaderboard = async (quizId: string): Promise<LeaderboardEntry[]> => {
-    const response = await axios.get(`${API_URL}/quizzes/${quizId}/leaderboard`, {
-        headers: getAuthHeader(),
-    });
-    return response.data.data;
+    const response: any = await api.get(`/quizzes/${quizId}/leaderboard`);
+    return response.data;
 };
 
 // Helper function to format time

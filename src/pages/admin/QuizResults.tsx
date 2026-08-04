@@ -47,7 +47,7 @@ const QuizResults: React.FC = () => {
             setQuiz(quizData);
         } catch (error: any) {
             console.error('Error fetching results:', error);
-            toast.error(error.response?.data?.message || 'Failed to load results');
+            toast.error(error?.message || 'Failed to load results');
             navigate('/dashboard/');
         } finally {
             setLoading(false);

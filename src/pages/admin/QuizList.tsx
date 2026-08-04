@@ -97,12 +97,7 @@ const QuizList: React.FC = () => {
             setQuizzes(data);
         } catch (error: any) {
             console.error('Quiz fetch error:', error);
-            if (error.response?.status === 401) {
-                toast.error('Session expired. Please login again.');
-                navigate('/login/');
-            } else {
-                toast.error(error.response?.data?.message || error.message || 'Failed to load quizzes');
-            }
+            toast.error(error?.message || 'Failed to load quizzes');
         } finally {
             setLoading(false);
         }
@@ -115,7 +110,7 @@ const QuizList: React.FC = () => {
             fetchQuizzes();
             setDeleteConfirm(null);
         } catch (error: any) {
-            toast.error(error.response?.data?.message || 'Failed to delete quiz');
+            toast.error(error?.message || 'Failed to delete quiz');
         }
     };
 
@@ -129,11 +124,11 @@ const QuizList: React.FC = () => {
             toast.success(quiz.isPublished ? 'Quiz unpublished successfully' : 'Quiz published successfully');
             fetchQuizzes();
         } catch (error: any) {
-            const errors: string[] = error.response?.data?.errors;
+            const errors: string[] = error?.errors;
             if (errors?.length) {
                 toast.error(`Cannot publish:\n${errors.slice(0, 3).join('\n')}`, { duration: 8000 });
             } else {
-                toast.error(error.response?.data?.message || 'Failed to update quiz');
+                toast.error(error?.message || 'Failed to update quiz');
             }
         }
     };
@@ -151,7 +146,7 @@ const QuizList: React.FC = () => {
                 { duration: 5000 }
             );
         } catch (error: any) {
-            toast.error(error.response?.data?.message || 'Repair failed');
+            toast.error(error?.message || 'Repair failed');
         } finally {
             setRepairing(null);
         }
@@ -166,7 +161,7 @@ const QuizList: React.FC = () => {
             toast.success('Quiz archived');
             fetchQuizzes();
         } catch (error: any) {
-            toast.error(error.response?.data?.message || 'Archive failed');
+            toast.error(error?.message || 'Archive failed');
         } finally {
             setArchiving(null);
         }
@@ -180,7 +175,7 @@ const QuizList: React.FC = () => {
             toast.success('Quiz restored to draft');
             fetchQuizzes();
         } catch (error: any) {
-            toast.error(error.response?.data?.message || 'Restore failed');
+            toast.error(error?.message || 'Restore failed');
         }
     };
 

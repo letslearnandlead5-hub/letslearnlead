@@ -17,6 +17,13 @@ export const connectDB = async (): Promise<void> => {
         console.log('✅ MongoDB connected successfully');
         console.log(`📊 Database: ${mongoose.connection.name}`);
 
+        // Auto-heal database: guarantee status and isPublished are 100% in sync for all quizzes
+        const Quiz = mongoose.models.Quiz || mongoose.model('Quiz');
+        if (Quiz) {
+            await Quiz.updateMany({ status: 'published' }, { $set: { isPublished: true } }).catch(() => {});
+            await Quiz.updateMany({ isPublished: true }, { $set: { status: 'published' } }).catch(() => {});
+        }
+
         // Inspect deployment topology (Replica Set vs Standalone)
         const db = mongoose.connection.db;
         if (db) {

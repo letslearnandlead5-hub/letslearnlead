@@ -602,8 +602,12 @@ router.get('/available/my', protect, async (req: AuthRequest, res: Response, nex
         if (subjectId) extraFilters.subjectId = subjectId;
         if (categoryId) extraFilters.categoryId = categoryId;
 
+        const publishedFilter = {
+            $or: [{ status: 'published' }, { isPublished: true }],
+        };
+
         if (user.role === 'admin' || user.role === 'teacher') {
-            quizzes = await Quiz.find({ isPublished: true, ...extraFilters }).select('-questions');
+            quizzes = await Quiz.find({ ...publishedFilter, ...extraFilters }).select('-questions');
         } else {
             // Get all paid enrollments
             const enrollments = await Enrollment.find({ userId: user._id, status: 'paid' });
@@ -614,8 +618,20 @@ router.get('/available/my', protect, async (req: AuthRequest, res: Response, nex
             }).select('_id');
 
             const enrolledCourseIds = new Set<string>();
-            enrollments.forEach((e) => enrolledCourseIds.add(e.courseId.toString()));
-            (user.enrolledCourses || []).forEach((cId: any) => enrolledCourseIds.add(cId.toString()));
+            enrollments.forEach((e) => {
+                if (e.courseId) {
+                    const idStr = typeof e.courseId === 'object' && (e.courseId as any)._id
+                        ? (e.courseId as any)._id.toString()
+                        : e.courseId.toString();
+                    enrolledCourseIds.add(idStr);
+                }
+            });
+            (user.enrolledCourses || []).forEach((cId: any) => {
+                if (cId) {
+                    const idStr = typeof cId === 'object' && cId._id ? cId._id.toString() : cId.toString();
+                    enrolledCourseIds.add(idStr);
+                }
+            });
             freeCourses.forEach((c) => enrolledCourseIds.add(c._id.toString()));
 
             if (enrolledCourseIds.size === 0) {
@@ -641,7 +657,7 @@ router.get('/available/my', protect, async (req: AuthRequest, res: Response, nex
 
             quizzes = await Quiz.find({
                 courseId: { $in: queryCourseObjectIds },
-                isPublished: true,
+                ...publishedFilter,
                 ...extraFilters,
             }).select('-questions');
         }

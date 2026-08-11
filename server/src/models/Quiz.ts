@@ -84,8 +84,7 @@ export interface IQuiz extends Document {
     questions: IQuizQuestion[];
     /** 3-state status replaces the old isPublished boolean */
     status: 'draft' | 'published' | 'archived';
-    /** Virtual for backward compat with student routes */
-    readonly isPublished: boolean;
+    isPublished: boolean;
     draftMeta?: IQuizDraftMeta;
     lockedBy?: IQuizLock;
     auditLog: IQuizAuditEntry[];
@@ -204,11 +203,17 @@ const QuizSchema = new Schema<IQuiz>(
         totalQuestions: { type: Number, default: 0 },
         settings: { type: QuizSettingsSchema, default: () => ({}) },
         questions: { type: [QuizQuestionSchema], default: [] },
-        // 3-state status (replaces isPublished boolean)
+        // 3-state status (draft, published, archived)
         status: {
             type: String,
             enum: ['draft', 'published', 'archived'],
             default: 'draft',
+            index: true,
+        },
+        // Stored boolean field kept in 100% automatic sync with status === 'published'
+        isPublished: {
+            type: Boolean,
+            default: false,
             index: true,
         },
         draftMeta: { type: QuizDraftMetaSchema, default: () => ({}) },
@@ -222,29 +227,45 @@ const QuizSchema = new Schema<IQuiz>(
     }
 );
 
-// ── Virtual: isPublished (backward compat for student routes) ─────────────────
-QuizSchema.virtual('isPublished').get(function (this: IQuiz) {
-    return this.status === 'published';
-});
-
-// Ensure virtuals are included when serialising to JSON/Object
-QuizSchema.set('toJSON', { virtuals: true });
-QuizSchema.set('toObject', { virtuals: true });
-
 // ── Indexes ────────────────────────────────────────────────────────────────────
-QuizSchema.index({ courseId: 1, status: 1 });
-QuizSchema.index({ courseId: 1, subjectId: 1, status: 1 });
+QuizSchema.index({ courseId: 1, status: 1, isPublished: 1 });
+QuizSchema.index({ courseId: 1, subjectId: 1, status: 1, isPublished: 1 });
 QuizSchema.index({ createdBy: 1, status: 1 });
-QuizSchema.index({ status: 1, updatedAt: -1 });
+QuizSchema.index({ status: 1, isPublished: 1, updatedAt: -1 });
 QuizSchema.index({ title: 'text', description: 'text' });
 
-// ── Pre-save hook: keep totalQuestions in sync ─────────────────────────────────
+// ── Pre-save hook: auto-sync status <-> isPublished & totalQuestions ───────────
 QuizSchema.pre('save', function (next) {
     this.totalQuestions = this.questions.length;
+    // Auto-sync status and isPublished boolean field
+    if (this.status === 'published') {
+        this.isPublished = true;
+    } else if (this.isPublished === true && this.status !== 'archived') {
+        this.status = 'published';
+    } else {
+        this.isPublished = false;
+    }
+
     // Cap auditLog at 50 entries
     if (this.auditLog.length > 50) {
         this.auditLog = this.auditLog.slice(this.auditLog.length - 50);
     }
+    next();
+});
+
+// ── Pre-update hook: auto-sync status <-> isPublished during update operations ─
+QuizSchema.pre(['findOneAndUpdate', 'updateOne', 'updateMany'] as any, function (this: any, next: any) {
+    const update: any = this.getUpdate();
+    if (!update) return next();
+
+    const target = update.$set || update;
+
+    if (target.status !== undefined) {
+        target.isPublished = target.status === 'published';
+    } else if (target.isPublished !== undefined) {
+        target.status = target.isPublished ? 'published' : 'draft';
+    }
+
     next();
 });
 

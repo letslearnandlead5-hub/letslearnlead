@@ -77,6 +77,8 @@ export interface IQuiz extends Document {
     courseName: string;
     subjectId?: mongoose.Types.ObjectId;
     subjectName?: string;
+    categoryId?: mongoose.Types.ObjectId;
+    categoryName?: string;
     totalQuestions: number;
     settings: IQuizSettings;
     questions: IQuizQuestion[];
@@ -197,6 +199,8 @@ const QuizSchema = new Schema<IQuiz>(
         courseName: { type: String, default: '' },
         subjectId: { type: Schema.Types.ObjectId },
         subjectName: { type: String, default: '' },
+        categoryId: { type: Schema.Types.ObjectId, ref: 'QuizCategory' },
+        categoryName: { type: String, default: '' },
         totalQuestions: { type: Number, default: 0 },
         settings: { type: QuizSettingsSchema, default: () => ({}) },
         questions: { type: [QuizQuestionSchema], default: [] },

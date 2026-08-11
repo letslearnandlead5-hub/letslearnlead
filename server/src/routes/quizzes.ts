@@ -1,10 +1,11 @@
-﻿import { Router, Request, Response } from 'express';
+import { Router, Request, Response } from 'express';
 import { Quiz } from '../models/Quiz';
 import { QuizAttempt } from '../models/QuizAttempt';
 import { QuizResult } from '../models/QuizResult';
 import { Course } from '../models/Course';
 import { User } from '../models/User';
 import { Enrollment } from '../models/Enrollment';
+import { QuizCategory } from '../models/QuizCategory';
 import { protect, authorize, AuthRequest } from '../middleware/auth';
 import { AppError } from '../middleware/error';
 import mongoose from 'mongoose';
@@ -105,7 +106,7 @@ function buildAuditEntry(req: AuthRequest, action: string, meta?: Record<string,
 // @access  Private (Admin)
 router.post('/', protect, authorize('admin'), async (req: AuthRequest, res: Response, next) => {
     try {
-        const { courseId, status = 'draft', draftMeta, ...rawBody } = req.body;
+        const { courseId, categoryId, status = 'draft', draftMeta, ...rawBody } = req.body;
         const sanitized = sanitizeQuizData(rawBody);
 
         // If creating as published, run full validation first
@@ -116,7 +117,7 @@ router.post('/', protect, authorize('admin'), async (req: AuthRequest, res: Resp
             }
         }
 
-        // Resolve course name (optional for draft â€” courseId may be absent)
+        // Resolve course name (optional for draft — courseId may be absent)
         let courseName = sanitized.courseName || '';
         if (courseId) {
             const course = await Course.findById(courseId);
@@ -124,10 +125,21 @@ router.post('/', protect, authorize('admin'), async (req: AuthRequest, res: Resp
             courseName = course.title;
         }
 
+        // Resolve category name
+        let categoryName = sanitized.categoryName || '';
+        if (categoryId) {
+            const categoryDoc = await QuizCategory.findById(categoryId);
+            if (categoryDoc) {
+                categoryName = categoryDoc.name;
+            }
+        }
+
         const quiz = await Quiz.create({
             ...sanitized,
             courseId: courseId || undefined,
             courseName,
+            categoryId: categoryId || undefined,
+            categoryName,
             createdBy: req.user?.id,
             status,
             draftMeta: draftMeta || { currentStep: 1, currentQuestionIndex: 0, autosaveCount: 0, isAutosaved: false },
@@ -147,10 +159,12 @@ router.post('/', protect, authorize('admin'), async (req: AuthRequest, res: Resp
 // @access  Private (Admin)
 router.get('/', protect, authorize('admin'), async (req: Request, res: Response, next) => {
     try {
-        const { courseId, status, isPublished } = req.query;
+        const { courseId, subjectId, categoryId, status, isPublished } = req.query;
 
         const filter: any = {};
         if (courseId) filter.courseId = courseId;
+        if (subjectId) filter.subjectId = subjectId;
+        if (categoryId) filter.categoryId = categoryId;
 
         // Support new ?status= param as well as old ?isPublished= for compatibility
         if (status && status !== 'all') {
@@ -187,7 +201,7 @@ router.get('/:id/admin', protect, authorize('admin'), async (req: Request, res: 
 // @access  Private (Admin)
 router.put('/:id', protect, authorize('admin'), async (req: AuthRequest, res: Response, next) => {
     try {
-        const { status: newStatus, draftMeta, autosave, ...rawBody } = req.body;
+        const { status: newStatus, categoryId, draftMeta, autosave, ...rawBody } = req.body;
         const sanitized = sanitizeQuizData(rawBody);
 
         const existing = await Quiz.findById(req.params.id);
@@ -209,6 +223,18 @@ router.put('/:id', protect, authorize('admin'), async (req: AuthRequest, res: Re
             courseName = course.title;
         }
 
+        // Resolve category name if categoryId changed/supplied
+        let categoryName = sanitized.categoryName || existing.categoryName;
+        const effectiveCategoryId = categoryId !== undefined ? categoryId : sanitized.categoryId;
+        if (effectiveCategoryId !== undefined) {
+            if (effectiveCategoryId) {
+                const categoryDoc = await QuizCategory.findById(effectiveCategoryId);
+                categoryName = categoryDoc?.name || '';
+            } else {
+                categoryName = '';
+            }
+        }
+
         // Build updated draftMeta
         const updatedDraftMeta = {
             ...existing.draftMeta?.toObject?.() || existing.draftMeta || {},
@@ -228,9 +254,13 @@ router.put('/:id', protect, authorize('admin'), async (req: AuthRequest, res: Re
         const updatePayload: any = {
             ...sanitized,
             courseName,
+            categoryName,
             draftMeta: updatedDraftMeta,
             $push: { auditLog: newAuditEntry },
         };
+        if (effectiveCategoryId !== undefined) {
+            updatePayload.categoryId = effectiveCategoryId || null;
+        }
         if (newStatus) updatePayload.status = newStatus;
 
         // Use findByIdAndUpdate with runValidators:false so partial drafts pass
@@ -564,10 +594,16 @@ router.get('/available/my', protect, async (req: AuthRequest, res: Response, nex
             throw new AppError('User not found', 404);
         }
 
+        const { courseId, subjectId, categoryId } = req.query;
         let quizzes: any[] = [];
 
+        const extraFilters: any = {};
+        if (courseId) extraFilters.courseId = courseId;
+        if (subjectId) extraFilters.subjectId = subjectId;
+        if (categoryId) extraFilters.categoryId = categoryId;
+
         if (user.role === 'admin' || user.role === 'teacher') {
-            quizzes = await Quiz.find({ isPublished: true }).select('-questions');
+            quizzes = await Quiz.find({ isPublished: true, ...extraFilters }).select('-questions');
         } else {
             // Get all paid enrollments
             const enrollments = await Enrollment.find({ userId: user._id, status: 'paid' });
@@ -590,13 +626,23 @@ router.get('/available/my', protect, async (req: AuthRequest, res: Response, nex
                 });
             }
 
-            const queryCourseObjectIds = Array.from(enrolledCourseIds).map(
+            // If courseId filter is explicitly provided, verify student has access to it
+            let finalCourseIds = Array.from(enrolledCourseIds);
+            if (courseId && typeof courseId === 'string') {
+                if (!enrolledCourseIds.has(courseId)) {
+                    return res.status(200).json({ success: true, count: 0, data: [] });
+                }
+                finalCourseIds = [courseId];
+            }
+
+            const queryCourseObjectIds = finalCourseIds.map(
                 (id) => new mongoose.Types.ObjectId(id)
             );
 
             quizzes = await Quiz.find({
                 courseId: { $in: queryCourseObjectIds },
                 isPublished: true,
+                ...extraFilters,
             }).select('-questions');
         }
 

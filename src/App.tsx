@@ -40,6 +40,7 @@ import QuizLeaderboard from './pages/quizzes/QuizLeaderboard';
 import QuizList from './pages/admin/QuizList';
 import QuizEditor from './pages/admin/QuizEditor';
 import QuizResults from './pages/admin/QuizResults';
+import QuizCategoryManager from './pages/admin/QuizCategoryManager';
 import NoteViewer from './pages/notes/NoteViewer';
 import SessionExpiredModal from './components/auth/SessionExpiredModal';
 
@@ -203,6 +204,13 @@ function App() {
           <Route path="/admin/banners/" element={
             <ProtectedRoute requiredRole="admin">
               <BannerManagement />
+            </ProtectedRoute>
+          } />
+
+          {/* Admin Quiz Category Management Route */}
+          <Route path="/admin/quiz-categories/" element={
+            <ProtectedRoute requiredRole="admin">
+              <QuizCategoryManager />
             </ProtectedRoute>
           } />
 

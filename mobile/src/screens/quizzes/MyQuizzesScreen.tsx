@@ -4,6 +4,7 @@ import {
   Text,
   StyleSheet,
   FlatList,
+  ScrollView,
   TouchableOpacity,
   RefreshControl,
   StatusBar,
@@ -38,6 +39,17 @@ const STATUS_CONFIG = {
   'completed':     { color: Colors.success, bg: Colors.successSoft, icon: '✅', label: 'Completed' },
 };
 
+const getCategoryIcon = (categoryName?: string) => {
+  if (!categoryName) return '📝';
+  const lower = categoryName.toLowerCase();
+  if (lower.includes('basic')) return '📝';
+  if (lower.includes('concept')) return '🧠';
+  if (lower.includes('pyq') || lower.includes('previous')) return '📑';
+  if (lower.includes('general') || lower.includes('exam') || lower.includes('test')) return '🏆';
+  if (lower.includes('speed')) return '⚡';
+  return '🏷️';
+};
+
 const QuizCard = ({
   quiz,
   onPress,
@@ -47,6 +59,7 @@ const QuizCard = ({
 }) => {
   const statusKey = quiz.status || 'not-attempted';
   const st = STATUS_CONFIG[statusKey];
+  const catIcon = getCategoryIcon(quiz.categoryName);
 
   return (
     <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.85}>
@@ -64,9 +77,24 @@ const QuizCard = ({
           </View>
         </View>
 
-        {quiz.courseName && (
-          <Text style={styles.courseName}>📚 {quiz.courseName}</Text>
-        )}
+        {/* Course and Category Badges */}
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+          {quiz.courseName && (
+            <View style={styles.courseChip}>
+              <Text style={styles.courseChipText}>📚 {quiz.courseName}</Text>
+            </View>
+          )}
+          {quiz.categoryName && (
+            <View style={styles.categoryChip}>
+              <Text style={styles.categoryChipText}>{catIcon} {quiz.categoryName}</Text>
+            </View>
+          )}
+          {quiz.subjectName && (
+            <View style={styles.subjectChip}>
+              <Text style={styles.subjectChipText}>🔬 {quiz.subjectName}</Text>
+            </View>
+          )}
+        </View>
 
         {/* Stats Row */}
         <View style={styles.statsRow}>
@@ -76,12 +104,10 @@ const QuizCard = ({
           </View>
           <View style={styles.stat}>
             <Text style={styles.statIcon}>❓</Text>
-            {/* Bug fix: use totalQuestions (questions array is stripped from list endpoint) */}
             <Text style={styles.statVal}>{quiz.totalQuestions ?? quiz.questions?.length ?? '—'} Qs</Text>
           </View>
           <View style={styles.stat}>
             <Text style={styles.statIcon}>🎯</Text>
-            {/* Bug fix: passingScore → passingPercentage */}
             <Text style={styles.statVal}>{quiz.settings.passingPercentage}% pass</Text>
           </View>
           {quiz.status === 'completed' && quiz.lastPercentage != null && (
@@ -110,6 +136,7 @@ export const MyQuizzesScreen: React.FC = () => {
   const { insets, topInset, tabBarHeight } = useResponsiveSpacing();
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [filter, setFilter] = useState<FilterType>('all');
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -131,9 +158,16 @@ export const MyQuizzesScreen: React.FC = () => {
 
   const onRefresh = () => { setRefreshing(true); loadQuizzes(); };
 
-  const filtered = filter === 'all'
-    ? quizzes
-    : quizzes.filter(q => q.status === filter);
+  // Unique categories list
+  const categoryList = Array.from(
+    new Set(quizzes.map((q) => q.categoryName).filter((c): c is string => Boolean(c && c.trim())))
+  );
+
+  const filtered = quizzes.filter((q) => {
+    const matchesStatus = filter === 'all' || q.status === filter;
+    const matchesCategory = selectedCategory === 'all' || q.categoryName === selectedCategory;
+    return matchesStatus && matchesCategory;
+  });
 
   const handlePress = (quiz: Quiz) => {
     if (!quiz || !quiz._id) {
@@ -250,6 +284,36 @@ export const MyQuizzesScreen: React.FC = () => {
               </View>
             </LinearGradient>
 
+            {/* Category Filter Chips */}
+            {categoryList.length > 0 && (
+              <View style={{ paddingHorizontal: Spacing.md, paddingTop: 14, paddingBottom: 4 }}>
+                <Text style={{ fontSize: 11, fontWeight: '800', color: Colors.primary, textTransform: 'uppercase', marginBottom: 8, letterSpacing: 0.5 }}>
+                  🏷️ Quiz Categories
+                </Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+                  <TouchableOpacity
+                    style={[styles.chip, selectedCategory === 'all' && styles.chipActive]}
+                    onPress={() => setSelectedCategory('all')}
+                    activeOpacity={0.7}>
+                    <Text style={[styles.chipText, selectedCategory === 'all' && styles.chipTextActive]}>
+                      📚 All Categories
+                    </Text>
+                  </TouchableOpacity>
+                  {categoryList.map((cat) => (
+                    <TouchableOpacity
+                      key={cat}
+                      style={[styles.chip, selectedCategory === cat && styles.chipActive]}
+                      onPress={() => setSelectedCategory(cat)}
+                      activeOpacity={0.7}>
+                      <Text style={[styles.chipText, selectedCategory === cat && styles.chipTextActive]}>
+                        {getCategoryIcon(cat)} {cat}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
+
             {/* Filter Pills */}
             <View style={styles.filterSection}>
               <FlatList
@@ -364,6 +428,12 @@ const styles = StyleSheet.create({
   },
   statusText: { fontSize: 10, fontWeight: '700' },
   courseName: { ...Typography.caption, color: Colors.textSecondary, marginBottom: 8, fontWeight: '500' },
+  courseChip: { backgroundColor: '#EEF2FF', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  courseChipText: { fontSize: 11, color: '#4F46E5', fontWeight: '700' },
+  categoryChip: { backgroundColor: '#FDF2F8', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, borderWidth: 1, borderColor: '#FBCFE8' },
+  categoryChipText: { fontSize: 11, color: '#DB2777', fontWeight: '800' },
+  subjectChip: { backgroundColor: '#F3E8FF', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  subjectChipText: { fontSize: 11, color: '#7E22CE', fontWeight: '700' },
   statsRow: { flexDirection: 'row', gap: 10, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' },
   stat: { flexDirection: 'row', alignItems: 'center', gap: 3 },
   scoreChip: {

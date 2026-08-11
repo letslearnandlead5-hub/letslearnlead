@@ -28,6 +28,7 @@ import contactRoutes from "./routes/contact";
 import userNotesRoutes from "./routes/userNotes";
 import bannerRoutes from "./routes/banners";
 import paymentRoutes from "./routes/payments";
+import quizCategoryRoutes from "./routes/quizCategories";
 
 
 // 🔹 Load environment variables
@@ -169,6 +170,7 @@ app.use("/api/contact", contactRoutes);
 app.use("/api/user-notes", userNotesRoutes);
 app.use("/api/banners", uploadJsonParser, bannerRoutes);
 app.use("/api/payments", uploadJsonParser, paymentRoutes);
+app.use("/api/quiz-categories", quizCategoryRoutes);
 
 
 // 🔹 API Health check

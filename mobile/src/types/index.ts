@@ -154,6 +154,9 @@ export interface Quiz {
   courseId: string;
   courseName?: string;
   subjectId?: string;
+  subjectName?: string;
+  categoryId?: string;
+  categoryName?: string;
   totalQuestions?: number;         // returned from list endpoint (questions array stripped)
   questions: QuizQuestion[];
   settings: QuizSettings;

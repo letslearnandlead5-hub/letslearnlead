@@ -24,6 +24,7 @@ import {
     Clock,
     PenLine,
     Save,
+    Tag,
 } from 'lucide-react';
 import { getAllQuizzes, deleteQuiz, publishQuiz, repairQuizMarks, archiveQuiz, restoreQuiz } from '../../services/quizService';
 import type { Quiz } from '../../types';
@@ -70,6 +71,7 @@ const QuizList: React.FC = () => {
         { id: 'courses', label: 'Courses', icon: BookOpen },
         { id: 'notes', label: 'Notes', icon: FileText },
         { id: 'quizzes', label: 'Quizzes', icon: FileQuestion },
+        { id: 'quiz-categories', label: 'Quiz Categories', icon: Tag },
         { id: 'doubts', label: 'Student Doubts', icon: MessageSquare },
         { id: 'notifications', label: 'Notifications', icon: Brain },
     ];
@@ -230,6 +232,9 @@ const QuizList: React.FC = () => {
                                 onClick={() => {
                                     if (tab.id === 'quizzes') {
                                         setShowMobileSidebar(false);
+                                    } else if (tab.id === 'quiz-categories') {
+                                        navigate('/admin/quiz-categories/');
+                                        setShowMobileSidebar(false);
                                     } else {
                                         window.dispatchEvent(new CustomEvent('selectAdminTab', { detail: tab.id }));
                                         navigate('/dashboard/');
@@ -261,15 +266,21 @@ const QuizList: React.FC = () => {
                     <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
                         <div className="max-w-7xl mx-auto">
                             {/* Header */}
-                            <div className="flex items-center justify-between mb-8">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
                                 <div>
                                     <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Quiz Management</h1>
                                     <p className="text-gray-600 dark:text-gray-400">Create and manage quizzes for your courses</p>
                                 </div>
-                                <button onClick={() => navigate('/admin/quizzes/new')} className="flex items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors">
-                                    <Plus className="w-5 h-5" />
-                                    Create Quiz
-                                </button>
+                                <div className="flex items-center gap-3">
+                                    <button onClick={() => navigate('/admin/quiz-categories/')} className="flex items-center gap-2 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 px-5 py-3 rounded-lg font-medium hover:bg-indigo-100 transition-colors">
+                                        <Tag className="w-5 h-5" />
+                                        Quiz Categories
+                                    </button>
+                                    <button onClick={() => navigate('/admin/quizzes/new')} className="flex items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors">
+                                        <Plus className="w-5 h-5" />
+                                        Create Quiz
+                                    </button>
+                                </div>
                             </div>
 
                             {/* Status Filter Tabs */}

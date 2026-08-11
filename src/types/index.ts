@@ -244,6 +244,21 @@ export interface QuizLock {
     lockedAt: string;
 }
 
+export interface QuizCategory {
+    _id: string;
+    id?: string;
+    courseId: string;
+    subjectId?: string;
+    name: string;
+    description?: string;
+    icon?: string;
+    color?: string;
+    order: number;
+    isActive: boolean;
+    createdAt?: string;
+    updatedAt?: string;
+}
+
 export interface Quiz {
     _id?: string;
     id?: string;
@@ -253,6 +268,8 @@ export interface Quiz {
     courseName: string;
     subjectId?: string;     // Subject within class-course
     subjectName?: string;   // e.g. "Mathematics"
+    categoryId?: string;    // Quiz Category ID (dynamic per course/subject)
+    categoryName?: string;  // e.g. "Basic", "Conceptual", "PYQ", "General Exam"
     totalQuestions: number;
     settings: QuizSettings;
     questions: QuizQuestion[];

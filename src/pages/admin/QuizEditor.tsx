@@ -29,7 +29,8 @@ import {
     PenLine,
 } from 'lucide-react';
 import { createQuiz, getQuizById, updateQuiz, saveDraft, lockQuiz, unlockQuiz, publishQuiz } from '../../services/quizService';
-import type { Quiz, QuizQuestion, QuestionOption, MatchPair, Subject } from '../../types';
+import { quizCategoryService } from '../../services/quizCategoryService';
+import type { Quiz, QuizQuestion, QuestionOption, MatchPair, Subject, QuizCategory } from '../../types';
 import toast from 'react-hot-toast';
 import AdminHeader from '../../components/admin/AdminHeader';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -104,6 +105,9 @@ const QuizEditor: React.FC = () => {
     const [courseId, setCourseId] = useState('');
     const [subjectId, setSubjectId] = useState('');
     const [subjectName, setSubjectName] = useState('');
+    const [categoryId, setCategoryId] = useState('');
+    const [categoryName, setCategoryName] = useState('');
+    const [availableCategories, setAvailableCategories] = useState<QuizCategory[]>([]);
 
     // Derive subjects for the selected course
     const selectedCourseSubjects: Subject[] = courses.find(c => c._id === courseId)?.subjects || [];
@@ -127,6 +131,8 @@ const QuizEditor: React.FC = () => {
     const courseIdRef = useRef(courseId);
     const subjectIdRef = useRef(subjectId);
     const subjectNameRef = useRef(subjectName);
+    const categoryIdRef = useRef(categoryId);
+    const categoryNameRef = useRef(categoryName);
     const marksPerQuestionRef = useRef(marksPerQuestion);
     const negativeMarkingRef = useRef(negativeMarking);
     const timeLimitRef = useRef(timeLimit);
@@ -145,6 +151,19 @@ const QuizEditor: React.FC = () => {
     useEffect(() => { courseIdRef.current = courseId; }, [courseId]);
     useEffect(() => { subjectIdRef.current = subjectId; }, [subjectId]);
     useEffect(() => { subjectNameRef.current = subjectName; }, [subjectName]);
+    useEffect(() => { categoryIdRef.current = categoryId; }, [categoryId]);
+    useEffect(() => { categoryNameRef.current = categoryName; }, [categoryName]);
+
+    // Fetch categories when courseId or subjectId changes
+    useEffect(() => {
+        if (courseId) {
+            quizCategoryService.getCategories(courseId, subjectId || undefined)
+                .then(cats => setAvailableCategories(cats))
+                .catch(() => setAvailableCategories([]));
+        } else {
+            setAvailableCategories([]);
+        }
+    }, [courseId, subjectId]);
     useEffect(() => { marksPerQuestionRef.current = marksPerQuestion; }, [marksPerQuestion]);
     useEffect(() => { negativeMarkingRef.current = negativeMarking; }, [negativeMarking]);
     useEffect(() => { timeLimitRef.current = timeLimit; }, [timeLimit]);
@@ -222,6 +241,8 @@ const QuizEditor: React.FC = () => {
             setCourseId(quiz.courseId || '');
             setSubjectId(quiz.subjectId || '');
             setSubjectName(quiz.subjectName || '');
+            setCategoryId(quiz.categoryId || '');
+            setCategoryName(quiz.categoryName || '');
             const targetMarks = quiz.settings?.marksPerQuestion || 4;
             const targetNegative = quiz.settings?.negativeMarking || 0;
             setMarksPerQuestion(targetMarks);
@@ -463,6 +484,8 @@ const QuizEditor: React.FC = () => {
         courseId: courseIdRef.current || undefined,
         subjectId: subjectIdRef.current || undefined,
         subjectName: subjectNameRef.current || undefined,
+        categoryId: categoryIdRef.current || undefined,
+        categoryName: categoryNameRef.current || undefined,
         settings: {
             marksPerQuestion: marksPerQuestionRef.current,
             negativeMarking: negativeMarkingRef.current,
@@ -491,6 +514,8 @@ const QuizEditor: React.FC = () => {
         courseId: courseId || undefined,
         subjectId: subjectId || undefined,
         subjectName: subjectName || undefined,
+        categoryId: categoryId || undefined,
+        categoryName: categoryName || undefined,
         settings: { marksPerQuestion, negativeMarking, timeLimit, passingPercentage, allowRetake, maxAttempts },
         questions: (questions as QuizQuestion[]).map((q) => ({
             ...q,
@@ -865,6 +890,8 @@ const QuizEditor: React.FC = () => {
                                                         const s = selectedCourseSubjects.find(sub => sub._id === e.target.value);
                                                         setSubjectId(e.target.value);
                                                         setSubjectName(s?.name || '');
+                                                        setCategoryId('');
+                                                        setCategoryName('');
                                                         markDirty();
                                                     }}
                                                     className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
@@ -876,6 +903,46 @@ const QuizEditor: React.FC = () => {
                                                         </option>
                                                     ))}
                                                 </select>
+                                            </div>
+                                        )}
+
+                                        {/* Quiz Category Selection */}
+                                        {courseId && (
+                                            <div>
+                                                <div className="flex items-center justify-between mb-2">
+                                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                                        Quiz Category (Optional)
+                                                    </label>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => window.open('/admin/quiz-categories/', '_blank')}
+                                                        className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline font-medium flex items-center gap-1"
+                                                    >
+                                                        + Manage Categories
+                                                    </button>
+                                                </div>
+                                                <select
+                                                    value={categoryId}
+                                                    onChange={(e) => {
+                                                        const cat = availableCategories.find(c => c._id === e.target.value);
+                                                        setCategoryId(e.target.value);
+                                                        setCategoryName(cat?.name || '');
+                                                        markDirty();
+                                                    }}
+                                                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
+                                                >
+                                                    <option value="">General (No Category)</option>
+                                                    {availableCategories.map((cat) => (
+                                                        <option key={cat._id} value={cat._id}>
+                                                            {cat.icon ? `${cat.icon} ` : ''}{cat.name} {cat.subjectId ? '(Subject-specific)' : '(Course-wide)'}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                                {availableCategories.length === 0 && (
+                                                    <p className="text-xs text-gray-500 mt-1">
+                                                        No category created yet for this course/subject. Click "+ Manage Categories" above to add categories like Basic, Conceptual, PYQ, etc.
+                                                    </p>
+                                                )}
                                             </div>
                                         )}
                                     </div>

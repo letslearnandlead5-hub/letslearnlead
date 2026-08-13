@@ -74,6 +74,24 @@ const QuizList: React.FC = () => {
     const [repairing, setRepairing] = useState<string | null>(null);
     const [archiving, setArchiving] = useState<string | null>(null);
 
+    const tabs = [
+        { id: 'overview', label: 'Overview', icon: BarChart3 },
+        { id: 'users', label: 'Users', icon: Users },
+        { id: 'students', label: 'Students', icon: Users },
+        { id: 'courses', label: 'Courses', icon: BookOpen },
+        { id: 'notes', label: 'Notes', icon: FileText },
+        { id: 'quizzes', label: 'Quizzes', icon: FileQuestion },
+        { id: 'quiz-categories', label: 'Quiz Categories', icon: Tag },
+        { id: 'doubts', label: 'Student Doubts', icon: MessageSquare },
+        { id: 'notifications', label: 'Notifications', icon: Brain },
+    ];
+
+    const handleLogout = () => {
+        logout();
+        toast.success('Logged out successfully');
+        navigate('/login/');
+    };
+
     // Load Courses list on mount
     useEffect(() => {
         const loadCourses = async () => {

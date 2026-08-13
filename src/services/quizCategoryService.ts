@@ -59,3 +59,7 @@ export const quizCategoryService = {
         await api.put('/quiz-categories/reorder', { items });
     },
 };
+
+export const getQuizCategories = (courseId: string, subjectId?: string) =>
+    quizCategoryService.getCategories(courseId, subjectId);
+

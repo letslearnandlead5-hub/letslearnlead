@@ -7,6 +7,28 @@ import { AppError } from '../middleware/error';
 
 const router = Router();
 
+// Helper to auto-seed default categories if none exist for a course
+export const ensureDefaultCategoriesForCourse = async (cId: string | mongoose.Types.ObjectId) => {
+    const objId = new mongoose.Types.ObjectId(cId.toString());
+    const count = await QuizCategory.countDocuments({ courseId: objId });
+    if (count === 0) {
+        const defaults = [
+            { name: 'Basic', description: 'Fundamental level practice questions', icon: '📝', color: '#10b981', order: 0 },
+            { name: 'Conceptual', description: 'Deep concept & theory focused quizzes', icon: '🧠', color: '#3b82f6', order: 1 },
+            { name: 'PYQ', description: 'Previous Year Questions from past competitive exams', icon: '📑', color: '#ec4899', order: 2 },
+            { name: 'General Exam', description: 'Full syllabus & mixed practice tests', icon: '🏆', color: '#8b5cf6', order: 3 },
+        ];
+        await QuizCategory.insertMany(
+            defaults.map((d) => ({
+                courseId: objId,
+                subjectId: null,
+                ...d,
+                isActive: true,
+            }))
+        );
+    }
+};
+
 // ── GET /api/quiz-categories ──────────────────────────────────────────────────
 // @desc    Get active categories for a course and optional subject
 // @access  Public / Authenticated
@@ -20,6 +42,9 @@ router.get('/', async (req: Request, res: Response, next) => {
                 message: 'courseId parameter is required',
             });
         }
+
+        // Auto-seed default categories if course has none
+        await ensureDefaultCategoriesForCourse(courseId as string);
 
         const filter: any = {
             courseId: new mongoose.Types.ObjectId(courseId as string),

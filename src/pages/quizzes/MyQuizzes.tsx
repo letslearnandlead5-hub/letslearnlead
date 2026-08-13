@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     BookOpen, Clock, CheckCircle, PlayCircle, Trophy, AlertCircle,
-    X, ChevronRight, Eye, RotateCcw, Star, Tag, Sparkles
+    X, ChevronRight, Eye, RotateCcw, Star, Tag, Sparkles, Layers
 } from 'lucide-react';
 import { getAvailableQuizzes } from '../../services/quizService';
 import type { QuizWithStatus, QuizAttemptSummary } from '../../types';
@@ -11,7 +11,7 @@ import toast from 'react-hot-toast';
 
 // ── Category Badge Helper ─────────────────────────────────────────────────────
 const getCategoryStyle = (categoryName?: string) => {
-    if (!categoryName) return { icon: '📝', bg: 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700' };
+    if (!categoryName) return { icon: '📝', bg: 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800' };
     const lower = categoryName.toLowerCase();
     if (lower.includes('basic')) {
         return { icon: '📝', bg: 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800' };
@@ -31,6 +31,17 @@ const getCategoryStyle = (categoryName?: string) => {
     return { icon: '🏷️', bg: 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800' };
 };
 
+// ── Subject Icon Helper ───────────────────────────────────────────────────────
+const getSubjectIcon = (subjectName?: string) => {
+    if (!subjectName) return '📚';
+    const lower = subjectName.toLowerCase();
+    if (lower.includes('bio')) return '🧬';
+    if (lower.includes('chem')) return '⚗️';
+    if (lower.includes('phys')) return '⚡';
+    if (lower.includes('math')) return '📐';
+    return '📚';
+};
+
 // ── Attempt Picker Modal ──────────────────────────────────────────────────────
 const AttemptPickerModal: React.FC<{
     quiz: QuizWithStatus;
@@ -39,12 +50,6 @@ const AttemptPickerModal: React.FC<{
     onRetake: () => void;
 }> = ({ quiz, onClose, onSelectAttempt, onRetake }) => {
     const attempts = quiz.allAttempts || [];
-
-    const formatTime = (seconds: number) => {
-        const m = Math.floor(seconds / 60);
-        const s = seconds % 60;
-        return m > 0 ? `${m}m ${s}s` : `${s}s`;
-    };
 
     const formatDate = (date: string | Date) => {
         return new Date(date).toLocaleDateString('en-IN', {
@@ -67,7 +72,7 @@ const AttemptPickerModal: React.FC<{
                     <div className="flex items-start justify-between">
                         <div className="flex-1 pr-4">
                             <h3 className="text-lg font-bold leading-tight">{quiz.title}</h3>
-                            <p className="text-indigo-200 text-sm mt-1">{quiz.courseName}</p>
+                            <p className="text-indigo-200 text-sm mt-1">{quiz.courseName} {quiz.subjectName ? `• ${quiz.subjectName}` : ''}</p>
                         </div>
                         <button
                             onClick={onClose}
@@ -101,7 +106,6 @@ const AttemptPickerModal: React.FC<{
                             >
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-3">
-                                        {/* Attempt badge */}
                                         <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0 ${
                                             attempt.isPassed
                                                 ? 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300'
@@ -133,7 +137,6 @@ const AttemptPickerModal: React.FC<{
                                         </div>
                                     </div>
 
-                                    {/* Score */}
                                     <div className="text-right">
                                         <span className={`text-lg font-bold ${
                                             attempt.percentage >= 75 ? 'text-green-600 dark:text-green-400'
@@ -180,6 +183,7 @@ export const MyQuizzes: React.FC = () => {
     const [quizzes, setQuizzes] = useState<QuizWithStatus[]>([]);
     const [loading, setLoading] = useState(true);
     const [statusFilter, setStatusFilter] = useState<'all' | 'not-attempted' | 'in-progress' | 'completed'>('all');
+    const [selectedSubject, setSelectedSubject] = useState<string>('all');
     const [selectedCategory, setSelectedCategory] = useState<string>('all');
     const [pickerQuiz, setPickerQuiz] = useState<QuizWithStatus | null>(null);
 
@@ -199,34 +203,51 @@ export const MyQuizzes: React.FC = () => {
         }
     };
 
-    // Extract unique category names from loaded quizzes
-    const categoryList = Array.from(
+    // Extract unique subjects from loaded quizzes
+    const subjectList = Array.from(
         new Set(
             quizzes
+                .map((q) => q.subjectName)
+                .filter((s): s is string => Boolean(s && s.trim()))
+        )
+    );
+
+    // Filter quizzes by selected subject first
+    const subjectFilteredQuizzes = quizzes.filter((quiz) => {
+        if (selectedSubject === 'all') return true;
+        return quiz.subjectName?.toLowerCase().trim() === selectedSubject.toLowerCase().trim();
+    });
+
+    // Extract unique categories for the active subject selection
+    const categoryList = Array.from(
+        new Set(
+            subjectFilteredQuizzes
                 .map((q) => q.categoryName)
                 .filter((c): c is string => Boolean(c && c.trim()))
         )
     );
 
-    // Apply status and category filters
-    const filteredQuizzes = quizzes.filter((quiz) => {
+    // Apply status and category filters on top of subject selection
+    const filteredQuizzes = subjectFilteredQuizzes.filter((quiz) => {
         const matchesStatus = statusFilter === 'all' || quiz.attemptStatus === statusFilter;
         const matchesCategory =
             selectedCategory === 'all'
                 ? true
-                : selectedCategory === 'uncategorized'
-                ? !quiz.categoryName
-                : quiz.categoryName === selectedCategory;
+                : quiz.categoryName?.toLowerCase().trim() === selectedCategory.toLowerCase().trim();
         return matchesStatus && matchesCategory;
     });
 
-    // Group quizzes by category for default multi-section view
-    const groupedByCategory = filteredQuizzes.reduce((acc, quiz) => {
-        const catName = quiz.categoryName || 'General Practice';
-        if (!acc[catName]) acc[catName] = [];
-        acc[catName].push(quiz);
+    // Group quizzes strictly by SUBJECT, then by CATEGORY
+    const groupedBySubject = filteredQuizzes.reduce((acc, quiz) => {
+        const subName = quiz.subjectName || 'General Quizzes';
+        if (!acc[subName]) acc[subName] = {};
+        
+        const catName = quiz.categoryName || 'General';
+        if (!acc[subName][catName]) acc[subName][catName] = [];
+        
+        acc[subName][catName].push(quiz);
         return acc;
-    }, {} as Record<string, QuizWithStatus[]>);
+    }, {} as Record<string, Record<string, QuizWithStatus[]>>);
 
     const getStatusColor = (status?: string) => {
         switch (status) {
@@ -293,18 +314,12 @@ export const MyQuizzes: React.FC = () => {
                 className="bg-white dark:bg-gray-800 rounded-2xl shadow-md border border-gray-100 dark:border-gray-700/60 overflow-hidden hover:shadow-xl transition-all flex flex-col group"
             >
                 <div className="p-6 flex flex-col flex-1">
-                    {/* Top Row: Category Chip + Status */}
+                    {/* Top Row: Category Badge + Status */}
                     <div className="flex items-center justify-between gap-2 mb-4">
-                        {quiz.categoryName ? (
-                            <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold border ${catStyle.bg}`}>
-                                <span>{catStyle.icon}</span>
-                                <span>{quiz.categoryName}</span>
-                            </span>
-                        ) : (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300">
-                                📝 General
-                            </span>
-                        )}
+                        <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold border ${catStyle.bg}`}>
+                            <span>{catStyle.icon}</span>
+                            <span>{quiz.categoryName || 'Basic'}</span>
+                        </span>
 
                         <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${getStatusColor(quiz.attemptStatus)}`}>
                             {getStatusIcon(quiz.attemptStatus)}
@@ -324,7 +339,7 @@ export const MyQuizzes: React.FC = () => {
                         </span>
                         {quiz.subjectName && (
                             <span className="text-xs px-2.5 py-0.5 bg-violet-50 dark:bg-violet-950/50 text-violet-600 dark:text-violet-300 rounded-md font-semibold">
-                                📚 {quiz.subjectName}
+                                {getSubjectIcon(quiz.subjectName)} {quiz.subjectName}
                             </span>
                         )}
                     </div>
@@ -405,47 +420,100 @@ export const MyQuizzes: React.FC = () => {
                             My Quizzes & Tests
                         </h1>
                         <p className="text-indigo-100 text-sm sm:text-base leading-relaxed">
-                            Practice with subject-specific quiz categories (Basic, Conceptual, PYQ, and General Exams) tailored for your course.
+                            Organized subject-wise (Biology, Chemistry, Physics, Mathematics) and category-wise (Basic, Conceptual, PYQ, General Exam).
                         </p>
                     </div>
                 </div>
 
-                {/* Dynamic Category Visual Chips Box (Per User Image Spec) */}
+                {/* 1. SUBJECT SELECTION CARDS / TABS */}
+                <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 p-5 mb-6 shadow-sm">
+                    <h2 className="text-xs font-extrabold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 mb-3 flex items-center gap-2">
+                        <Layers className="w-4 h-4" /> Select Subject
+                    </h2>
+
+                    <div className="flex items-center gap-3 overflow-x-auto pb-1">
+                        {/* All Subjects */}
+                        <button
+                            onClick={() => {
+                                setSelectedSubject('all');
+                                setSelectedCategory('all');
+                            }}
+                            className={`px-4 py-2.5 rounded-xl border-2 font-bold text-sm flex items-center gap-2 transition-all whitespace-nowrap ${
+                                selectedSubject === 'all'
+                                    ? 'bg-indigo-600 border-indigo-600 text-white shadow-md'
+                                    : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-indigo-300'
+                            }`}
+                        >
+                            <span>📚 All Subjects</span>
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-white/20 font-bold">
+                                {quizzes.length}
+                            </span>
+                        </button>
+
+                        {/* Subject Chips */}
+                        {subjectList.map((subName) => {
+                            const isSelected = selectedSubject.toLowerCase() === subName.toLowerCase();
+                            const subCount = quizzes.filter(q => q.subjectName?.toLowerCase().trim() === subName.toLowerCase().trim()).length;
+
+                            return (
+                                <button
+                                    key={subName}
+                                    onClick={() => {
+                                        setSelectedSubject(subName);
+                                        setSelectedCategory('all');
+                                    }}
+                                    className={`px-4 py-2.5 rounded-xl border-2 font-bold text-sm flex items-center gap-2 transition-all whitespace-nowrap ${
+                                        isSelected
+                                            ? 'bg-indigo-600 border-indigo-600 text-white shadow-md'
+                                            : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-indigo-300'
+                                    }`}
+                                >
+                                    <span>{getSubjectIcon(subName)} {subName}</span>
+                                    <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
+                                        isSelected ? 'bg-white/20' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
+                                    }`}>
+                                        {subCount}
+                                    </span>
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+
+                {/* 2. CATEGORY SELECTION CHIPS */}
                 {categoryList.length > 0 && (
-                    <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 p-5 mb-8 shadow-sm">
-                        <h2 className="text-xs font-extrabold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 mb-3 flex items-center gap-2">
-                            <Tag className="w-4 h-4" /> Quiz Categories
+                    <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 p-4 mb-6 shadow-sm">
+                        <h2 className="text-xs font-extrabold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 mb-2.5 flex items-center gap-2">
+                            <Tag className="w-3.5 h-3.5" /> Quiz Categories {selectedSubject !== 'all' ? `for ${selectedSubject}` : ''}
                         </h2>
 
-                        <div className="flex items-center gap-3 flex-wrap">
-                            {/* All Categories Chip */}
+                        <div className="flex items-center gap-2.5 flex-wrap">
                             <button
                                 onClick={() => setSelectedCategory('all')}
-                                className={`px-4 py-2.5 rounded-xl border-2 font-bold text-sm flex items-center gap-2 transition-all shadow-sm ${
+                                className={`px-3.5 py-1.5 rounded-xl border-2 font-bold text-xs flex items-center gap-1.5 transition-all ${
                                     selectedCategory === 'all'
-                                        ? 'bg-indigo-600 border-indigo-600 text-white shadow-indigo-200 dark:shadow-none'
+                                        ? 'bg-indigo-600 border-indigo-600 text-white'
                                         : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-indigo-300'
                                 }`}
                             >
-                                <span>📚 All Categories</span>
+                                <span>All Categories</span>
                             </button>
 
-                            {/* Category Badges */}
                             {categoryList.map((catName) => {
                                 const style = getCategoryStyle(catName);
-                                const isSelected = selectedCategory === catName;
+                                const isSelected = selectedCategory.toLowerCase() === catName.toLowerCase();
 
                                 return (
                                     <button
                                         key={catName}
                                         onClick={() => setSelectedCategory(catName)}
-                                        className={`px-4 py-2.5 rounded-xl border-2 font-bold text-sm flex items-center gap-2.5 transition-all ${
+                                        className={`px-3.5 py-1.5 rounded-xl border-2 font-bold text-xs flex items-center gap-1.5 transition-all ${
                                             isSelected
-                                                ? 'bg-indigo-600 border-indigo-600 text-white shadow-md'
-                                                : `hover:scale-105 ${style.bg}`
+                                                ? 'bg-indigo-600 border-indigo-600 text-white shadow-sm'
+                                                : `${style.bg}`
                                         }`}
                                     >
-                                        <span className="text-base">{style.icon}</span>
+                                        <span>{style.icon}</span>
                                         <span>{catName}</span>
                                     </button>
                                 );
@@ -454,7 +522,7 @@ export const MyQuizzes: React.FC = () => {
                     </div>
                 )}
 
-                {/* Status Filter Tabs (Attempt Status: All, Not Attempted, In Progress, Completed) */}
+                {/* 3. STATUS FILTER TABS */}
                 <div className="mb-6 flex items-center gap-2 overflow-x-auto pb-2">
                     {(['all', 'not-attempted', 'in-progress', 'completed'] as const).map((filterOption) => (
                         <button
@@ -469,57 +537,78 @@ export const MyQuizzes: React.FC = () => {
                             {filterOption === 'all' ? 'All Statuses' : filterOption.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
                             {filterOption !== 'all' && (
                                 <span className="ml-1.5 opacity-70">
-                                    ({quizzes.filter(q => q.attemptStatus === filterOption).length})
+                                    ({subjectFilteredQuizzes.filter(q => q.attemptStatus === filterOption).length})
                                 </span>
                             )}
                         </button>
                     ))}
                 </div>
 
-                {/* Quiz Display Section */}
+                {/* 4. SUBJECT-WISE & CATEGORY-WISE QUIZ DISPLAY */}
                 {filteredQuizzes.length === 0 ? (
                     <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 p-12 text-center">
                         <BookOpen className="w-16 h-16 text-gray-400 mx-auto mb-4" />
                         <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
-                            No Quizzes Available
+                            {selectedSubject !== 'all'
+                                ? `No ${selectedCategory !== 'all' ? selectedCategory : ''} Quizzes Available for ${selectedSubject}`
+                                : 'No Quizzes Match Selected Filters'}
                         </h3>
                         <p className="text-gray-600 dark:text-gray-400 text-sm max-w-md mx-auto">
-                            {statusFilter !== 'all' || selectedCategory !== 'all'
-                                ? 'No quizzes match the selected filters.'
-                                : 'Enroll in a course to access its quizzes and assessment tests.'}
+                            {selectedSubject !== 'all'
+                                ? `Quizzes for ${selectedSubject} will be uploaded soon.`
+                                : 'Try switching subject or category filters to view other quizzes.'}
                         </p>
                     </div>
-                ) : selectedCategory !== 'all' ? (
-                    /* Filtered Single Category View */
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {filteredQuizzes.map((quiz, idx) => renderQuizCard(quiz, idx))}
-                    </div>
                 ) : (
-                    /* Grouped By Category View (Option C: Grouped + Filterable) */
-                    <div className="space-y-10">
-                        {Object.entries(groupedByCategory).map(([catName, catQuizzes]) => {
-                            const catStyle = getCategoryStyle(catName);
+                    <div className="space-y-12">
+                        {Object.entries(groupedBySubject).map(([subName, catGroups]) => {
+                            const subIcon = getSubjectIcon(subName);
+                            const totalSubQuizzes = Object.values(catGroups).reduce((sum, arr) => sum + arr.length, 0);
 
                             return (
-                                <div key={catName} className="space-y-4">
-                                    {/* Section Heading */}
-                                    <div className="flex items-center gap-3 border-b border-gray-200 dark:border-gray-800 pb-3">
-                                        <div className={`p-2 rounded-xl border text-lg ${catStyle.bg}`}>
-                                            {catStyle.icon}
-                                        </div>
-                                        <div>
-                                            <h2 className="text-xl font-extrabold text-gray-900 dark:text-white flex items-center gap-2">
-                                                {catName}
-                                                <span className="text-xs px-2.5 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 font-semibold">
-                                                    {catQuizzes.length} quiz{catQuizzes.length !== 1 ? 'zes' : ''}
-                                                </span>
-                                            </h2>
+                                <div key={subName} className="space-y-6">
+                                    {/* SUBJECT HEADER */}
+                                    <div className="bg-gradient-to-r from-slate-900 to-indigo-950 dark:from-gray-900 dark:to-indigo-950 text-white rounded-2xl p-4 sm:p-5 flex items-center justify-between shadow-md">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-xl">
+                                                {subIcon}
+                                            </div>
+                                            <div>
+                                                <h2 className="text-xl font-extrabold tracking-tight">
+                                                    {subName}
+                                                </h2>
+                                                <p className="text-xs text-indigo-200">
+                                                    {totalSubQuizzes} quiz{totalSubQuizzes !== 1 ? 'zes' : ''} available
+                                                </p>
+                                            </div>
                                         </div>
                                     </div>
 
-                                    {/* Grid of Quizzes in this Category */}
-                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                        {catQuizzes.map((quiz, idx) => renderQuizCard(quiz, idx))}
+                                    {/* CATEGORIES INSIDE THIS SUBJECT */}
+                                    <div className="space-y-8 pl-1 sm:pl-2">
+                                        {Object.entries(catGroups).map(([catName, catQuizzes]) => {
+                                            const catStyle = getCategoryStyle(catName);
+
+                                            return (
+                                                <div key={catName} className="space-y-4">
+                                                    {/* Category Section Subheading */}
+                                                    <div className="flex items-center gap-2.5 border-b border-gray-200 dark:border-gray-800 pb-2">
+                                                        <span className="text-lg">{catStyle.icon}</span>
+                                                        <h3 className="text-base font-extrabold text-gray-800 dark:text-gray-200 flex items-center gap-2">
+                                                            {catName}
+                                                            <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400">
+                                                                {catQuizzes.length}
+                                                            </span>
+                                                        </h3>
+                                                    </div>
+
+                                                    {/* Grid of Quizzes in this Subject + Category */}
+                                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                                        {catQuizzes.map((quiz, idx) => renderQuizCard(quiz, idx))}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
                                     </div>
                                 </div>
                             );

@@ -230,6 +230,7 @@ const QuizSchema = new Schema<IQuiz>(
 // ── Indexes ────────────────────────────────────────────────────────────────────
 QuizSchema.index({ courseId: 1, status: 1, isPublished: 1 });
 QuizSchema.index({ courseId: 1, subjectId: 1, status: 1, isPublished: 1 });
+QuizSchema.index({ courseId: 1, subjectId: 1, categoryId: 1, status: 1, isPublished: 1 });
 QuizSchema.index({ createdBy: 1, status: 1 });
 QuizSchema.index({ status: 1, isPublished: 1, updatedAt: -1 });
 QuizSchema.index({ title: 'text', description: 'text' });

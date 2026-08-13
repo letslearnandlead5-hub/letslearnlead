@@ -27,6 +27,8 @@ import {
     Tag,
 } from 'lucide-react';
 import { getAllQuizzes, deleteQuiz, publishQuiz, repairQuizMarks, archiveQuiz, restoreQuiz } from '../../services/quizService';
+import { courseAPI } from '../../services/api';
+import { getQuizCategories } from '../../services/quizCategoryService';
 import type { Quiz } from '../../types';
 import toast from 'react-hot-toast';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -59,28 +61,64 @@ const QuizList: React.FC = () => {
     const [quizzes, setQuizzes] = useState<Quiz[]>([]);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState<QuizStatus>('all');
+    const [selectedCourse, setSelectedCourse] = useState<string>('all');
+    const [selectedSubject, setSelectedSubject] = useState<string>('all');
+    const [selectedCategory, setSelectedCategory] = useState<string>('all');
+
+    const [courses, setCourses] = useState<any[]>([]);
+    const [availableSubjects, setAvailableSubjects] = useState<any[]>([]);
+    const [availableCategories, setAvailableCategories] = useState<any[]>([]);
+
     const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
     const [showMobileSidebar, setShowMobileSidebar] = useState(false);
     const [repairing, setRepairing] = useState<string | null>(null);
     const [archiving, setArchiving] = useState<string | null>(null);
 
-    const tabs = [
-        { id: 'overview', label: 'Overview', icon: BarChart3 },
-        { id: 'users', label: 'Users', icon: Users },
-        { id: 'students', label: 'Students', icon: Users },
-        { id: 'courses', label: 'Courses', icon: BookOpen },
-        { id: 'notes', label: 'Notes', icon: FileText },
-        { id: 'quizzes', label: 'Quizzes', icon: FileQuestion },
-        { id: 'quiz-categories', label: 'Quiz Categories', icon: Tag },
-        { id: 'doubts', label: 'Student Doubts', icon: MessageSquare },
-        { id: 'notifications', label: 'Notifications', icon: Brain },
-    ];
+    // Load Courses list on mount
+    useEffect(() => {
+        const loadCourses = async () => {
+            try {
+                const res = await courseAPI.getAll();
+                setCourses(res.data?.data || res.data || []);
+            } catch (err) {
+                console.error('Failed to load courses:', err);
+            }
+        };
+        loadCourses();
+    }, []);
 
-    const handleLogout = () => {
-        logout();
-        toast.success('Logged out successfully');
-        navigate('/login/');
-    };
+    // Update available subjects when selectedCourse changes
+    useEffect(() => {
+        if (selectedCourse && selectedCourse !== 'all') {
+            const courseDoc = courses.find((c) => c._id === selectedCourse);
+            setAvailableSubjects(courseDoc?.subjects || []);
+        } else {
+            setAvailableSubjects([]);
+        }
+        setSelectedSubject('all');
+        setSelectedCategory('all');
+    }, [selectedCourse, courses]);
+
+    // Update available categories when selectedCourse or selectedSubject changes
+    useEffect(() => {
+        const loadCategories = async () => {
+            if (selectedCourse && selectedCourse !== 'all') {
+                try {
+                    const cats = await getQuizCategories(
+                        selectedCourse,
+                        selectedSubject !== 'all' ? selectedSubject : undefined
+                    );
+                    setAvailableCategories(cats);
+                } catch (err) {
+                    console.error('Failed to load categories:', err);
+                    setAvailableCategories([]);
+                }
+            } else {
+                setAvailableCategories([]);
+            }
+        };
+        loadCategories();
+    }, [selectedCourse, selectedSubject]);
 
     useEffect(() => {
         if (user?.role !== 'admin') {
@@ -89,13 +127,18 @@ const QuizList: React.FC = () => {
             return;
         }
         fetchQuizzes();
-    }, [filter, user, navigate]);
+    }, [filter, selectedCourse, selectedSubject, selectedCategory, user, navigate]);
 
     const fetchQuizzes = async () => {
         try {
             setLoading(true);
-            // Pass status filter directly — server supports all | published | draft | archived
-            const data = await getAllQuizzes(filter === 'all' ? {} : { status: filter });
+            const params: any = {};
+            if (filter !== 'all') params.status = filter;
+            if (selectedCourse !== 'all') params.courseId = selectedCourse;
+            if (selectedSubject !== 'all') params.subjectId = selectedSubject;
+            if (selectedCategory !== 'all') params.categoryId = selectedCategory;
+
+            const data = await getAllQuizzes(params);
             setQuizzes(data);
         } catch (error: any) {
             console.error('Quiz fetch error:', error);
@@ -280,6 +323,63 @@ const QuizList: React.FC = () => {
                                         <Plus className="w-5 h-5" />
                                         Create Quiz
                                     </button>
+                                </div>
+                            </div>
+
+                            {/* Course, Subject, Category Dropdown Filters */}
+                            <div className="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm mb-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                <div>
+                                    <label className="block text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1">
+                                        Course Filter
+                                    </label>
+                                    <select
+                                        value={selectedCourse}
+                                        onChange={(e) => setSelectedCourse(e.target.value)}
+                                        className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                                    >
+                                        <option value="all">All Courses</option>
+                                        {courses.map((c) => (
+                                            <option key={c._id} value={c._id}>{c.title}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1">
+                                        Subject Filter
+                                    </label>
+                                    <select
+                                        value={selectedSubject}
+                                        onChange={(e) => setSelectedSubject(e.target.value)}
+                                        disabled={selectedCourse === 'all' || availableSubjects.length === 0}
+                                        className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white disabled:opacity-50"
+                                    >
+                                        <option value="all">All Subjects</option>
+                                        {availableSubjects.map((s) => (
+                                            <option key={s._id} value={s._id}>
+                                                {s.icon ? `${s.icon} ` : ''}{s.name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1">
+                                        Quiz Category Filter
+                                    </label>
+                                    <select
+                                        value={selectedCategory}
+                                        onChange={(e) => setSelectedCategory(e.target.value)}
+                                        disabled={selectedCourse === 'all'}
+                                        className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white disabled:opacity-50"
+                                    >
+                                        <option value="all">All Categories</option>
+                                        {availableCategories.map((cat) => (
+                                            <option key={cat._id} value={cat._id}>
+                                                {cat.icon ? `${cat.icon} ` : ''}{cat.name}
+                                            </option>
+                                        ))}
+                                    </select>
                                 </div>
                             </div>
 

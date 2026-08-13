@@ -429,6 +429,8 @@ const QuizEditor: React.FC = () => {
                 if (!title.trim()) { toast.error('Quiz title is required'); return false; }
                 if (!description.trim()) { toast.error('Quiz description is required'); return false; }
                 if (!courseId) { toast.error('Please select a course'); return false; }
+                if (selectedCourseSubjects.length > 0 && !subjectId) { toast.error('Please select a subject'); return false; }
+                if (!categoryId) { toast.error('Please select a quiz category'); return false; }
                 return true;
 
             case 2:
@@ -581,6 +583,8 @@ const QuizEditor: React.FC = () => {
                 if (!title.trim()) errors.push('Quiz title is required');
                 if (!description.trim()) errors.push('Quiz description is required');
                 if (!courseId) errors.push('Course selection is required');
+                if (selectedCourseSubjects.length > 0 && !subjectId) errors.push('Subject selection is required');
+                if (!categoryId) errors.push('Quiz Category selection is required');
                 if (!marksPerQuestion || marksPerQuestion <= 0) errors.push('Marks per question must be > 0');
                 if (!timeLimit || timeLimit <= 0) errors.push('Time limit must be > 0');
                 if (questions.length === 0) errors.push('At least one question is required');
@@ -883,7 +887,7 @@ const QuizEditor: React.FC = () => {
                                         {/* Subject Selection */}
                                         {selectedCourseSubjects.length > 0 && (
                                             <div>
-                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Subject (Optional)</label>
+                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Subject *</label>
                                                 <select
                                                     value={subjectId}
                                                     onChange={(e) => {
@@ -896,7 +900,7 @@ const QuizEditor: React.FC = () => {
                                                     }}
                                                     className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
                                                 >
-                                                    <option value="">All subjects (general quiz)</option>
+                                                    <option value="">Select a subject *</option>
                                                     {selectedCourseSubjects.map((sub) => (
                                                         <option key={sub._id} value={sub._id}>
                                                             {sub.icon ? `${sub.icon} ` : ''}{sub.name}
@@ -911,7 +915,7 @@ const QuizEditor: React.FC = () => {
                                             <div>
                                                 <div className="flex items-center justify-between mb-2">
                                                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                                                        Quiz Category (Optional)
+                                                        Quiz Category *
                                                     </label>
                                                     <button
                                                         type="button"
@@ -931,7 +935,7 @@ const QuizEditor: React.FC = () => {
                                                     }}
                                                     className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
                                                 >
-                                                    <option value="">General (No Category)</option>
+                                                    <option value="">Select a quiz category *</option>
                                                     {availableCategories.map((cat) => (
                                                         <option key={cat._id} value={cat._id}>
                                                             {cat.icon ? `${cat.icon} ` : ''}{cat.name} {cat.subjectId ? '(Subject-specific)' : '(Course-wide)'}

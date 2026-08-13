@@ -136,6 +136,7 @@ export const MyQuizzesScreen: React.FC = () => {
   const { insets, topInset, tabBarHeight } = useResponsiveSpacing();
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [filter, setFilter] = useState<FilterType>('all');
+  const [selectedSubject, setSelectedSubject] = useState<string>('all');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -158,15 +159,26 @@ export const MyQuizzesScreen: React.FC = () => {
 
   const onRefresh = () => { setRefreshing(true); loadQuizzes(); };
 
-  // Unique categories list
+  // Unique subjects list
+  const subjectList = Array.from(
+    new Set(quizzes.map((q) => q.subjectName).filter((s): s is string => Boolean(s && s.trim())))
+  );
+
+  // Subject-filtered quizzes (for dynamic categories)
+  const subjectFiltered = quizzes.filter((q) => {
+    return selectedSubject === 'all' || q.subjectName === selectedSubject;
+  });
+
+  // Unique categories list for selected subject
   const categoryList = Array.from(
-    new Set(quizzes.map((q) => q.categoryName).filter((c): c is string => Boolean(c && c.trim())))
+    new Set(subjectFiltered.map((q) => q.categoryName).filter((c): c is string => Boolean(c && c.trim())))
   );
 
   const filtered = quizzes.filter((q) => {
     const matchesStatus = filter === 'all' || q.status === filter;
+    const matchesSubject = selectedSubject === 'all' || q.subjectName === selectedSubject;
     const matchesCategory = selectedCategory === 'all' || q.categoryName === selectedCategory;
-    return matchesStatus && matchesCategory;
+    return matchesStatus && matchesSubject && matchesCategory;
   });
 
   const handlePress = (quiz: Quiz) => {
@@ -283,6 +295,42 @@ export const MyQuizzesScreen: React.FC = () => {
                 ))}
               </View>
             </LinearGradient>
+
+            {/* Subject Filter Chips */}
+            {subjectList.length > 0 && (
+              <View style={{ paddingHorizontal: Spacing.md, paddingTop: 14, paddingBottom: 4 }}>
+                <Text style={{ fontSize: 11, fontWeight: '800', color: Colors.primary, textTransform: 'uppercase', marginBottom: 8, letterSpacing: 0.5 }}>
+                  🧬 Quiz Subjects
+                </Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+                  <TouchableOpacity
+                    style={[styles.chip, selectedSubject === 'all' && styles.chipActive]}
+                    onPress={() => {
+                      setSelectedSubject('all');
+                      setSelectedCategory('all');
+                    }}
+                    activeOpacity={0.7}>
+                    <Text style={[styles.chipText, selectedSubject === 'all' && styles.chipTextActive]}>
+                      📚 All Subjects
+                    </Text>
+                  </TouchableOpacity>
+                  {subjectList.map((sub) => (
+                    <TouchableOpacity
+                      key={sub}
+                      style={[styles.chip, selectedSubject === sub && styles.chipActive]}
+                      onPress={() => {
+                        setSelectedSubject(sub);
+                        setSelectedCategory('all');
+                      }}
+                      activeOpacity={0.7}>
+                      <Text style={[styles.chipText, selectedSubject === sub && styles.chipTextActive]}>
+                        {sub.toLowerCase().includes('bio') ? '🧬' : sub.toLowerCase().includes('chem') ? '⚗️' : sub.toLowerCase().includes('phys') ? '⚡' : sub.toLowerCase().includes('math') ? '📐' : '📚'} {sub}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
 
             {/* Category Filter Chips */}
             {categoryList.length > 0 && (

@@ -53,6 +53,8 @@ function validateForPublish(quiz: any): { valid: boolean; errors: string[] } {
     if (!quiz.title?.trim()) errors.push('Quiz title is required');
     if (!quiz.description?.trim()) errors.push('Quiz description is required');
     if (!quiz.courseId) errors.push('Course selection is required');
+    if (!quiz.subjectId) errors.push('Subject selection is required');
+    if (!quiz.categoryId) errors.push('Quiz Category selection is required');
     if (!quiz.settings?.marksPerQuestion || quiz.settings.marksPerQuestion <= 0)
         errors.push('Marks per question must be greater than 0');
     if (!quiz.settings?.timeLimit || quiz.settings.timeLimit <= 0)
@@ -106,23 +108,40 @@ function buildAuditEntry(req: AuthRequest, action: string, meta?: Record<string,
 // @access  Private (Admin)
 router.post('/', protect, authorize('admin'), async (req: AuthRequest, res: Response, next) => {
     try {
-        const { courseId, categoryId, status = 'draft', draftMeta, ...rawBody } = req.body;
+        const { courseId, subjectId, categoryId, status = 'draft', draftMeta, ...rawBody } = req.body;
         const sanitized = sanitizeQuizData(rawBody);
+
+        // Enforce Step 2 marksPerQuestion across all questions if specified
+        const marksPerQ = Number(sanitized.settings?.marksPerQuestion);
+        if (marksPerQ > 0 && Array.isArray(sanitized.questions)) {
+            sanitized.questions.forEach((q: any) => {
+                q.marks = marksPerQ;
+            });
+        }
 
         // If creating as published, run full validation first
         if (status === 'published') {
-            const validation = validateForPublish({ ...sanitized, courseId });
+            const validation = validateForPublish({ ...sanitized, courseId, subjectId, categoryId });
             if (!validation.valid) {
                 return res.status(400).json({ success: false, errors: validation.errors, message: validation.errors[0] });
             }
         }
 
-        // Resolve course name (optional for draft — courseId may be absent)
+        // Resolve course name and subject name
         let courseName = sanitized.courseName || '';
+        let subjectName = sanitized.subjectName || '';
+
         if (courseId) {
             const course = await Course.findById(courseId);
             if (!course) throw new AppError('Course not found', 404);
             courseName = course.title;
+
+            if (subjectId) {
+                const sub = (course.subjects || []).find((s: any) => s._id.toString() === subjectId.toString());
+                if (sub) {
+                    subjectName = sub.name;
+                }
+            }
         }
 
         // Resolve category name
@@ -138,6 +157,8 @@ router.post('/', protect, authorize('admin'), async (req: AuthRequest, res: Resp
             ...sanitized,
             courseId: courseId || undefined,
             courseName,
+            subjectId: subjectId || undefined,
+            subjectName,
             categoryId: categoryId || undefined,
             categoryName,
             createdBy: req.user?.id,
@@ -201,31 +222,55 @@ router.get('/:id/admin', protect, authorize('admin'), async (req: Request, res: 
 // @access  Private (Admin)
 router.put('/:id', protect, authorize('admin'), async (req: AuthRequest, res: Response, next) => {
     try {
-        const { status: newStatus, categoryId, draftMeta, autosave, ...rawBody } = req.body;
+        const { status: newStatus, categoryId, subjectId, draftMeta, autosave, ...rawBody } = req.body;
         const sanitized = sanitizeQuizData(rawBody);
 
         const existing = await Quiz.findById(req.params.id);
         if (!existing) throw new AppError('Quiz not found', 404);
 
+        // Enforce Step 2 marksPerQuestion across all questions if specified
+        const marksPerQ = Number(sanitized.settings?.marksPerQuestion || existing.settings?.marksPerQuestion);
+        if (marksPerQ > 0 && Array.isArray(sanitized.questions)) {
+            sanitized.questions.forEach((q: any) => {
+                q.marks = marksPerQ;
+            });
+        }
+
+        const effectiveCourseId = sanitized.courseId || existing.courseId?.toString();
+        const effectiveSubjectId = subjectId !== undefined ? subjectId : sanitized.subjectId || existing.subjectId?.toString();
+        const effectiveCategoryId = categoryId !== undefined ? categoryId : sanitized.categoryId || existing.categoryId?.toString();
+
         // If attempting to change status to published, run full validation
         if (newStatus === 'published' && existing.status !== 'published') {
-            const validation = validateForPublish({ ...existing.toObject(), ...sanitized });
+            const validation = validateForPublish({
+                ...existing.toObject(),
+                ...sanitized,
+                courseId: effectiveCourseId,
+                subjectId: effectiveSubjectId,
+                categoryId: effectiveCategoryId,
+            });
             if (!validation.valid) {
                 return res.status(400).json({ success: false, errors: validation.errors, message: validation.errors[0] });
             }
         }
 
-        // Resolve course name if courseId changed
+        // Resolve course name and subject name if changed
         let courseName = sanitized.courseName || existing.courseName;
-        if (sanitized.courseId && sanitized.courseId !== existing.courseId?.toString()) {
-            const course = await Course.findById(sanitized.courseId);
-            if (!course) throw new AppError('Course not found', 404);
-            courseName = course.title;
+        let subjectName = sanitized.subjectName || existing.subjectName;
+
+        if (effectiveCourseId) {
+            const course = await Course.findById(effectiveCourseId);
+            if (course) {
+                courseName = course.title;
+                if (effectiveSubjectId) {
+                    const sub = (course.subjects || []).find((s: any) => s._id.toString() === effectiveSubjectId.toString());
+                    if (sub) subjectName = sub.name;
+                }
+            }
         }
 
         // Resolve category name if categoryId changed/supplied
         let categoryName = sanitized.categoryName || existing.categoryName;
-        const effectiveCategoryId = categoryId !== undefined ? categoryId : sanitized.categoryId;
         if (effectiveCategoryId !== undefined) {
             if (effectiveCategoryId) {
                 const categoryDoc = await QuizCategory.findById(effectiveCategoryId);
@@ -254,10 +299,14 @@ router.put('/:id', protect, authorize('admin'), async (req: AuthRequest, res: Re
         const updatePayload: any = {
             ...sanitized,
             courseName,
+            subjectName,
             categoryName,
             draftMeta: updatedDraftMeta,
             $push: { auditLog: newAuditEntry },
         };
+        if (effectiveSubjectId !== undefined) {
+            updatePayload.subjectId = effectiveSubjectId || null;
+        }
         if (effectiveCategoryId !== undefined) {
             updatePayload.categoryId = effectiveCategoryId || null;
         }

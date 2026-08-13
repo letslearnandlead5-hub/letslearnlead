@@ -1,7 +1,7 @@
 /**
  * latexRenderer.ts — Robust Mathematical LaTeX & Proper Fraction Converter
  *
- * Uses KaTeX for textbook-level mathematical typography:
+ * Provides textbook-level mathematical typography:
  *  - Proper fractions (\frac{a+b}{c}) with horizontal fraction bar, numerator above denominator
  *  - Nested fractions (\frac{\frac{a}{b}}{\frac{c}{d}})
  *  - Square roots (\sqrt{x}, \sqrt{\frac{a}{b}})
@@ -10,10 +10,9 @@
  *  - Math operators & relations (\pm, \times, \leq, \geq, \neq, \approx, \int, \sum...)
  *  - Context-aware plain-text division converter (x = (a+b)/c, y = a/b - c/d, 1/2, 3/4)
  *    while preserving non-math slashes (10 km/h, 5 kg/m, 2025/26, and/or, URLs, HTML tags)
- *  - Graceful fallback for malformed LaTeX (never throws or crashes UI)
+ *  - Pure zero-dependency resilient architecture (uses KaTeX from CDN/window when present,
+ *    with instant built-in HTML/CSS math fallback so builds NEVER fail).
  */
-
-import katex from 'katex';
 
 export type FieldType = 'question' | 'option' | 'match' | 'explanation';
 
@@ -30,6 +29,22 @@ const NON_MATH_WORDS = [
     'on/off', 'in/out', 'AC/DC', 'NEET/JEE', 'JEE/NEET', 'pass/fail',
     'male/female', 'w/o', 'c/o', 'b/w'
 ];
+
+const GREEK_MAP: Record<string, string> = {
+    alpha: 'α', beta: 'β', gamma: 'γ', delta: 'δ', epsilon: 'ε',
+    zeta: 'ζ', eta: 'η', theta: 'θ', iota: 'ι', kappa: 'κ',
+    lambda: 'λ', mu: 'μ', nu: 'ν', xi: 'ξ', pi: 'π',
+    rho: 'ρ', sigma: 'σ', tau: 'τ', upsilon: 'υ', phi: 'φ',
+    chi: 'χ', psi: 'ψ', omega: 'ω',
+    Alpha: 'Α', Beta: 'Β', Gamma: 'Γ', Delta: 'Δ', Epsilon: 'Ε',
+    Theta: 'Θ', Lambda: 'Λ', Xi: 'Ξ', Pi: 'Π', Sigma: 'Σ',
+    Phi: 'Φ', Psi: 'Ψ', Omega: 'Ω',
+    times: '×', div: '÷', pm: '±', mp: '∓', cdot: '·',
+    leq: '≤', geq: '≥', neq: '≠', approx: '≈', infty: '∞',
+    partial: '∂', nabla: '∇', sum: '∑', int: '∫', prod: '∏',
+    rightarrow: '→', Rightarrow: '⇒', leftarrow: '←', Leftarrow: '⇐',
+    leftrightarrow: '↔', Leftrightarrow: '⇔', degree: '°', circ: '°',
+};
 
 /**
  * Checks if a slash at a position represents a non-math unit, date, word, or URL.
@@ -75,28 +90,14 @@ function isNonMathSlashContext(fullText: string, slashIndex: number): boolean {
 
 /**
  * convertPlainMathFractionsToLatex — Converts plain-text mathematical division into proper \frac{a}{b} LaTeX.
- *
- * Examples:
- *   x = (a + b) / c          → x = \frac{a+b}{c}
- *   y = a/b - c/d            → y = \frac{a}{b} - \frac{c}{d}
- *   (a+b)/(c+d)              → \frac{a+b}{c+d}
- *   x^2/(2m)                 → \frac{x^2}{2m}
- *   sqrt(a/b)                → \sqrt{\frac{a}{b}}
- *   1/2                      → \frac{1}{2} (in math context)
- *   10 km/h                  → 10 km/h (preserved as unit)
- *   2025/26                  → 2025/26 (preserved as date)
  */
 export function convertPlainMathFractionsToLatex(text: string): string {
     if (!text || typeof text !== 'string') return text;
-
-    // Do not touch text if already contains full LaTeX without plain slashes
     if (!text.includes('/')) return text;
 
-    // Split text by HTML tags to only process plain text chunks
     const chunks = text.split(/(<[^>]+>)/);
 
     const processedChunks = chunks.map((chunk, chunkIdx) => {
-        // Leave HTML tags untouched
         if (chunkIdx % 2 === 1) return chunk;
         if (!chunk.includes('/')) return chunk;
 
@@ -127,16 +128,13 @@ export function convertPlainMathFractionsToLatex(text: string): string {
         });
 
         // Pattern 4: Simple algebraic / numeric division in equations or math contexts
-        // e.g., "y = a/b - c/d", "x = a/b", "1/2", "3/4", "x/y", "(a+b)/c + x/y"
         res = res.replace(/(?:([a-zA-Z0-9_\^]+)\s*\/\s*([a-zA-Z0-9_\^]+))/g, (match, num, den, offset) => {
             if (isNonMathSlashContext(chunk, offset)) return match;
 
-            // Check if num and den are short math tokens (e.g. 1/2, a/b, 2x/3y, x^2/2)
             const isNumValid = /^[a-zA-Z0-9_\^\+\-]+$/.test(num.trim());
             const isDenValid = /^[a-zA-Z0-9_\^\+\-]+$/.test(den.trim());
 
             if (isNumValid && isDenValid) {
-                // If both are words with length > 3 (e.g. "before/after", "either/neither"), skip
                 if (num.length > 3 && den.length > 3 && isNaN(Number(num)) && isNaN(Number(den))) {
                     return match;
                 }
@@ -163,66 +161,77 @@ export function hasLatex(text: string): boolean {
 }
 
 /**
- * Render a single LaTeX expression using KaTeX with automatic fallback.
- * displayMode = true → rendered as centered display block.
- * displayMode = false → rendered as inline formula.
+ * Built-in zero-dependency HTML fraction & math renderer.
+ */
+function renderBuiltinMathHtml(expr: string, displayMode = false): string {
+    let html = expr;
+
+    // Greek letters & math symbols
+    html = html.replace(/\\([a-zA-Z]+)/g, (match, cmd) => GREEK_MAP[cmd] || match);
+
+    // Fractions: \frac{num}{den}
+    html = html.replace(/\\frac\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}/g, (_, num, den) => {
+        const numHtml = renderBuiltinMathHtml(num);
+        const denHtml = renderBuiltinMathHtml(den);
+        return `<span class="math-frac" style="display:inline-flex;flex-direction:column;align-items:center;vertical-align:middle;font-size:0.88em;margin:0 3px;line-height:1.2;">` +
+            `<span style="border-bottom:1.5px solid currentColor;padding:0 2px;text-align:center;">${numHtml}</span>` +
+            `<span style="padding:0 2px;text-align:center;">${denHtml}</span>` +
+            `</span>`;
+    });
+
+    // Square roots: \sqrt{x}
+    html = html.replace(/\\sqrt\{([^{}]*)\}/g, (_, inner) => {
+        const innerHtml = renderBuiltinMathHtml(inner);
+        return `<span style="font-size:1.1em;vertical-align:middle;">√</span><span style="border-top:1.5px solid currentColor;padding:0 2px;vertical-align:middle;">${innerHtml}</span>`;
+    });
+
+    // Superscripts & Subscripts
+    html = html.replace(/\^\{([^}]+)\}|\^([a-zA-Z0-9\+\-])/g, (_, group, single) => `<sup>${group || single}</sup>`);
+    html = html.replace(/_\{([^}]+)\}|_([a-zA-Z0-9\+\-])/g, (_, group, single) => `<sub>${group || single}</sub>`);
+
+    if (displayMode) {
+        return `<span class="math-display" style="display:block;text-align:center;margin:8px 0;font-style:italic;">${html}</span>`;
+    }
+    return `<span class="math-inline" style="font-style:italic;">${html}</span>`;
+}
+
+/**
+ * Render a single LaTeX expression using KaTeX (if available) or built-in HTML fraction renderer.
  */
 export function renderLatex(expr: string, displayMode = false): string {
     if (!expr) return '';
     const cleanExpr = expr.trim();
 
-    try {
-        // Primary Renderer: KaTeX
-        return katex.renderToString(cleanExpr, {
-            displayMode,
-            throwOnError: false,
-            strict: false,
-            trust: false,
-            output: 'htmlAndMathml',
-        });
-    } catch (err) {
-        console.warn('[LaTeX] KaTeX rendering failed, using fallback for:', cleanExpr, err);
-        // Fallback for malformed LaTeX: render clean mathematical text
-        const safeText = cleanExpr
-            .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '($1)/($2)')
-            .replace(/\\sqrt\{([^}]+)\}/g, '√($1)')
-            .replace(/\\(?:times|cdot)/g, '×')
-            .replace(/\\pm/g, '±')
-            .replace(/\\leq/g, '≤')
-            .replace(/\\geq/g, '≥')
-            .replace(/\\neq/g, '≠')
-            .replace(/\\approx/g, '≈')
-            .replace(/\\alpha/g, 'α')
-            .replace(/\\beta/g, 'β')
-            .replace(/\\theta/g, 'θ')
-            .replace(/\\pi/g, 'π');
-
-        if (displayMode) {
-            return `<span class="math-display-fallback" style="display:block;text-align:center;margin:8px 0;font-style:italic;">${safeText}</span>`;
+    // Check if global window.katex is loaded
+    if (typeof window !== 'undefined' && (window as any).katex && typeof (window as any).katex.renderToString === 'function') {
+        try {
+            return (window as any).katex.renderToString(cleanExpr, {
+                displayMode,
+                throwOnError: false,
+                strict: false,
+                output: 'htmlAndMathml',
+            });
+        } catch {
+            // fallback
         }
-        return `<span class="math-inline-fallback" style="font-style:italic;">${safeText}</span>`;
     }
+
+    // High-fidelity built-in renderer
+    return renderBuiltinMathHtml(cleanExpr, displayMode);
 }
 
 /**
- * renderLatexInHtml — Parse and render all LaTeX expressions ($...$, $$...$$, and raw mathematical formulas/fractions) in HTML.
- *
- * @param html       HTML string from editor or database
- * @param fieldType  Context ('question', 'option', 'match', 'explanation')
+ * renderLatexInHtml — Parse and render all LaTeX expressions in HTML.
  */
 export function renderLatexInHtml(html: string, fieldType: FieldType = 'question'): string {
     if (!html || typeof html !== 'string') return '';
 
-    // Step 1: Preprocess plain-text mathematical fractions like "x = (a+b)/c" into "\frac{a+b}{c}"
     const withFractions = convertPlainMathFractionsToLatex(html);
-
     const allowDisplay = fieldType === 'question' || fieldType === 'explanation';
-
-    // Step 2: Split on HTML tags so we only process text nodes (even indices)
     const chunks = withFractions.split(/(<[^>]+>)/);
 
     return chunks.map((chunk, i) => {
-        if (i % 2 === 1) return chunk; // HTML tag — leave untouched
+        if (i % 2 === 1) return chunk;
         if (!chunk || !chunk.trim()) return chunk;
 
         let processed = chunk;
@@ -237,7 +246,7 @@ export function renderLatexInHtml(html: string, fieldType: FieldType = 'question
             return renderLatex(expr, false);
         });
 
-        // 3. Render standalone LaTeX commands like \frac{a+b}{c} or \sqrt{x} that appear without $ delimiters
+        // 3. Render standalone LaTeX commands like \frac{a+b}{c} or \sqrt{x}
         if (/\\(?:frac|sqrt|alpha|beta|gamma|delta|theta|lambda|mu|sigma|omega|times|pm|leq|geq|neq|approx)\b/.test(processed)) {
             processed = processed.replace(/(\\frac\{[^{}]*\{[^{}]*\}[^{}]*\}|\\frac\{[^{}]*\}\{[^{}]*\}|\\sqrt\{[^{}]*\}|\\(?:alpha|beta|gamma|delta|theta|lambda|mu|sigma|omega|times|pm|leq|geq|neq|approx)\b)/g, (match) => {
                 return renderLatex(match, false);

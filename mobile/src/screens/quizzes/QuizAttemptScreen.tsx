@@ -18,6 +18,7 @@ import { quizService } from '../../services/quizService';
 import { LoadingSpinner } from '../../components/ui/LoadingSpinner';
 import { ErrorMessage } from '../../components/ui/ErrorMessage';
 import { ErrorBoundary } from '../../components/ui/ErrorBoundary';
+import { MathText } from '../../components/ui/MathText';
 import { Colors } from '../../theme';
 
 // ─── HTML Utility (inline) ────────────────────────────────────────────────────
@@ -410,9 +411,11 @@ const QuizAttemptContent: React.FC<Props> = ({ route, navigation }) => {
           </View>
 
           {/* Question Text */}
-          <Text style={styles.questionText}>
-            {stripHtmlToText(currentQ.questionText || '')}
-          </Text>
+          <MathText
+            content={currentQ.questionText || ''}
+            style={styles.questionText}
+            fontSize={16}
+          />
 
           {/* Question Image (Valid URL Check) */}
           {isValidImageUrl(currentQ.questionImage) && (
@@ -445,7 +448,7 @@ const QuizAttemptContent: React.FC<Props> = ({ route, navigation }) => {
                   <View key={pair.id || `pair_${leftIdx}`} style={styles.matchPairRow}>
                     <View style={[styles.matchColA, isAnswered && styles.matchColAAnswered]}>
                       <Text style={styles.matchColANum}>{leftIdx + 1}.</Text>
-                      <Text style={styles.matchColAText}>{stripHtmlToText(pair.left || '')}</Text>
+                      <MathText content={pair.left || ''} style={styles.matchColAText} fontSize={13} />
                     </View>
 
                     <View style={[styles.matchColB, isAnswered && styles.matchColBAnswered]}>
@@ -465,9 +468,11 @@ const QuizAttemptContent: React.FC<Props> = ({ route, navigation }) => {
                               key={rightPair.id || `right_${rightIdx}`}
                               style={[styles.matchChip, isSelected && styles.matchChipSelected]}
                               onPress={() => handleMatchSelect(currentQ._id!, leftIdx, String(rightIdx))}>
-                              <Text style={[styles.matchChipText, isSelected && styles.matchChipTextSelected]}>
-                                {stripHtmlToText(rightPair.right || '')}
-                              </Text>
+                              <MathText
+                                content={rightPair.right || ''}
+                                style={[styles.matchChipText, isSelected && styles.matchChipTextSelected]}
+                                fontSize={12}
+                              />
                             </TouchableOpacity>
                           );
                         })}
@@ -481,7 +486,6 @@ const QuizAttemptContent: React.FC<Props> = ({ route, navigation }) => {
             /* ── MCQ options renderer ────────────────────────────────────────── */
             <View style={styles.optionsContainer}>
               {normalizedOptions.map((optObj, idx) => {
-                // Bug fix: compare against id only (id is what gets saved & sent to server)
                 const selected = answers[currentQ._id!] === optObj.id;
                 const label = ['A', 'B', 'C', 'D', 'E', 'F'][idx] || String(idx + 1);
 
@@ -489,15 +493,18 @@ const QuizAttemptContent: React.FC<Props> = ({ route, navigation }) => {
                   <TouchableOpacity
                     key={optObj.id || `opt_${idx}`}
                     style={[styles.option, selected && styles.optionSelected]}
-                    // Bug fix: save optObj.id (not optObj.text) so server can match correctAnswer
                     onPress={() => handleSelectAnswer(currentQ._id!, optObj.id)}
                     activeOpacity={0.75}>
                     <View style={[styles.optionLabel, selected && styles.optionLabelSelected]}>
                       <Text style={[styles.optionLabelText, selected && { color: '#fff' }]}>{label}</Text>
                     </View>
-                    <Text style={[styles.optionText, selected && styles.optionTextSelected]} numberOfLines={4}>
-                      {optObj.text}
-                    </Text>
+                    <View style={{ flex: 1 }}>
+                      <MathText
+                        content={optObj.text}
+                        style={[styles.optionText, selected && styles.optionTextSelected]}
+                        fontSize={14}
+                      />
+                    </View>
                   </TouchableOpacity>
                 );
               })}

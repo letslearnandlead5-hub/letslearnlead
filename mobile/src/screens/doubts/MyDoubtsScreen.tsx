@@ -22,6 +22,7 @@ import { doubtService, CreateDoubtPayload } from '../../services/doubtService';
 import { Doubt } from '../../types';
 import { LoadingSpinner } from '../../components/ui/LoadingSpinner';
 import { ErrorMessage } from '../../components/ui/ErrorMessage';
+import { MathText } from '../../components/ui/MathText';
 import { Colors, Spacing } from '../../theme';
 
 const STATUS_CONFIG = {
@@ -56,7 +57,7 @@ const DoubtCard = ({ doubt, onPress }: { doubt: Doubt; onPress: () => void }) =>
             <Text style={[styles.badgeText, { color: st.color }]}>{st.icon} {st.label}</Text>
           </View>
         </View>
-        <Text style={styles.cardDesc} numberOfLines={2}>{doubt.description}</Text>
+        <MathText content={doubt.description} style={styles.cardDesc} fontSize={13} />
         <View style={styles.cardFooter}>
           <Text style={styles.cardDate}>{date}</Text>
           <View style={[styles.priBadge, { backgroundColor: pr.color + '20' }]}>
@@ -69,7 +70,9 @@ const DoubtCard = ({ doubt, onPress }: { doubt: Doubt; onPress: () => void }) =>
         {doubt.response && (
           <View style={styles.replyBanner}>
             <Text style={styles.replyIcon}>💬</Text>
-            <Text style={styles.replyText} numberOfLines={2}>{doubt.response}</Text>
+            <View style={{ flex: 1 }}>
+              <MathText content={doubt.response} style={styles.replyText} fontSize={12} color="#15803D" />
+            </View>
           </View>
         )}
       </View>
@@ -123,28 +126,27 @@ const SubmitModal = ({
 
           <ScrollView contentContainerStyle={styles.modalScroll} keyboardShouldPersistTaps="handled">
             {/* Subject */}
-            <Text style={styles.fieldLabel}>Subject *</Text>
+            <Text style={styles.fieldLabel}>Subject / Topic *</Text>
             <TextInput
               style={styles.input}
-              placeholder="What is your doubt about?"
+              placeholder="e.g. Newton's 2nd Law in Mechanics"
+              placeholderTextColor="#9CA3AF"
               value={subject}
               onChangeText={setSubject}
-              maxLength={120}
-              placeholderTextColor={Colors.textMuted}
+              maxLength={100}
             />
 
             {/* Description */}
-            <Text style={styles.fieldLabel}>Description *</Text>
+            <Text style={styles.fieldLabel}>Detailed Question *</Text>
             <TextInput
               style={[styles.input, styles.textarea]}
-              placeholder="Describe your doubt in detail..."
+              placeholder="Explain your doubt clearly so our educators can help you best…"
+              placeholderTextColor="#9CA3AF"
               value={description}
               onChangeText={setDescription}
               multiline
               numberOfLines={5}
-              maxLength={1000}
               textAlignVertical="top"
-              placeholderTextColor={Colors.textMuted}
             />
             <Text style={styles.charCount}>{description.length}/1000</Text>
 
@@ -215,7 +217,7 @@ const DetailModal = ({ doubt, onClose }: { doubt: Doubt | null; onClose: () => v
             <Text style={[styles.badgeText, { color: st.color }]}>{st.icon} {st.label}</Text>
           </View>
           <Text style={styles.detailSectionLabel}>Your Question</Text>
-          <Text style={styles.detailBody}>{doubt.description}</Text>
+          <MathText content={doubt.description} style={styles.detailBody} fontSize={14} />
 
           {doubt.response ? (
             <>
@@ -223,7 +225,7 @@ const DetailModal = ({ doubt, onClose }: { doubt: Doubt | null; onClose: () => v
                 ✅ Response from Team
               </Text>
               <View style={styles.responseBox}>
-                <Text style={styles.responseBody}>{doubt.response}</Text>
+                <MathText content={doubt.response} style={styles.responseBody} fontSize={14} color="#15803D" />
                 {doubt.respondedBy && (
                   <Text style={styles.respondedBy}>— {(doubt.respondedBy as any).name}</Text>
                 )}

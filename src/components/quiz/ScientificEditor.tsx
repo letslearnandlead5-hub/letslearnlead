@@ -317,12 +317,18 @@ const ScientificEditor: React.FC<ScientificEditorProps> = ({
 
                 <TDivider />
 
-                {/* Superscript / Subscript */}
+                {/* Superscript / Subscript / Fraction */}
                 <TBtn onClick={() => exec('superscript')} title="Superscript — e.g. x², cm³">
                     <span className="text-[11px] font-bold leading-none">X<sup style={{ fontSize: '8px' }}>2</sup></span>
                 </TBtn>
                 <TBtn onClick={() => exec('subscript')} title="Subscript — e.g. H₂O, CO₂">
                     <span className="text-[11px] font-bold leading-none">X<sub style={{ fontSize: '8px' }}>2</sub></span>
+                </TBtn>
+                <TBtn onClick={() => insertSymbol('\\frac{a+b}{c}')} title="Insert Fraction — \frac{a+b}{c} or (a+b)/c">
+                    <span className="text-[10px] font-bold leading-none flex flex-col items-center justify-center">
+                        <span className="border-b border-current pb-[1px] leading-none">a</span>
+                        <span className="pt-[1px] leading-none">b</span>
+                    </span>
                 </TBtn>
 
                 <TDivider />
@@ -560,11 +566,11 @@ const ScientificEditor: React.FC<ScientificEditorProps> = ({
                 />
             </div>
 
-            {/* ── Quick-access chemistry toolbar ── */}
+            {/* ── Quick-access chemistry/math toolbar ── */}
             {!compact && (
                 <div className="px-3 py-1.5 bg-gray-50 dark:bg-gray-900 border-t border-gray-100 dark:border-gray-700 flex gap-1.5 flex-wrap">
                     <span className="text-[10px] text-gray-400 font-medium self-center mr-1">Quick:</span>
-                    {['→', '⇌', 'H₂O', 'CO₂', 'Na⁺', 'x²', 'a²+b²=c²', '√', 'π', '∞', '±', '≤', '≥', '≠', '°C'].map(q => (
+                    {['\\frac{a+b}{c}', '(a+b)/c', '1/2', '→', '⇌', 'H₂O', 'CO₂', 'Na⁺', 'x²', '√', 'π', '∞', '±', '≤', '≥', '≠', '°C'].map(q => (
                         <button
                             key={q}
                             type="button"

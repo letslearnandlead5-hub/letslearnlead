@@ -1,365 +1,248 @@
 /**
- * latexRenderer.ts — Zero-dependency LaTeX → HTML converter for NEET/JEE content.
+ * latexRenderer.ts — Robust Mathematical LaTeX & Proper Fraction Converter
  *
- * NO external packages required. Handles all patterns seen in NEET/JEE questions
- * from ChatGPT, Gemini, Word, NCERT PDFs:
- *
- *  Fractions:     \frac{a}{b}       → styled HTML fraction
- *  Superscripts:  x^{n+1}, x^2      → <sup> tags
- *  Subscripts:    H_{2}O, H_2O      → <sub> tags
- *  Square root:   \sqrt{x}          → √x
- *  Text wrapper:  \text{COO}        → plain text (stripped)
- *  Math bold:     \mathbf{F}        → <b>F</b>
- *  Greek letters: \alpha, \beta...  → Unicode α β γ...
- *  Math symbols:  \times, \pm...    → Unicode × ± ≤ ≥...
- *  Display mode:  $$...$$           → centered block
- *  Inline mode:   $...$             → inline span
- *
- * Decisions (approved plan):
- *  - Malformed LaTeX → graceful fallback to raw text, console.warn only
- *  - $$...$$ for question/explanation → centered display block
- *  - $$...$$ for option/match → always inline
- *  - Multi-char superscripts → <sup> HTML tags (not Unicode)
+ * Uses KaTeX for textbook-level mathematical typography:
+ *  - Proper fractions (\frac{a+b}{c}) with horizontal fraction bar, numerator above denominator
+ *  - Nested fractions (\frac{\frac{a}{b}}{\frac{c}{d}})
+ *  - Square roots (\sqrt{x}, \sqrt{\frac{a}{b}})
+ *  - Superscripts (x^2, x^{n+1}) and subscripts (H_2O, a_i)
+ *  - Greek letters (\alpha, \beta, \theta, \pi, \omega...)
+ *  - Math operators & relations (\pm, \times, \leq, \geq, \neq, \approx, \int, \sum...)
+ *  - Context-aware plain-text division converter (x = (a+b)/c, y = a/b - c/d, 1/2, 3/4)
+ *    while preserving non-math slashes (10 km/h, 5 kg/m, 2025/26, and/or, URLs, HTML tags)
+ *  - Graceful fallback for malformed LaTeX (never throws or crashes UI)
  */
+
+import katex from 'katex';
 
 export type FieldType = 'question' | 'option' | 'match' | 'explanation';
 
-// ── Greek letter map ──────────────────────────────────────────────────────────
+// ── Non-mathematical slash patterns to protect ────────────────────────────────
+const NON_MATH_UNITS = [
+    'km/h', 'm/s', 'm/s\\^2', 'm/s^2', 'kg/m', 'kg/m\\^3', 'kg/m^3',
+    'g/cm\\^3', 'g/cm^3', 'mol/L', 'mol/l', 'rad/s', 'V/m', 'N/m',
+    'J/K', 'W/m\\^2', 'W/m^2', 'cal/g', 'J/kg', 'km/s', 'cm/s',
+    'mg/L', 'mg/l', 'cup', 'cups', 'tsp', 'tbsp'
+];
 
-const GREEK: Record<string, string> = {
-    alpha: 'α', beta: 'β', gamma: 'γ', delta: 'δ', epsilon: 'ε',
-    zeta: 'ζ', eta: 'η', theta: 'θ', iota: 'ι', kappa: 'κ',
-    lambda: 'λ', mu: 'μ', nu: 'ν', xi: 'ξ', pi: 'π',
-    rho: 'ρ', sigma: 'σ', tau: 'τ', upsilon: 'υ', phi: 'φ',
-    chi: 'χ', psi: 'ψ', omega: 'ω',
-    Alpha: 'Α', Beta: 'Β', Gamma: 'Γ', Delta: 'Δ', Epsilon: 'Ε',
-    Zeta: 'Ζ', Eta: 'Η', Theta: 'Θ', Iota: 'Ι', Kappa: 'Κ',
-    Lambda: 'Λ', Mu: 'Μ', Nu: 'Ν', Xi: 'Ξ', Pi: 'Π',
-    Rho: 'Ρ', Sigma: 'Σ', Tau: 'Τ', Upsilon: 'Υ', Phi: 'Φ',
-    Chi: 'Χ', Psi: 'Ψ', Omega: 'Ω',
-    // Common variants
-    varepsilon: 'ε', varphi: 'φ', varpi: 'ϖ', varrho: 'ϱ', varsigma: 'ς', vartheta: 'ϑ',
-};
-
-// ── Math symbol map ───────────────────────────────────────────────────────────
-
-const SYMBOLS: Record<string, string> = {
-    // Operators
-    times: '×', div: '÷', cdot: '·', pm: '±', mp: '∓',
-    // Relations
-    leq: '≤', geq: '≥', neq: '≠', approx: '≈', equiv: '≡',
-    propto: '∝', sim: '∼', simeq: '≃', cong: '≅',
-    // Logic / Sets
-    in: '∈', notin: '∉', subset: '⊂', supset: '⊃',
-    cup: '∪', cap: '∩', emptyset: '∅',
-    forall: '∀', exists: '∃', neg: '¬', land: '∧', lor: '∨',
-    // Arrows
-    to: '→', leftarrow: '←', rightarrow: '→',
-    Rightarrow: '⇒', Leftarrow: '⇐', Leftrightarrow: '⇔',
-    implies: '⇒', iff: '⇔',
-    uparrow: '↑', downarrow: '↓', leftrightarrow: '↔',
-    // Calculus
-    partial: '∂', nabla: '∇', infty: '∞',
-    int: '∫', oint: '∮', sum: '∑', prod: '∏',
-    // Misc
-    circ: '°', degree: '°', prime: '′', ldots: '…', cdots: '⋯',
-    hbar: 'ℏ', Re: 'ℜ', Im: 'ℑ',
-    // Physics / Chemistry
-    rightleftharpoons: '⇌', rightleftarrows: '⇄',
-    // Spaces (collapse to nothing or single space)
-    quad: ' ', qquad: '  ', ',': '', ';': '',
-};
-
-// ── Unicode superscript / subscript maps (single chars) ───────────────────────
-
-const SUP_UNI: Record<string, string> = {
-    '0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹',
-    '+':'⁺','-':'⁻','n':'ⁿ','i':'ⁱ',
-};
-const SUB_UNI: Record<string, string> = {
-    '0':'₀','1':'₁','2':'₂','3':'₃','4':'₄','5':'₅','6':'₆','7':'₇','8':'₈','9':'₉',
-    '+':'₊','-':'₋','a':'ₐ','e':'ₑ','i':'ᵢ','o':'ₒ','u':'ᵤ','n':'ₙ',
-};
-
-function toSup(content: string): string {
-    // Single char → Unicode; multi-char → <sup> tag
-    if (content.length === 1 && SUP_UNI[content]) return SUP_UNI[content];
-    return `<sup>${content}</sup>`;
-}
-function toSub(content: string): string {
-    if (content.length === 1 && SUB_UNI[content]) return SUB_UNI[content];
-    return `<sub>${content}</sub>`;
-}
-
-// ── Brace-aware content extractor ─────────────────────────────────────────────
+const NON_MATH_WORDS = [
+    'and/or', 'true/false', 'yes/no', 'input/output', 'either/or',
+    'on/off', 'in/out', 'AC/DC', 'NEET/JEE', 'JEE/NEET', 'pass/fail',
+    'male/female', 'w/o', 'c/o', 'b/w'
+];
 
 /**
- * Extract the content of a top-level braced group starting at `pos` in `str`.
- * Returns [content, endPos] where endPos points past the closing '}'.
+ * Checks if a slash at a position represents a non-math unit, date, word, or URL.
  */
-function extractBraces(str: string, pos: number): [string, number] {
-    if (str[pos] !== '{') {
-        // No braces — single character
-        return [str[pos] ?? '', pos + 1];
-    }
-    let depth = 0, i = pos;
-    const start = pos + 1;
-    while (i < str.length) {
-        if (str[i] === '{') depth++;
-        else if (str[i] === '}') {
-            depth--;
-            if (depth === 0) return [str.slice(start, i), i + 1];
+function isNonMathSlashContext(fullText: string, slashIndex: number): boolean {
+    const windowStart = Math.max(0, slashIndex - 20);
+    const windowEnd = Math.min(fullText.length, slashIndex + 20);
+    const windowText = fullText.slice(windowStart, windowEnd);
+
+    // 1. URLs and file paths
+    if (/https?:\/\//i.test(fullText.slice(Math.max(0, slashIndex - 10), slashIndex + 10))) return true;
+    if (/<\/?(?:a|span|div|p|img|table|tr|td|th)\b/i.test(windowText)) return true;
+
+    // 2. Dates / academic years (e.g. 2025/26, 2026/2027, 12/05/2024)
+    if (/\b\d{1,4}\/\d{2,4}\b/.test(windowText)) {
+        const dateMatch = windowText.match(/\b\d{1,4}\/\d{2,4}\b/);
+        if (dateMatch) {
+            const relSlash = slashIndex - windowStart;
+            const matchStart = windowText.indexOf(dateMatch[0]);
+            const matchEnd = matchStart + dateMatch[0].length;
+            if (relSlash >= matchStart && relSlash <= matchEnd) return true;
         }
-        i++;
     }
-    // Unclosed brace — fallback
-    return [str.slice(start), str.length];
+
+    // 3. Known non-math units (e.g. 10 km/h, 5 kg/m)
+    for (const unit of NON_MATH_UNITS) {
+        const regex = new RegExp(`\\b(?:\\d+(?:\\.\\d+)?\\s*)?${unit.replace(/[\^]/g, '\\^')}\\b`, 'i');
+        if (regex.test(windowText)) return true;
+    }
+
+    // 4. Known slash word pairs (e.g. and/or, NEET/JEE)
+    for (const word of NON_MATH_WORDS) {
+        if (windowText.toLowerCase().includes(word.toLowerCase())) return true;
+    }
+
+    // 5. Recipe / non-math measurements like "1/2 cup", "1/4 tsp"
+    if (/\b\d+\/\d+\s+(?:cup|cups|tsp|tbsp|spoon|spoons|drop|drops|tablet|tablets|piece|pieces|slice|slices)\b/i.test(windowText)) {
+        return true;
+    }
+
+    return false;
 }
 
-// ── Core LaTeX → HTML converter ───────────────────────────────────────────────
-
 /**
- * convertLatex — Convert a single LaTeX expression (without $ delimiters) to HTML.
- * Processes the string left-to-right handling \commands and {groups}.
+ * convertPlainMathFractionsToLatex — Converts plain-text mathematical division into proper \frac{a}{b} LaTeX.
+ *
+ * Examples:
+ *   x = (a + b) / c          → x = \frac{a+b}{c}
+ *   y = a/b - c/d            → y = \frac{a}{b} - \frac{c}{d}
+ *   (a+b)/(c+d)              → \frac{a+b}{c+d}
+ *   x^2/(2m)                 → \frac{x^2}{2m}
+ *   sqrt(a/b)                → \sqrt{\frac{a}{b}}
+ *   1/2                      → \frac{1}{2} (in math context)
+ *   10 km/h                  → 10 km/h (preserved as unit)
+ *   2025/26                  → 2025/26 (preserved as date)
  */
-export function convertLatex(expr: string): string {
-    if (!expr) return '';
-    let result = '';
-    let i = 0;
-    const s = expr.trim();
+export function convertPlainMathFractionsToLatex(text: string): string {
+    if (!text || typeof text !== 'string') return text;
 
-    while (i < s.length) {
-        const ch = s[i];
+    // Do not touch text if already contains full LaTeX without plain slashes
+    if (!text.includes('/')) return text;
 
-        // ── Backslash command ───────────────────────────────────────────────
-        if (ch === '\\') {
-            i++;
-            // Read command name (letters only, or single non-letter)
-            let cmd = '';
-            if (/[a-zA-Z]/.test(s[i])) {
-                while (i < s.length && /[a-zA-Z]/.test(s[i])) {
-                    cmd += s[i++];
+    // Split text by HTML tags to only process plain text chunks
+    const chunks = text.split(/(<[^>]+>)/);
+
+    const processedChunks = chunks.map((chunk, chunkIdx) => {
+        // Leave HTML tags untouched
+        if (chunkIdx % 2 === 1) return chunk;
+        if (!chunk.includes('/')) return chunk;
+
+        let res = chunk;
+
+        // Pattern 0: sqrt(a/b) -> \sqrt{a/b}
+        res = res.replace(/\bsqrt\(([^()]+)\)/gi, (match, inner) => {
+            const innerFrac = convertPlainMathFractionsToLatex(inner);
+            return `\\sqrt{${innerFrac}}`;
+        });
+
+        // Pattern 1: Parentheses / Parentheses: (a + b) / (c + d) -> \frac{a + b}{c + d}
+        res = res.replace(/\(([^()]+)\)\s*\/\s*\(([^()]+)\)/g, (match, num, den, offset) => {
+            if (isNonMathSlashContext(chunk, offset)) return match;
+            return `\\frac{${num.trim()}}{${den.trim()}}`;
+        });
+
+        // Pattern 2: Parentheses / Simple: (a + b) / c -> \frac{a + b}{c}
+        res = res.replace(/\(([^()]+)\)\s*\/\s*([a-zA-Z0-9_\^]+)/g, (match, num, den, offset) => {
+            if (isNonMathSlashContext(chunk, offset)) return match;
+            return `\\frac{${num.trim()}}{${den.trim()}}`;
+        });
+
+        // Pattern 3: Simple / Parentheses: a / (b + c) -> \frac{a}{b + c} or x^2 / (2m) -> \frac{x^2}{2m}
+        res = res.replace(/([a-zA-Z0-9_\^]+)\s*\/\s*\(([^()]+)\)/g, (match, num, den, offset) => {
+            if (isNonMathSlashContext(chunk, offset)) return match;
+            return `\\frac{${num.trim()}}{${den.trim()}}`;
+        });
+
+        // Pattern 4: Simple algebraic / numeric division in equations or math contexts
+        // e.g., "y = a/b - c/d", "x = a/b", "1/2", "3/4", "x/y", "(a+b)/c + x/y"
+        res = res.replace(/(?:([a-zA-Z0-9_\^]+)\s*\/\s*([a-zA-Z0-9_\^]+))/g, (match, num, den, offset) => {
+            if (isNonMathSlashContext(chunk, offset)) return match;
+
+            // Check if num and den are short math tokens (e.g. 1/2, a/b, 2x/3y, x^2/2)
+            const isNumValid = /^[a-zA-Z0-9_\^\+\-]+$/.test(num.trim());
+            const isDenValid = /^[a-zA-Z0-9_\^\+\-]+$/.test(den.trim());
+
+            if (isNumValid && isDenValid) {
+                // If both are words with length > 3 (e.g. "before/after", "either/neither"), skip
+                if (num.length > 3 && den.length > 3 && isNaN(Number(num)) && isNaN(Number(den))) {
+                    return match;
                 }
-                // Skip optional trailing space after command
-                if (s[i] === ' ') i++;
-            } else {
-                // Single-char commands: \\, \{, \}, \, etc.
-                cmd = s[i++];
+                return `\\frac{${num.trim()}}{${den.trim()}}`;
             }
+            return match;
+        });
 
-            switch (cmd) {
-                // Fraction: \frac{num}{den}
-                case 'frac': {
-                    const [num, afterNum] = extractBraces(s, i);
-                    i = afterNum;
-                    const [den, afterDen] = extractBraces(s, i);
-                    i = afterDen;
-                    const numHtml = convertLatex(num);
-                    const denHtml = convertLatex(den);
-                    result += `<span class="math-frac" style="display:inline-flex;flex-direction:column;align-items:center;vertical-align:middle;font-size:0.85em;margin:0 2px;">`
-                        + `<span style="border-bottom:1px solid currentColor;padding:0 2px;line-height:1.3;">${numHtml}</span>`
-                        + `<span style="padding:0 2px;line-height:1.3;">${denHtml}</span>`
-                        + `</span>`;
-                    break;
-                }
+        return res;
+    });
 
-                // Square root: \sqrt{x} or \sqrt[n]{x}
-                case 'sqrt': {
-                    // Check for optional [n]
-                    let index = '';
-                    if (s[i] === '[') {
-                        const end = s.indexOf(']', i);
-                        index = s.slice(i + 1, end);
-                        i = end + 1;
-                    }
-                    const [inner, afterInner] = extractBraces(s, i);
-                    i = afterInner;
-                    const innerHtml = convertLatex(inner);
-                    result += index
-                        ? `<span style="font-size:0.85em;">${convertLatex(index)}</span><span style="font-size:1.1em;">√</span><span style="border-top:1px solid currentColor;padding:0 1px;">${innerHtml}</span>`
-                        : `<span style="font-size:1.1em;">√</span><span style="border-top:1px solid currentColor;padding:0 1px;">${innerHtml}</span>`;
-                    break;
-                }
-
-                // Text: \text{...} — render as plain text (strip any LaTeX inside)
-                case 'text':
-                case 'mathrm':
-                case 'mathit':
-                case 'textrm':
-                case 'textit': {
-                    const [inner, after] = extractBraces(s, i);
-                    i = after;
-                    result += convertLatex(inner);
-                    break;
-                }
-
-                // Bold: \mathbf{...} → <b>
-                case 'mathbf':
-                case 'textbf':
-                case 'boldsymbol': {
-                    const [inner, after] = extractBraces(s, i);
-                    i = after;
-                    result += `<b>${convertLatex(inner)}</b>`;
-                    break;
-                }
-
-                // Overline / underline / hat / vec (decorators — simplified)
-                case 'overline':
-                case 'bar': {
-                    const [inner, after] = extractBraces(s, i);
-                    i = after;
-                    result += `<span style="text-decoration:overline;">${convertLatex(inner)}</span>`;
-                    break;
-                }
-                case 'underline': {
-                    const [inner, after] = extractBraces(s, i);
-                    i = after;
-                    result += `<span style="text-decoration:underline;">${convertLatex(inner)}</span>`;
-                    break;
-                }
-                case 'hat': { const [inn, af] = extractBraces(s, i); i = af; result += convertLatex(inn) + '̂'; break; }
-                case 'vec': { const [inn, af] = extractBraces(s, i); i = af; result += convertLatex(inn) + '⃗'; break; }
-                case 'dot': { const [inn, af] = extractBraces(s, i); i = af; result += convertLatex(inn) + '̇'; break; }
-                case 'ddot': { const [inn, af] = extractBraces(s, i); i = af; result += convertLatex(inn) + '̈'; break; }
-
-                // Limits / sums with bounds — simplified: just render as sym_lower^upper
-                case 'sum': case 'prod': case 'int': case 'oint': {
-                    result += SYMBOLS[cmd] ?? cmd;
-                    break;
-                }
-                case 'lim': {
-                    result += 'lim';
-                    break;
-                }
-
-                // Left/Right delimiters — just pass through inner content
-                case 'left': case 'right': {
-                    // Next char is the delimiter, just output it
-                    if (i < s.length) result += s[i++];
-                    break;
-                }
-
-                // Escaped chars
-                case '{': result += '{'; break;
-                case '}': result += '}'; break;
-                case '\\': result += '<br>'; break;
-                case ' ': result += ' '; break;
-                case ',': result += ''; break;
-                case ';': result += ''; break;
-                case '!': result += ''; break; // negative space
-
-                default: {
-                    // Greek letters
-                    if (GREEK[cmd]) { result += GREEK[cmd]; break; }
-                    // Math symbols
-                    if (SYMBOLS[cmd]) { result += SYMBOLS[cmd]; break; }
-                    // Unknown command — try to handle brace arg gracefully
-                    if (i < s.length && s[i] === '{') {
-                        const [inner, after] = extractBraces(s, i);
-                        i = after;
-                        result += convertLatex(inner);
-                    } else {
-                        result += cmd; // Fallback: show command name
-                    }
-                }
-            }
-            continue;
-        }
-
-        // ── Superscript: ^ ──────────────────────────────────────────────────
-        if (ch === '^') {
-            i++;
-            const [content, after] = extractBraces(s, i);
-            i = after;
-            result += toSup(convertLatex(content));
-            continue;
-        }
-
-        // ── Subscript: _ ────────────────────────────────────────────────────
-        if (ch === '_') {
-            i++;
-            const [content, after] = extractBraces(s, i);
-            i = after;
-            result += toSub(convertLatex(content));
-            continue;
-        }
-
-        // ── Braced group: {content} — render as-is ──────────────────────────
-        if (ch === '{') {
-            const [content, after] = extractBraces(s, i);
-            i = after;
-            result += convertLatex(content);
-            continue;
-        }
-
-        // ── Plain character ──────────────────────────────────────────────────
-        // Escape HTML special chars
-        if (ch === '<') { result += '&lt;'; i++; continue; }
-        if (ch === '>') { result += '&gt;'; i++; continue; }
-        if (ch === '&') { result += '&amp;'; i++; continue; }
-
-        result += ch;
-        i++;
-    }
-
-    return result;
-}
-
-// ── Public API ────────────────────────────────────────────────────────────────
-
-/**
- * Render a single LaTeX expression to HTML.
- * displayMode = true → wrapped in a centered block span.
- * Falls back to raw text on error (never throws).
- */
-export function renderLatex(expr: string, displayMode = false): string {
-    try {
-        const inner = convertLatex(expr.trim());
-        if (displayMode) {
-            return `<span class="math-display" style="display:block;text-align:center;margin:8px 0;font-style:italic;">${inner}</span>`;
-        }
-        return `<span class="math-inline" style="font-style:italic;">${inner}</span>`;
-    } catch (err) {
-        console.warn('[LaTeX] Render error, falling back to raw:', expr, err);
-        return `<code class="latex-fallback" style="font-family:monospace;font-size:0.9em;color:#6366f1;">$${expr}$</code>`;
-    }
+    return processedChunks.join('');
 }
 
 /**
- * Detect if a string contains LaTeX markers or commands.
+ * Detect if a string contains LaTeX markers or mathematical notation.
  */
 export function hasLatex(text: string): boolean {
-    return /\$\$[\s\S]+?\$\$|\$[^$\n]+?\$|\\(?:frac|sqrt|text|mathbf|alpha|beta|gamma|delta|theta|lambda|mu|sigma|omega|times|pm|leq|geq|neq|approx|infty|partial|nabla|Rightarrow|rightarrow|propto|overline|underline|vec|hat)\b/.test(text);
+    if (!text || typeof text !== 'string') return false;
+    return (
+        /\$\$[\s\S]+?\$\$|\$[^$\n]+?\$|\\(?:frac|sqrt|text|mathrm|mathbf|boldsymbol|alpha|beta|gamma|delta|theta|lambda|mu|sigma|omega|times|pm|mp|div|cdot|leq|geq|neq|approx|infty|partial|nabla|sum|int|prod|rightarrow|Rightarrow|leftarrow|Leftarrow|rightleftharpoons|propto|vec|hat|bar|overline)\b/.test(text) ||
+        /(?:[a-zA-Z]\s*=\s*[^,;]+|\b\d+\/\d+\b|\\frac\{|\^\{|_\{)/.test(text)
+    );
 }
 
 /**
- * renderLatexInHtml — Render all $...$ and $$...$$ inside an HTML string.
- * Only processes text nodes (splits on HTML tags to avoid corrupting attributes).
+ * Render a single LaTeX expression using KaTeX with automatic fallback.
+ * displayMode = true → rendered as centered display block.
+ * displayMode = false → rendered as inline formula.
+ */
+export function renderLatex(expr: string, displayMode = false): string {
+    if (!expr) return '';
+    const cleanExpr = expr.trim();
+
+    try {
+        // Primary Renderer: KaTeX
+        return katex.renderToString(cleanExpr, {
+            displayMode,
+            throwOnError: false,
+            strict: false,
+            trust: false,
+            output: 'htmlAndMathml',
+        });
+    } catch (err) {
+        console.warn('[LaTeX] KaTeX rendering failed, using fallback for:', cleanExpr, err);
+        // Fallback for malformed LaTeX: render clean mathematical text
+        const safeText = cleanExpr
+            .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '($1)/($2)')
+            .replace(/\\sqrt\{([^}]+)\}/g, '√($1)')
+            .replace(/\\(?:times|cdot)/g, '×')
+            .replace(/\\pm/g, '±')
+            .replace(/\\leq/g, '≤')
+            .replace(/\\geq/g, '≥')
+            .replace(/\\neq/g, '≠')
+            .replace(/\\approx/g, '≈')
+            .replace(/\\alpha/g, 'α')
+            .replace(/\\beta/g, 'β')
+            .replace(/\\theta/g, 'θ')
+            .replace(/\\pi/g, 'π');
+
+        if (displayMode) {
+            return `<span class="math-display-fallback" style="display:block;text-align:center;margin:8px 0;font-style:italic;">${safeText}</span>`;
+        }
+        return `<span class="math-inline-fallback" style="font-style:italic;">${safeText}</span>`;
+    }
+}
+
+/**
+ * renderLatexInHtml — Parse and render all LaTeX expressions ($...$, $$...$$, and raw mathematical formulas/fractions) in HTML.
  *
- * @param html       HTML string (may contain LaTeX between tags)
- * @param fieldType  Context — controls display vs inline for $$...$$
+ * @param html       HTML string from editor or database
+ * @param fieldType  Context ('question', 'option', 'match', 'explanation')
  */
 export function renderLatexInHtml(html: string, fieldType: FieldType = 'question'): string {
-    if (!html || !hasLatex(html)) return html;
+    if (!html || typeof html !== 'string') return '';
+
+    // Step 1: Preprocess plain-text mathematical fractions like "x = (a+b)/c" into "\frac{a+b}{c}"
+    const withFractions = convertPlainMathFractionsToLatex(html);
 
     const allowDisplay = fieldType === 'question' || fieldType === 'explanation';
 
-    // Split on HTML tags — only process text chunks (even-indexed)
-    const chunks = html.split(/(<[^>]+>)/);
+    // Step 2: Split on HTML tags so we only process text nodes (even indices)
+    const chunks = withFractions.split(/(<[^>]+>)/);
 
     return chunks.map((chunk, i) => {
         if (i % 2 === 1) return chunk; // HTML tag — leave untouched
-        if (!chunk) return chunk;
+        if (!chunk || !chunk.trim()) return chunk;
 
-        // Process $$...$$ first (display mode)
-        let processed = chunk.replace(/\$\$([\s\S]+?)\$\$/g, (_, expr) =>
-            renderLatex(expr, allowDisplay)
-        );
+        let processed = chunk;
 
-        // Then $...$ (always inline)
-        processed = processed.replace(/\$([^$\n]+?)\$/g, (_, expr) =>
-            renderLatex(expr, false)
-        );
+        // 1. Render $$...$$ display math blocks
+        processed = processed.replace(/\$\$([\s\S]+?)\$\$/g, (_, expr) => {
+            return renderLatex(expr, allowDisplay);
+        });
+
+        // 2. Render $...$ inline math
+        processed = processed.replace(/\$([^$\n]+?)\$/g, (_, expr) => {
+            return renderLatex(expr, false);
+        });
+
+        // 3. Render standalone LaTeX commands like \frac{a+b}{c} or \sqrt{x} that appear without $ delimiters
+        if (/\\(?:frac|sqrt|alpha|beta|gamma|delta|theta|lambda|mu|sigma|omega|times|pm|leq|geq|neq|approx)\b/.test(processed)) {
+            processed = processed.replace(/(\\frac\{[^{}]*\{[^{}]*\}[^{}]*\}|\\frac\{[^{}]*\}\{[^{}]*\}|\\sqrt\{[^{}]*\}|\\(?:alpha|beta|gamma|delta|theta|lambda|mu|sigma|omega|times|pm|leq|geq|neq|approx)\b)/g, (match) => {
+                return renderLatex(match, false);
+            });
+        }
 
         return processed;
     }).join('');

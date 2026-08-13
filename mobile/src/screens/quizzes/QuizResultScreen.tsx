@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { QuizzesStackParamList, QuestionResult } from '../../types';
 import { quizService } from '../../services/quizService';
+import { MathText } from '../../components/ui/MathText';
 import { Colors } from '../../theme';
 
 // ─── HTML strip helper ────────────────────────────────────────────────────────
@@ -93,16 +94,20 @@ const QuestionCard = ({
       </View>
 
       {/* Question text */}
-      <Text style={styles.qText}>{stripHtml(qr.questionText)}</Text>
+      <MathText content={qr.questionText} style={styles.qText} fontSize={15} />
 
       {/* Answers */}
       <View style={styles.answersSection}>
         {qr.selectedAnswer ? (
           <View style={styles.answerRow}>
             <Text style={styles.answerLabel}>Your answer:</Text>
-            <Text style={[styles.answerValue, { color: qr.isCorrect ? '#16A34A' : '#DC2626' }]}>
-              {stripHtml(qr.selectedAnswer)}
-            </Text>
+            <View style={{ flex: 1 }}>
+              <MathText
+                content={qr.selectedAnswer}
+                style={[styles.answerValue, { color: qr.isCorrect ? '#16A34A' : '#DC2626' }]}
+                fontSize={13}
+              />
+            </View>
           </View>
         ) : (
           <Text style={styles.skippedText}>Not answered</Text>
@@ -111,9 +116,13 @@ const QuestionCard = ({
         {!qr.isCorrect && qr.correctAnswer && qr.correctAnswer !== 'match' && (
           <View style={styles.answerRow}>
             <Text style={styles.answerLabel}>Correct answer:</Text>
-            <Text style={[styles.answerValue, { color: '#16A34A' }]}>
-              {stripHtml(qr.correctAnswer)}
-            </Text>
+            <View style={{ flex: 1 }}>
+              <MathText
+                content={qr.correctAnswer}
+                style={[styles.answerValue, { color: '#16A34A' }]}
+                fontSize={13}
+              />
+            </View>
           </View>
         )}
       </View>
@@ -133,7 +142,7 @@ const QuestionCard = ({
           {expanded && (
             <View style={styles.explainBox}>
               <Text style={styles.explainTitle}>📖 Explanation</Text>
-              <Text style={styles.explainText}>{stripHtml(qr.explanation)}</Text>
+              <MathText content={qr.explanation} style={styles.explainText} fontSize={13} />
             </View>
           )}
         </>

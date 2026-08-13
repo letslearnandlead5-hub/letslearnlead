@@ -34,37 +34,30 @@ const SANITIZE_CONFIG: Record<string, any> = {
         'a',
         // Preformatted
         'pre', 'blockquote',
-        // KaTeX output elements
+        // KaTeX / MathML output elements
         'math', 'semantics', 'mrow', 'mi', 'mn', 'mo', 'mtext',
         'msup', 'msub', 'msubsup', 'mfrac', 'msqrt', 'mroot',
         'mspace', 'mover', 'munder', 'munderover', 'menclose',
-        'annotation', 'annotation-xml',
+        'annotation', 'annotation-xml', 'mpadded', 'mphantom',
+        // KaTeX SVG output elements
+        'svg', 'g', 'path', 'line', 'rect', 'use',
     ],
     ALLOWED_ATTR: [
         'style', 'src', 'alt', 'class', 'align', 'width', 'height',
         'href', 'target', 'rel',
         'colspan', 'rowspan',
-        // KaTeX / MathML attributes
+        // KaTeX / MathML / SVG attributes
         'xmlns', 'encoding', 'display',
-        'aria-hidden', 'focusable',
+        'aria-hidden', 'focusable', 'viewBox', 'd', 'fill', 'stroke',
+        'stroke-width', 'stroke-linecap', 'stroke-linejoin', 'x1', 'x2', 'y1', 'y2',
+        'preserveAspectRatio',
     ],
-    ALLOW_DATA_ATTR: false,
-    // KaTeX generates SVG and uses data-* for screen readers — keep them
+    ALLOW_DATA_ATTR: true,
     ADD_ATTR: ['aria-hidden'],
 };
 
 /**
- * RichTextDisplay — Safely renders rich-text HTML from the ScientificEditor.
- *
- * Pipeline:
- *   1. cleanHtml()          — decode entities, remove empty <p>/<div>/<br> tags
- *   2. renderLatexInHtml()  — render $...$ and $$...$$ via KaTeX
- *   3. DOMPurify            — XSS sanitization (allows KaTeX output tags)
- *   4. dangerouslySetInnerHTML — render to DOM
- *
- * If content has no HTML tags AND no LaTeX, renders as plain text (fast path).
- *
- * fieldType controls LaTeX display vs inline mode (see prop docs above).
+ * RichTextDisplay — Safely renders rich-text HTML and textbook-quality KaTeX math.
  */
 const RichTextDisplay: React.FC<RichTextDisplayProps> = ({
     content,
@@ -76,9 +69,9 @@ const RichTextDisplay: React.FC<RichTextDisplayProps> = ({
     // Step 1: Clean HTML entities and remove junk tags
     const cleaned = cleanHtml(content);
 
-    // Step 2: Fast path — plain text with no HTML and no LaTeX
+    // Step 2: Fast path — plain text with no HTML, no slashes, and no LaTeX
     const isHtml  = /\<[a-z][\s\S]*\>/i.test(cleaned);
-    const isLatex = hasLatex(cleaned);
+    const isLatex = hasLatex(cleaned) || cleaned.includes('/');
 
     if (!isHtml && !isLatex) {
         return (
@@ -88,11 +81,10 @@ const RichTextDisplay: React.FC<RichTextDisplayProps> = ({
         );
     }
 
-    // Step 3: Render LaTeX ($...$ and $$...$$) using KaTeX
-    //         fieldType controls whether $$...$$ is display or inline
+    // Step 3: Render LaTeX and mathematical fractions using KaTeX
     const withLatex = isLatex ? renderLatexInHtml(cleaned, fieldType) : cleaned;
 
-    // Step 4: XSS sanitize (KaTeX output elements are allowed)
+    // Step 4: XSS sanitize (KaTeX output elements are whitelisted)
     const sanitizedHtml = DOMPurify.sanitize(withLatex, SANITIZE_CONFIG) as unknown as string;
 
     return (

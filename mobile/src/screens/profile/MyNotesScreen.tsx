@@ -82,7 +82,12 @@ const NoteRow = ({
         {note.description ? (
           <Text style={styles.noteDesc} numberOfLines={1}>{note.description}</Text>
         ) : null}
-        <Text style={styles.noteMeta}>Updated {date}</Text>
+        <View style={styles.noteMetaRow}>
+          {note.chapterName ? (
+            <Text style={styles.chapterTag}>📌 {note.chapterName}</Text>
+          ) : null}
+          <Text style={styles.noteMeta}>Updated {date}</Text>
+        </View>
       </View>
 
       {/* Actions */}
@@ -361,6 +366,16 @@ const styles = StyleSheet.create({
   noteInfo: { flex: 1 },
   noteTitle: { fontSize: 13, fontWeight: '700', color: '#1F2937', marginBottom: 2 },
   noteDesc: { fontSize: 11, color: '#6B7280', marginBottom: 3 },
+  noteMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
+  chapterTag: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#4F46E5',
+    backgroundColor: '#EEF2FF',
+    paddingHorizontal: 6,
+    paddingVertical: 1.5,
+    borderRadius: 4,
+  },
   noteMeta: { fontSize: 10, color: '#9CA3AF' },
 
   noteActions: { flexDirection: 'column', gap: 6, flexShrink: 0 },

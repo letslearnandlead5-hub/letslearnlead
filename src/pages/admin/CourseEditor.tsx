@@ -109,10 +109,7 @@ const CourseEditor: React.FC = () => {
         } catch (error) {
             console.error('Error loading course:', error);
             addToast({ type: 'error', message: 'Failed to load course' });
-            navigate('/dashboard/');
-            setTimeout(() => {
-                window.dispatchEvent(new CustomEvent('selectAdminTab', { detail: 'courses' }));
-            }, 100);
+            navigate('/dashboard/?tab=courses');
         } finally {
             setLoading(false);
         }
@@ -246,10 +243,7 @@ const CourseEditor: React.FC = () => {
             }
 
             // Navigate to dashboard and select courses tab
-            navigate('/dashboard/');
-            setTimeout(() => {
-                window.dispatchEvent(new CustomEvent('selectAdminTab', { detail: 'courses' }));
-            }, 100);
+            navigate('/dashboard/?tab=courses');
         } catch (error: any) {
             console.error('Error saving course:', error);
 
@@ -324,8 +318,13 @@ const CourseEditor: React.FC = () => {
                             <button
                                 key={tab.id}
                                 onClick={() => {
-                                    window.dispatchEvent(new CustomEvent('selectAdminTab', { detail: tab.id }));
-                                    navigate(`${tab.path}/`);
+                                    if (tab.id === 'quizzes') {
+                                        navigate('/admin/quizzes/');
+                                    } else if (tab.id === 'banners') {
+                                        navigate('/admin/banners/');
+                                    } else {
+                                        navigate(`/dashboard/?tab=${tab.id}`);
+                                    }
                                     setShowMobileSidebar(false);
                                 }}
                                 className="w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-gray-800"
@@ -336,8 +335,7 @@ const CourseEditor: React.FC = () => {
                         ))}
                         <button
                             onClick={() => {
-                                window.dispatchEvent(new CustomEvent('selectAdminTab', { detail: 'settings' }));
-                                navigate('/dashboard/');
+                                navigate('/dashboard/?tab=settings');
                                 setShowMobileSidebar(false);
                             }}
                             className="w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors mt-6 hover:bg-gray-100 dark:hover:bg-gray-800"
@@ -373,13 +371,7 @@ const CourseEditor: React.FC = () => {
                                 <Button
                                     variant="ghost"
                                     leftIcon={<ArrowLeft className="w-5 h-5" />}
-                                    onClick={() => {
-                                        navigate('/dashboard/');
-                                        // Use a small delay to ensure navigation completes
-                                        setTimeout(() => {
-                                            window.dispatchEvent(new CustomEvent('selectAdminTab', { detail: 'courses' }));
-                                        }, 100);
-                                    }}
+                                    onClick={() => navigate('/dashboard/?tab=courses')}
                                     className="mb-4"
                                 >
                                     Back to Courses
@@ -990,12 +982,7 @@ const CourseEditor: React.FC = () => {
                                     <Button
                                         type="button"
                                         variant="outline"
-                                        onClick={() => {
-                                            navigate('/dashboard');
-                                            setTimeout(() => {
-                                                window.dispatchEvent(new CustomEvent('selectAdminTab', { detail: 'courses' }));
-                                            }, 100);
-                                        }}
+                                        onClick={() => navigate('/dashboard/?tab=courses')}
                                         disabled={formSubmitting}
                                     >
                                         Cancel

@@ -12,7 +12,7 @@ const router = Router();
 // @access  Private (Student)
 router.post('/save', protect, async (req: any, res: Response, next) => {
     try {
-        const { noteId, category } = req.body;
+        const { noteId } = req.body;
         const userId = req.user._id;
 
         if (!noteId) {
@@ -25,20 +25,26 @@ router.post('/save', protect, async (req: any, res: Response, next) => {
             throw new AppError('Note not found', 404);
         }
 
-        // Verify user is enrolled in the course and, for subject notes, that exact subject.
-        const enrollmentQuery: any = {
-            userId,
-            courseId: note.courseId,
-            status: 'paid',
-        };
-        if (note.subjectId) {
-            enrollmentQuery.subjectId = note.subjectId;
-        }
+        // Verify user is enrolled in the course (course-level grants all subjects, or matching subject-level)
+        const isPrivileged = req.user.role === 'admin' || req.user.role === 'teacher';
+        if (!isPrivileged) {
+            const enrollmentQuery: any = {
+                userId,
+                courseId: note.courseId,
+                status: 'paid',
+            };
+            if (note.subjectId) {
+                enrollmentQuery.$or = [
+                    { subjectId: null },
+                    { subjectId: note.subjectId },
+                    { subjectId: { $exists: false } },
+                ];
+            }
 
-        const enrollment = await Enrollment.findOne(enrollmentQuery);
-
-        if (!enrollment) {
-            throw new AppError('You must be enrolled in this subject to save notes', 403);
+            const enrollment = await Enrollment.findOne(enrollmentQuery);
+            if (!enrollment) {
+                throw new AppError('You must be enrolled in this course to save notes', 403);
+            }
         }
 
         // Check if already saved
@@ -55,7 +61,7 @@ router.post('/save', protect, async (req: any, res: Response, next) => {
         const userNote = await UserNote.create({
             userId,
             noteId,
-            category: category || 'Uncategorized',
+            category: 'General',
         });
 
         const populatedNote = await UserNote.findById(userNote._id)
@@ -84,12 +90,9 @@ router.post('/save', protect, async (req: any, res: Response, next) => {
 router.get('/', protect, async (req: any, res: Response, next) => {
     try {
         const userId = req.user._id;
-        const { category, courseId } = req.query;
+        const { courseId } = req.query;
 
         const query: any = { userId };
-        if (category) {
-            query.category = category;
-        }
 
         let userNotes = await UserNote.find(query)
             .populate({
@@ -115,9 +118,9 @@ router.get('/', protect, async (req: any, res: Response, next) => {
         });
 
         // Filter by course if specified
-        if (courseId) {
+        if (courseId && courseId !== 'all') {
             userNotes = userNotes.filter(
-                (un: any) => un.noteId?.courseId?._id?.toString() === courseId
+                (un: any) => un.noteId?.courseId?._id?.toString() === courseId || un.noteId?.courseId?.id?.toString() === courseId
             );
         }
 
@@ -173,48 +176,6 @@ router.delete('/:id', protect, async (req: any, res: Response, next) => {
         res.status(200).json({
             success: true,
             message: 'Note removed from your library',
-        });
-    } catch (error) {
-        next(error);
-    }
-});
-
-// @route   PUT /api/user-notes/:id/category
-// @desc    Update category of saved note
-// @access  Private (Student)
-router.put('/:id/category', protect, async (req: any, res: Response, next) => {
-    try {
-        const userId = req.user._id;
-        const { category } = req.body;
-
-        const userNote = await UserNote.findById(req.params.id);
-
-        if (!userNote) {
-            throw new AppError('Note not found in your library', 404);
-        }
-
-        // Verify ownership
-        if (userNote.userId.toString() !== userId.toString()) {
-            throw new AppError('Not authorized to update this note', 403);
-        }
-
-        userNote.category = category || 'Uncategorized';
-        await userNote.save();
-
-        const populatedNote = await UserNote.findById(userNote._id)
-            .populate('noteId')
-            .populate({
-                path: 'noteId',
-                populate: {
-                    path: 'courseId',
-                    select: 'title',
-                },
-            });
-
-        res.status(200).json({
-            success: true,
-            message: 'Category updated',
-            data: populatedNote,
         });
     } catch (error) {
         next(error);

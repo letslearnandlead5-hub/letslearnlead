@@ -160,15 +160,16 @@ const generalNoteFilter = (courseIds: string[]) => ({
 });
 
 function buildNotesFilters(req: Request, forcedCourseId?: string) {
-    const { courseId, subjectId, chapterId, fileType, category, search } = req.query;
+    const { courseId, subjectId, chapterId, chapterName, fileType, category, status, search } = req.query;
     const filters: any[] = [];
 
     const resolvedCourseId = extractIdString(forcedCourseId || (courseId as string | undefined));
     if (resolvedCourseId) filters.push({ courseId: resolvedCourseId });
     if (subjectId && subjectId !== 'all') filters.push({ subjectId });
     if (chapterId && chapterId !== 'all') filters.push({ chapterId });
+    if (chapterName && chapterName !== 'all') filters.push({ chapterName: { $regex: String(chapterName), $options: 'i' } });
     if (fileType && fileType !== 'all') filters.push({ fileType });
-    if (category && category !== 'all') filters.push({ category });
+    if (status && status !== 'all') filters.push({ status });
     if (search) {
         const searchStr = String(search);
         filters.push({
@@ -848,6 +849,207 @@ router.post('/', protect, authorize('admin', 'teacher'), fileUploadLimiter, uplo
         res.status(201).json({ success: true, data: note });
     } catch (error) {
         if (req.file) { try { fs.unlinkSync(req.file.path); } catch {} }
+        next(error);
+    }
+});
+
+// @route   POST /api/notes/multi-course
+// @desc    Create a note for multiple selected courses simultaneously
+// @access  Private (Admin, Teacher)
+router.post('/multi-course', protect, authorize('admin', 'teacher'), fileUploadLimiter, upload.single('file'), async (req: any, res: Response, next) => {
+    try {
+        const { title, description, subjectName, chapterName, fileType } = req.body;
+        let courseIds: string[] = [];
+
+        if (req.body.courseIds) {
+            try {
+                courseIds = typeof req.body.courseIds === 'string' ? JSON.parse(req.body.courseIds) : req.body.courseIds;
+            } catch {
+                courseIds = [req.body.courseIds];
+            }
+        }
+
+        if (!Array.isArray(courseIds) || courseIds.length === 0) {
+            throw new AppError('At least one course must be selected.', 400);
+        }
+        if (!subjectName?.trim()) throw new AppError('Subject name is required for multi-course creation.', 400);
+        if (!title?.trim()) throw new AppError('Note title is required.', 400);
+        if (!description?.trim()) throw new AppError('Note description is required.', 400);
+
+        let resolvedFileType = fileType || 'file';
+        if (req.file) {
+            const ext = path.extname(req.file.originalname).toLowerCase();
+            if (ext === '.pdf') resolvedFileType = 'pdf';
+            else if (ext === '.txt') resolvedFileType = 'txt';
+            else if (ext === '.doc' || ext === '.docx') resolvedFileType = 'doc';
+        }
+
+        let fileUrl: string | undefined;
+        let markdownContent: string | undefined;
+
+        if (resolvedFileType === 'html') {
+            if (!req.body.markdownContent) throw new AppError('Markdown content is required for HTML notes.', 400);
+            markdownContent = req.body.markdownContent;
+        } else {
+            if (!req.file) throw new AppError('A PDF, TXT, or DOC file upload is required.', 400);
+            fileUrl = `/notes/${req.file.filename}`;
+        }
+
+        const normSubjectName = subjectName.trim().toLowerCase();
+        const createdNotes: any[] = [];
+        const skippedCourses: Array<{ courseId: string; courseName: string; reason: string }> = [];
+
+        for (const cId of courseIds) {
+            const course = await Course.findById(cId);
+            if (!course) {
+                skippedCourses.push({ courseId: cId, courseName: 'Unknown', reason: 'Course not found' });
+                continue;
+            }
+
+            const targetSubject = (course.subjects || []).find(
+                (s: any) => s.name && s.name.trim().toLowerCase() === normSubjectName
+            );
+
+            if (!targetSubject) {
+                skippedCourses.push({
+                    courseId: cId,
+                    courseName: course.title,
+                    reason: `Subject "${subjectName}" does not exist in ${course.title}`,
+                });
+                continue;
+            }
+
+            // Duplicate prevention check (Section 19)
+            const existingNote = await Note.findOne({
+                courseId: course._id,
+                subjectId: targetSubject._id,
+                title: title.trim(),
+            });
+
+            if (existingNote) {
+                skippedCourses.push({
+                    courseId: cId,
+                    courseName: course.title,
+                    reason: `A note titled "${title.trim()}" already exists in ${course.title} → ${targetSubject.name}`,
+                });
+                continue;
+            }
+
+            const note = await Note.create({
+                title: title.trim(),
+                description: description.trim(),
+                courseId: course._id,
+                subjectId: targetSubject._id,
+                subjectName: targetSubject.name,
+                chapterId: '',
+                chapterName: chapterName || '',
+                category: req.body.category || '',
+                tags: req.body.tags ? (typeof req.body.tags === 'string' ? JSON.parse(req.body.tags) : req.body.tags) : [],
+                uploadedBy: req.user._id,
+                status: 'active',
+                fileType: resolvedFileType,
+                fileUrl,
+                markdownContent,
+            });
+
+            createdNotes.push(note);
+        }
+
+        res.status(201).json({
+            success: true,
+            createdCount: createdNotes.length,
+            createdNotes,
+            skippedCourses,
+            message: `Note created for ${createdNotes.length} course(s).${skippedCourses.length > 0 ? ` (${skippedCourses.length} skipped)` : ''}`,
+        });
+    } catch (error) {
+        if (req.file) { try { fs.unlinkSync(req.file.path); } catch {} }
+        next(error);
+    }
+});
+
+// @route   POST /api/notes/:id/copy-to-courses
+// @desc    Copy an existing note to selected target courses
+// @access  Private (Admin, Teacher)
+router.post('/:id/copy-to-courses', protect, authorize('admin', 'teacher'), async (req: AuthRequest, res: Response, next) => {
+    try {
+        const { targetCourseIds } = req.body;
+        if (!Array.isArray(targetCourseIds) || targetCourseIds.length === 0) {
+            throw new AppError('At least one target course is required', 400);
+        }
+
+        const sourceNote = await Note.findById(req.params.id);
+        if (!sourceNote) throw new AppError('Source note not found', 404);
+
+        const normSubjectName = (sourceNote.subjectName || '').trim().toLowerCase();
+
+        const createdNotes: any[] = [];
+        const skippedCourses: Array<{ courseId: string; courseName: string; reason: string }> = [];
+
+        for (const cId of targetCourseIds) {
+            if (sourceNote.courseId && sourceNote.courseId.toString() === cId.toString()) {
+                skippedCourses.push({ courseId: cId, courseName: 'Current Course', reason: 'Already in the source course' });
+                continue;
+            }
+
+            const course = await Course.findById(cId);
+            if (!course) {
+                skippedCourses.push({ courseId: cId, courseName: 'Unknown', reason: 'Course not found' });
+                continue;
+            }
+
+            const targetSubject = (course.subjects || []).find(
+                (s: any) => s.name && s.name.trim().toLowerCase() === normSubjectName
+            );
+
+            if (!targetSubject) {
+                skippedCourses.push({
+                    courseId: cId,
+                    courseName: course.title,
+                    reason: `Subject "${sourceNote.subjectName}" does not exist in ${course.title}`,
+                });
+                continue;
+            }
+
+            const existingNote = await Note.findOne({
+                courseId: course._id,
+                subjectId: targetSubject._id,
+                title: sourceNote.title.trim(),
+            });
+
+            if (existingNote) {
+                skippedCourses.push({
+                    courseId: cId,
+                    courseName: course.title,
+                    reason: `A note titled "${sourceNote.title.trim()}" already exists in ${course.title} → ${targetSubject.name}`,
+                });
+                continue;
+            }
+
+            const noteData = sourceNote.toObject();
+            delete noteData._id;
+            delete noteData.createdAt;
+            delete noteData.updatedAt;
+
+            const newNote = await Note.create({
+                ...noteData,
+                courseId: course._id,
+                subjectId: targetSubject._id,
+                subjectName: targetSubject.name,
+                uploadedBy: req.user?.id,
+            });
+
+            createdNotes.push(newNote);
+        }
+
+        res.status(201).json({
+            success: true,
+            createdCount: createdNotes.length,
+            createdNotes,
+            skippedCourses,
+            message: `Note copied to ${createdNotes.length} course(s).${skippedCourses.length > 0 ? ` (${skippedCourses.length} skipped)` : ''}`,
+        });
+    } catch (error) {
         next(error);
     }
 });

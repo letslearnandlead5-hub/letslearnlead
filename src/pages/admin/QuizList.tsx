@@ -25,10 +25,12 @@ import {
     PenLine,
     Save,
     Tag,
+    Copy,
 } from 'lucide-react';
-import { getAllQuizzes, deleteQuiz, publishQuiz, repairQuizMarks, archiveQuiz, restoreQuiz } from '../../services/quizService';
+import { getAllQuizzes, deleteQuiz, publishQuiz, repairQuizMarks, archiveQuiz, restoreQuiz, copyQuizToCourses } from '../../services/quizService';
 import { courseAPI } from '../../services/api';
 import { getQuizCategories } from '../../services/quizCategoryService';
+import MultiCourseSelector from '../../components/admin/MultiCourseSelector';
 import type { Quiz } from '../../types';
 import toast from 'react-hot-toast';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -73,6 +75,11 @@ const QuizList: React.FC = () => {
     const [showMobileSidebar, setShowMobileSidebar] = useState(false);
     const [repairing, setRepairing] = useState<string | null>(null);
     const [archiving, setArchiving] = useState<string | null>(null);
+
+    // Multi-course copy state
+    const [copyModalQuiz, setCopyModalQuiz] = useState<Quiz | null>(null);
+    const [targetCopyCourseIds, setTargetCopyCourseIds] = useState<string[]>([]);
+    const [copying, setCopying] = useState(false);
 
     const tabs = [
         { id: 'overview', label: 'Overview', icon: BarChart3 },
@@ -216,17 +223,39 @@ const QuizList: React.FC = () => {
     };
 
     const handleArchive = async (quiz: Quiz) => {
-        const quizId = quiz._id || quiz.id || '';
-        if (!quizId) return;
+        const id = quiz._id || quiz.id;
+        if (!id) return;
+        setArchiving(id);
         try {
-            setArchiving(quizId);
-            await archiveQuiz(quizId);
+            await archiveQuiz(id);
             toast.success('Quiz archived');
             fetchQuizzes();
         } catch (error: any) {
-            toast.error(error?.message || 'Archive failed');
+            toast.error(error.message || 'Failed to archive quiz');
         } finally {
             setArchiving(null);
+        }
+    };
+
+    const handleExecuteCopy = async () => {
+        if (!copyModalQuiz || targetCopyCourseIds.length === 0) return;
+        const qId = copyModalQuiz._id || copyModalQuiz.id || '';
+        if (!qId) return;
+        try {
+            setCopying(true);
+            const res: any = await copyQuizToCourses(qId, targetCopyCourseIds);
+            if (res?.skippedCourses?.length > 0) {
+                toast.success(`Copied to ${res.createdCount} course(s). ${res.skippedCourses.length} skipped: ${res.skippedCourses.map((s: any) => s.reason).join('; ')}`, { duration: 6000 });
+            } else {
+                toast.success(`Quiz copied to ${res?.createdCount || targetCopyCourseIds.length} course(s) successfully! 🎉`);
+            }
+            setCopyModalQuiz(null);
+            setTargetCopyCourseIds([]);
+            fetchQuizzes();
+        } catch (error: any) {
+            toast.error(error?.response?.data?.message || error?.message || 'Failed to copy quiz');
+        } finally {
+            setCopying(false);
         }
     };
 
@@ -297,8 +326,7 @@ const QuizList: React.FC = () => {
                                         navigate('/admin/quiz-categories/');
                                         setShowMobileSidebar(false);
                                     } else {
-                                        window.dispatchEvent(new CustomEvent('selectAdminTab', { detail: tab.id }));
-                                        navigate('/dashboard/');
+                                        navigate(`/dashboard/?tab=${tab.id}`);
                                         setShowMobileSidebar(false);
                                     }
                                 }}
@@ -308,7 +336,7 @@ const QuizList: React.FC = () => {
                                 <span className="font-medium">{tab.label}</span>
                             </button>
                         ))}
-                        <button onClick={() => { window.dispatchEvent(new CustomEvent('selectAdminTab', { detail: 'settings' })); navigate('/dashboard/'); setShowMobileSidebar(false); }} className="w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors mt-6 hover:bg-gray-100 dark:hover:bg-gray-800">
+                        <button onClick={() => { navigate('/dashboard/?tab=settings'); setShowMobileSidebar(false); }} className="w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors mt-6 hover:bg-gray-100 dark:hover:bg-gray-800">
                             <Settings className="w-5 h-5" />
                             <span className="font-medium">Settings</span>
                         </button>
@@ -534,6 +562,18 @@ const QuizList: React.FC = () => {
                                                                     </button>
                                                                 )}
 
+                                                                {/* Copy to Other Courses */}
+                                                                <button
+                                                                    onClick={() => {
+                                                                        setCopyModalQuiz(quiz);
+                                                                        setTargetCopyCourseIds([]);
+                                                                    }}
+                                                                    className="text-purple-600 dark:text-purple-400 hover:text-purple-900 dark:hover:text-purple-300"
+                                                                    title="Copy to Other Courses"
+                                                                >
+                                                                    <Copy className="w-5 h-5" />
+                                                                </button>
+
                                                                 {/* Repair marks */}
                                                                 {quiz.status !== 'archived' && (
                                                                     <button
@@ -602,16 +642,89 @@ const QuizList: React.FC = () => {
                 </div>
             </div>
 
+            {/* Delete Confirmation Modal */}
             {deleteConfirm && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-                    <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full">
-                        <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Delete Quiz?</h3>
-                        <p className="text-gray-600 dark:text-gray-400 mb-6">This will permanently delete the quiz and all associated attempts and results. This action cannot be undone.</p>
-                        <div className="flex gap-4">
-                            <button onClick={() => setDeleteConfirm(null)} className="flex-1 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 py-2 rounded-lg font-medium hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors">Cancel</button>
-                            <button onClick={() => handleDelete(deleteConfirm)} className="flex-1 bg-red-600 text-white py-2 rounded-lg font-medium hover:bg-red-700 transition-colors">Delete</button>
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-md w-full p-6 shadow-2xl">
+                        <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">Delete Quiz</h3>
+                        <p className="text-gray-600 dark:text-gray-400 text-sm mb-6">
+                            Are you sure you want to delete this quiz? This action will permanently remove the quiz and cannot be undone.
+                        </p>
+                        <div className="flex justify-end gap-3">
+                            <button
+                                onClick={() => setDeleteConfirm(null)}
+                                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={() => handleDelete(deleteConfirm)}
+                                className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg"
+                            >
+                                Delete
+                            </button>
                         </div>
-                    </motion.div>
+                    </div>
+                </div>
+            )}
+
+            {/* Copy to Other Courses Modal */}
+            {copyModalQuiz && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4">
+                        <div className="flex items-center justify-between pb-3 border-b border-gray-100 dark:border-gray-700">
+                            <div className="flex items-center gap-2">
+                                <Copy className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                                <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+                                    Copy Quiz to Other Courses
+                                </h3>
+                            </div>
+                            <button
+                                onClick={() => setCopyModalQuiz(null)}
+                                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        <div className="p-3 bg-purple-50 dark:bg-purple-950/40 rounded-xl text-xs space-y-1">
+                            <div><span className="font-semibold text-purple-900 dark:text-purple-200">Quiz Title:</span> {copyModalQuiz.title}</div>
+                            <div><span className="font-semibold text-purple-900 dark:text-purple-200">Source Course:</span> {copyModalQuiz.courseName}</div>
+                            <div><span className="font-semibold text-purple-900 dark:text-purple-200">Subject:</span> {copyModalQuiz.subjectName}</div>
+                            <p className="text-gray-600 dark:text-gray-400 pt-1">
+                                Copies the full quiz content & questions to the selected target courses. Each course maintains its own independent attempt and score records.
+                            </p>
+                        </div>
+
+                        <div>
+                            <MultiCourseSelector
+                                courses={courses.filter(c => (c._id || c.id) !== copyModalQuiz.courseId)}
+                                selectedCourseIds={targetCopyCourseIds}
+                                onChange={setTargetCopyCourseIds}
+                                label="Select Target Courses"
+                                helperText="Choose the courses where you want to copy/assign this quiz."
+                            />
+                        </div>
+
+                        <div className="flex justify-end gap-3 pt-4 border-t border-gray-100 dark:border-gray-700">
+                            <button
+                                type="button"
+                                onClick={() => setCopyModalQuiz(null)}
+                                disabled={copying}
+                                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleExecuteCopy}
+                                disabled={copying || targetCopyCourseIds.length === 0}
+                                className="px-5 py-2 text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-50 rounded-lg shadow-sm flex items-center gap-2"
+                            >
+                                {copying ? 'Copying...' : `Copy to ${targetCopyCourseIds.length} Course${targetCopyCourseIds.length === 1 ? '' : 's'}`}
+                            </button>
+                        </div>
+                    </div>
                 </div>
             )}
         </div>

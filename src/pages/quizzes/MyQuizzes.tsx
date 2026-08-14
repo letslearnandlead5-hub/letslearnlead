@@ -183,8 +183,14 @@ export const MyQuizzes: React.FC = () => {
     const [quizzes, setQuizzes] = useState<QuizWithStatus[]>([]);
     const [loading, setLoading] = useState(true);
     const [statusFilter, setStatusFilter] = useState<'all' | 'not-attempted' | 'in-progress' | 'completed'>('all');
-    const [selectedSubject, setSelectedSubject] = useState<string>('all');
-    const [selectedCategory, setSelectedCategory] = useState<string>('all');
+    
+    // Read URL query params on initial mount
+    const searchParams = new URLSearchParams(window.location.search);
+    const initialSubject = searchParams.get('subject') || searchParams.get('subjectName') || 'all';
+    const initialCategory = searchParams.get('category') || searchParams.get('categoryName') || '';
+
+    const [selectedSubject, setSelectedSubject] = useState<string>(initialSubject);
+    const [selectedCategory, setSelectedCategory] = useState<string>(initialCategory);
     const [pickerQuiz, setPickerQuiz] = useState<QuizWithStatus | null>(null);
 
     useEffect(() => {
@@ -227,13 +233,23 @@ export const MyQuizzes: React.FC = () => {
         )
     );
 
+    // Automatically select the first available real category
+    useEffect(() => {
+        if (categoryList.length > 0) {
+            if (!selectedCategory || !categoryList.some(c => c.toLowerCase() === selectedCategory.toLowerCase())) {
+                setSelectedCategory(categoryList[0]);
+            }
+        } else {
+            setSelectedCategory('');
+        }
+    }, [categoryList, selectedCategory]);
+
     // Apply status and category filters on top of subject selection
     const filteredQuizzes = subjectFilteredQuizzes.filter((quiz) => {
         const matchesStatus = statusFilter === 'all' || quiz.attemptStatus === statusFilter;
-        const matchesCategory =
-            selectedCategory === 'all'
-                ? true
-                : quiz.categoryName?.toLowerCase().trim() === selectedCategory.toLowerCase().trim();
+        const matchesCategory = selectedCategory
+            ? quiz.categoryName?.toLowerCase().trim() === selectedCategory.toLowerCase().trim()
+            : true;
         return matchesStatus && matchesCategory;
     });
 
@@ -434,10 +450,7 @@ export const MyQuizzes: React.FC = () => {
                     <div className="flex items-center gap-3 overflow-x-auto pb-1">
                         {/* All Subjects */}
                         <button
-                            onClick={() => {
-                                setSelectedSubject('all');
-                                setSelectedCategory('all');
-                            }}
+                            onClick={() => setSelectedSubject('all')}
                             className={`px-4 py-2.5 rounded-xl border-2 font-bold text-sm flex items-center gap-2 transition-all whitespace-nowrap ${
                                 selectedSubject === 'all'
                                     ? 'bg-indigo-600 border-indigo-600 text-white shadow-md'
@@ -458,10 +471,7 @@ export const MyQuizzes: React.FC = () => {
                             return (
                                 <button
                                     key={subName}
-                                    onClick={() => {
-                                        setSelectedSubject(subName);
-                                        setSelectedCategory('all');
-                                    }}
+                                    onClick={() => setSelectedSubject(subName)}
                                     className={`px-4 py-2.5 rounded-xl border-2 font-bold text-sm flex items-center gap-2 transition-all whitespace-nowrap ${
                                         isSelected
                                             ? 'bg-indigo-600 border-indigo-600 text-white shadow-md'
@@ -480,25 +490,14 @@ export const MyQuizzes: React.FC = () => {
                     </div>
                 </div>
 
-                {/* 2. CATEGORY SELECTION CHIPS */}
-                {categoryList.length > 0 && (
+                {/* 2. CATEGORY SELECTION CHIPS — REAL CATEGORIES ONLY */}
+                {categoryList.length > 0 ? (
                     <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 p-4 mb-6 shadow-sm">
                         <h2 className="text-xs font-extrabold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 mb-2.5 flex items-center gap-2">
                             <Tag className="w-3.5 h-3.5" /> Quiz Categories {selectedSubject !== 'all' ? `for ${selectedSubject}` : ''}
                         </h2>
 
                         <div className="flex items-center gap-2.5 flex-wrap">
-                            <button
-                                onClick={() => setSelectedCategory('all')}
-                                className={`px-3.5 py-1.5 rounded-xl border-2 font-bold text-xs flex items-center gap-1.5 transition-all ${
-                                    selectedCategory === 'all'
-                                        ? 'bg-indigo-600 border-indigo-600 text-white'
-                                        : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-indigo-300'
-                                }`}
-                            >
-                                <span>All Categories</span>
-                            </button>
-
                             {categoryList.map((catName) => {
                                 const style = getCategoryStyle(catName);
                                 const isSelected = selectedCategory.toLowerCase() === catName.toLowerCase();
@@ -520,7 +519,13 @@ export const MyQuizzes: React.FC = () => {
                             })}
                         </div>
                     </div>
-                )}
+                ) : selectedSubject !== 'all' ? (
+                    <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 p-4 mb-6 shadow-sm">
+                        <p className="text-xs text-gray-500 dark:text-gray-400 italic">
+                            No quiz categories available for this subject.
+                        </p>
+                    </div>
+                ) : null}
 
                 {/* 3. STATUS FILTER TABS */}
                 <div className="mb-6 flex items-center gap-2 overflow-x-auto pb-2">
@@ -550,7 +555,7 @@ export const MyQuizzes: React.FC = () => {
                         <BookOpen className="w-16 h-16 text-gray-400 mx-auto mb-4" />
                         <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
                             {selectedSubject !== 'all'
-                                ? `No ${selectedCategory !== 'all' ? selectedCategory : ''} Quizzes Available for ${selectedSubject}`
+                                ? `No ${selectedCategory ? selectedCategory : ''} Quizzes Available for ${selectedSubject}`
                                 : 'No Quizzes Match Selected Filters'}
                         </h3>
                         <p className="text-gray-600 dark:text-gray-400 text-sm max-w-md mx-auto">

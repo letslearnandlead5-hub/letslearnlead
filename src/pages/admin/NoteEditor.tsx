@@ -52,17 +52,15 @@ const NoteEditor: React.FC = () => {
                 courseId: note.courseId?._id || note.courseId,
                 subjectId: note.subjectId || '',
                 subjectName: note.subjectName || '',
+                chapterName: note.chapterName || '',
+                chapterId: note.chapterId || '',
                 fileType: note.fileType,
-                category: note.category || '',
                 tags: note.tags || [],
             });
         } catch (error) {
             console.error('Error loading note:', error);
             addToast({ type: 'error', message: 'Failed to load note' });
-            navigate('/dashboard/');
-            setTimeout(() => {
-                window.dispatchEvent(new CustomEvent('selectAdminTab', { detail: 'notes' }));
-            }, 100);
+            navigate('/dashboard/?tab=notes');
         } finally {
             setLoading(false);
         }
@@ -83,19 +81,42 @@ const NoteEditor: React.FC = () => {
                 }
                 addToast({ type: 'success', message: 'Note updated successfully!' });
             } else {
-                if (isFileUpload) {
-                    await noteAPI.upload(noteData, setUploadProgress);
-                } else {
-                    await noteAPI.create(noteData);
+                let courseIds: string[] = [];
+                if (isFileUpload && noteData instanceof FormData) {
+                    const raw = noteData.get('courseIds');
+                    if (raw) {
+                        try { courseIds = JSON.parse(raw as string); } catch { courseIds = [raw as string]; }
+                    }
+                } else if (noteData.courseIds) {
+                    courseIds = Array.isArray(noteData.courseIds) ? noteData.courseIds : [noteData.courseIds];
                 }
-                addToast({ type: 'success', message: 'Note created successfully!' });
+
+                if (courseIds.length > 1) {
+                    const res: any = await noteAPI.createMultiCourse(noteData, setUploadProgress);
+                    const skipped = res?.data?.skippedCourses || [];
+                    if (skipped.length > 0) {
+                        addToast({
+                            type: 'success',
+                            message: `Note created for ${res?.data?.createdCount || 0} course(s). ${skipped.length} skipped: ${skipped.map((s: any) => s.reason).join('; ')}`,
+                        });
+                    } else {
+                        addToast({
+                            type: 'success',
+                            message: `Note created for all ${res?.data?.createdCount || courseIds.length} courses! 🎉`,
+                        });
+                    }
+                } else {
+                    if (isFileUpload) {
+                        await noteAPI.upload(noteData, setUploadProgress);
+                    } else {
+                        await noteAPI.create(noteData);
+                    }
+                    addToast({ type: 'success', message: 'Note created successfully!' });
+                }
             }
 
             // Navigate to dashboard and select notes tab
-            navigate('/dashboard/');
-            setTimeout(() => {
-                window.dispatchEvent(new CustomEvent('selectAdminTab', { detail: 'notes' }));
-            }, 100);
+            navigate('/dashboard/?tab=notes');
         } catch (error: any) {
             console.error('Error saving note:', error);
 
@@ -122,10 +143,7 @@ const NoteEditor: React.FC = () => {
     };
 
     const handleCancel = () => {
-        navigate('/dashboard/');
-        setTimeout(() => {
-            window.dispatchEvent(new CustomEvent('selectAdminTab', { detail: 'notes' }));
-        }, 100);
+        navigate('/dashboard/?tab=notes');
     };
 
     const handleLogout = () => {
@@ -176,11 +194,14 @@ const NoteEditor: React.FC = () => {
                             <button
                                 key={tab.id}
                                 onClick={() => {
-                                    navigate(`${tab.path}/`);
+                                    if (tab.id === 'quizzes') {
+                                        navigate('/admin/quizzes/');
+                                    } else if (tab.id === 'banners') {
+                                        navigate('/admin/banners/');
+                                    } else {
+                                        navigate(`/dashboard/?tab=${tab.id}`);
+                                    }
                                     setShowMobileSidebar(false);
-                                    setTimeout(() => {
-                                        window.dispatchEvent(new CustomEvent('selectAdminTab', { detail: tab.id }));
-                                    }, 100);
                                 }}
                                 className="w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-gray-800"
                             >
@@ -190,7 +211,7 @@ const NoteEditor: React.FC = () => {
                         ))}
                         <button
                             onClick={() => {
-                                navigate('/dashboard/');
+                                navigate('/dashboard/?tab=settings');
                                 setShowMobileSidebar(false);
                             }}
                             className="w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors mt-6 hover:bg-gray-100 dark:hover:bg-gray-800"

@@ -26,6 +26,26 @@ export const createQuiz = async (
     return response.data;
 };
 
+/** Create a quiz for multiple courses simultaneously */
+export const createMultiCourseQuiz = async (
+    payload: Partial<Quiz> & {
+        courseIds: string[];
+        subjectName: string;
+        categoryName?: string;
+        status?: 'draft' | 'published';
+        draftMeta?: any;
+    }
+) => {
+    const response: any = await api.post('/quizzes/multi-course', payload);
+    return response;
+};
+
+/** Copy an existing quiz to selected target courses */
+export const copyQuizToCourses = async (quizId: string, targetCourseIds: string[]) => {
+    const response: any = await api.post(`/quizzes/${quizId}/copy-to-courses`, { targetCourseIds });
+    return response;
+};
+
 /** Alias for creating a brand-new draft */
 export const createDraft = createQuiz;
 

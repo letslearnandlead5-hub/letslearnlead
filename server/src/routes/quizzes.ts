@@ -6,6 +6,7 @@ import { Course } from '../models/Course';
 import { User } from '../models/User';
 import { Enrollment } from '../models/Enrollment';
 import { QuizCategory } from '../models/QuizCategory';
+import { ensureDefaultCategoriesForCourse } from './quizCategories';
 import { protect, authorize, AuthRequest } from '../middleware/auth';
 import { AppError } from '../middleware/error';
 import mongoose from 'mongoose';
@@ -170,6 +171,245 @@ router.post('/', protect, authorize('admin'), async (req: AuthRequest, res: Resp
         console.log(`[QUIZ CREATED] ID=${quiz._id} Status=${quiz.status} Questions=${quiz.questions.length}`);
 
         res.status(201).json({ success: true, data: quiz });
+    } catch (error) {
+        next(error);
+    }
+});
+
+// @route   POST /api/quizzes/multi-course
+// @desc    Create a quiz for multiple selected courses simultaneously (isolated per course)
+// @access  Private (Admin)
+router.post('/multi-course', protect, authorize('admin'), async (req: AuthRequest, res: Response, next) => {
+    try {
+        const { courseIds, subjectName, categoryName, status = 'draft', draftMeta, ...rawBody } = req.body;
+
+        if (!Array.isArray(courseIds) || courseIds.length === 0) {
+            throw new AppError('At least one course must be selected', 400);
+        }
+        if (!subjectName || !subjectName.trim()) {
+            throw new AppError('Subject name is required for multi-course creation', 400);
+        }
+
+        const sanitized = sanitizeQuizData(rawBody);
+
+        const marksPerQ = Number(sanitized.settings?.marksPerQuestion);
+        if (marksPerQ > 0 && Array.isArray(sanitized.questions)) {
+            sanitized.questions.forEach((q: any) => {
+                q.marks = marksPerQ;
+            });
+        }
+
+        const normSubjectName = subjectName.trim().toLowerCase();
+        const normCategoryName = (categoryName || 'Basic').trim().toLowerCase();
+
+        const createdQuizzes: any[] = [];
+        const skippedCourses: Array<{ courseId: string; courseName: string; reason: string }> = [];
+
+        for (const cId of courseIds) {
+            const course = await Course.findById(cId);
+            if (!course) {
+                skippedCourses.push({ courseId: cId, courseName: 'Unknown', reason: 'Course not found' });
+                continue;
+            }
+
+            // Find matching subject in this course
+            const targetSubject = (course.subjects || []).find(
+                (s: any) => s.name && s.name.trim().toLowerCase() === normSubjectName
+            );
+
+            if (!targetSubject) {
+                skippedCourses.push({
+                    courseId: cId,
+                    courseName: course.title,
+                    reason: `Subject "${subjectName}" does not exist in ${course.title}`,
+                });
+                continue;
+            }
+
+            // Duplicate prevention check (Section 19)
+            const existingQuiz = await Quiz.findOne({
+                courseId: course._id,
+                subjectId: targetSubject._id,
+                title: sanitized.title.trim(),
+            });
+
+            if (existingQuiz) {
+                skippedCourses.push({
+                    courseId: cId,
+                    courseName: course.title,
+                    reason: `A quiz titled "${sanitized.title.trim()}" already exists in ${course.title} → ${targetSubject.name}`,
+                });
+                continue;
+            }
+
+            // Ensure categories exist and resolve matching category
+            await ensureDefaultCategoriesForCourse(course._id);
+            let targetCategory = await QuizCategory.findOne({
+                courseId: course._id,
+                name: { $regex: new RegExp(`^${normCategoryName}$`, 'i') },
+                $or: [{ subjectId: targetSubject._id }, { subjectId: null }, { subjectId: { $exists: false } }],
+            });
+
+            if (!targetCategory) {
+                targetCategory = await QuizCategory.findOne({
+                    courseId: course._id,
+                    isActive: true,
+                });
+            }
+
+            const targetCategoryId = targetCategory ? targetCategory._id : undefined;
+            const targetCategoryName = targetCategory ? targetCategory.name : categoryName || 'Basic';
+
+            // Validate if publishing
+            if (status === 'published') {
+                const validation = validateForPublish({
+                    ...sanitized,
+                    courseId: course._id,
+                    subjectId: targetSubject._id,
+                    categoryId: targetCategoryId,
+                });
+                if (!validation.valid) {
+                    skippedCourses.push({
+                        courseId: cId,
+                        courseName: course.title,
+                        reason: `Validation failed for ${course.title}: ${validation.errors[0]}`,
+                    });
+                    continue;
+                }
+            }
+
+            const quiz = await Quiz.create({
+                ...sanitized,
+                courseId: course._id,
+                courseName: course.title,
+                subjectId: targetSubject._id,
+                subjectName: targetSubject.name,
+                categoryId: targetCategoryId,
+                categoryName: targetCategoryName,
+                createdBy: req.user?.id,
+                status,
+                draftMeta: draftMeta || { currentStep: 1, currentQuestionIndex: 0, autosaveCount: 0, isAutosaved: false },
+                auditLog: [buildAuditEntry(req, 'created', { questionCount: sanitized.questions?.length || 0, multiCourse: true })],
+            });
+
+            createdQuizzes.push(quiz);
+        }
+
+        res.status(201).json({
+            success: true,
+            createdCount: createdQuizzes.length,
+            createdQuizzes,
+            skippedCourses,
+            message: `Quiz created for ${createdQuizzes.length} course(s).${skippedCourses.length > 0 ? ` (${skippedCourses.length} skipped)` : ''}`,
+        });
+    } catch (error) {
+        next(error);
+    }
+});
+
+// @route   POST /api/quizzes/:id/copy-to-courses
+// @desc    Copy an existing quiz to selected target courses (with complete attempt isolation)
+// @access  Private (Admin)
+router.post('/:id/copy-to-courses', protect, authorize('admin'), async (req: AuthRequest, res: Response, next) => {
+    try {
+        const { targetCourseIds } = req.body;
+        if (!Array.isArray(targetCourseIds) || targetCourseIds.length === 0) {
+            throw new AppError('At least one target course is required', 400);
+        }
+
+        const sourceQuiz = await Quiz.findById(req.params.id);
+        if (!sourceQuiz) throw new AppError('Source quiz not found', 404);
+
+        const normSubjectName = (sourceQuiz.subjectName || '').trim().toLowerCase();
+        const normCategoryName = (sourceQuiz.categoryName || 'Basic').trim().toLowerCase();
+
+        const createdQuizzes: any[] = [];
+        const skippedCourses: Array<{ courseId: string; courseName: string; reason: string }> = [];
+
+        for (const cId of targetCourseIds) {
+            if (sourceQuiz.courseId && sourceQuiz.courseId.toString() === cId.toString()) {
+                skippedCourses.push({ courseId: cId, courseName: sourceQuiz.courseName, reason: 'Already the source course' });
+                continue;
+            }
+
+            const course = await Course.findById(cId);
+            if (!course) {
+                skippedCourses.push({ courseId: cId, courseName: 'Unknown', reason: 'Course not found' });
+                continue;
+            }
+
+            // Find matching subject by name
+            const targetSubject = (course.subjects || []).find(
+                (s: any) => s.name && s.name.trim().toLowerCase() === normSubjectName
+            );
+
+            if (!targetSubject) {
+                skippedCourses.push({
+                    courseId: cId,
+                    courseName: course.title,
+                    reason: `Subject "${sourceQuiz.subjectName}" does not exist in ${course.title}`,
+                });
+                continue;
+            }
+
+            // Duplicate prevention check
+            const existingQuiz = await Quiz.findOne({
+                courseId: course._id,
+                subjectId: targetSubject._id,
+                title: sourceQuiz.title.trim(),
+            });
+
+            if (existingQuiz) {
+                skippedCourses.push({
+                    courseId: cId,
+                    courseName: course.title,
+                    reason: `A quiz titled "${sourceQuiz.title.trim()}" already exists in ${course.title} → ${targetSubject.name}`,
+                });
+                continue;
+            }
+
+            await ensureDefaultCategoriesForCourse(course._id);
+            let targetCategory = await QuizCategory.findOne({
+                courseId: course._id,
+                name: { $regex: new RegExp(`^${normCategoryName}$`, 'i') },
+                $or: [{ subjectId: targetSubject._id }, { subjectId: null }, { subjectId: { $exists: false } }],
+            });
+
+            if (!targetCategory) {
+                targetCategory = await QuizCategory.findOne({
+                    courseId: course._id,
+                    isActive: true,
+                });
+            }
+
+            const quizData = sourceQuiz.toObject();
+            delete quizData._id;
+            delete quizData.createdAt;
+            delete quizData.updatedAt;
+            delete quizData.lockedBy;
+
+            const newQuiz = await Quiz.create({
+                ...quizData,
+                courseId: course._id,
+                courseName: course.title,
+                subjectId: targetSubject._id,
+                subjectName: targetSubject.name,
+                categoryId: targetCategory ? targetCategory._id : undefined,
+                categoryName: targetCategory ? targetCategory.name : sourceQuiz.categoryName,
+                createdBy: req.user?.id,
+                auditLog: [buildAuditEntry(req, 'created', { copiedFromQuizId: sourceQuiz._id, fromCourse: sourceQuiz.courseName })],
+            });
+
+            createdQuizzes.push(newQuiz);
+        }
+
+        res.status(201).json({
+            success: true,
+            createdCount: createdQuizzes.length,
+            createdQuizzes,
+            skippedCourses,
+            message: `Quiz copied to ${createdQuizzes.length} course(s).${skippedCourses.length > 0 ? ` (${skippedCourses.length} skipped)` : ''}`,
+        });
     } catch (error) {
         next(error);
     }

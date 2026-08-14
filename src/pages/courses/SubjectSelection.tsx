@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Play, BookOpen, CheckCircle2, Lock } from 'lucide-react';
+import { ArrowLeft, Play, BookOpen, CheckCircle2, Lock, FileText, FileQuestion } from 'lucide-react';
 import { courseAPI } from '../../services/api';
 import { useAuthStore } from '../../store/useAuthStore';
 
@@ -233,12 +233,45 @@ const SubjectSelection: React.FC = () => {
                                         </div>
                                     </div>
 
-                                    {/* CTA */}
+                                    {/* Content Switcher & CTA */}
                                     {unlocked ? (
-                                        <button className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold transition-colors">
-                                            <Play className="w-4 h-4" fill="white" />
-                                            {done ? 'Review' : started ? 'Continue' : 'Start Learning'}
-                                        </button>
+                                        <div className="space-y-2.5">
+                                            {/* Primary Video / Learning CTA */}
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleSubjectClick(sub);
+                                                }}
+                                                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold transition-colors shadow-sm"
+                                            >
+                                                <Play className="w-4 h-4" fill="white" />
+                                                {done ? 'Review Videos' : started ? 'Continue Videos' : 'Start Videos'}
+                                            </button>
+
+                                            {/* Secondary Content Pills (Notes & Quizzes) */}
+                                            <div className="grid grid-cols-2 gap-2 pt-1">
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        navigate(`/notes/?courseId=${courseId}&subjectId=${sub._id}`);
+                                                    }}
+                                                    className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/50 dark:hover:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 text-xs font-semibold border border-indigo-200/60 dark:border-indigo-800/60 transition-colors"
+                                                >
+                                                    <FileText className="w-3.5 h-3.5" />
+                                                    <span>Notes</span>
+                                                </button>
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        navigate(`/my-quizzes/?subject=${encodeURIComponent(sub.name)}&courseId=${courseId}`);
+                                                    }}
+                                                    className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/50 dark:hover:bg-purple-900/50 text-purple-700 dark:text-purple-300 text-xs font-semibold border border-purple-200/60 dark:border-purple-800/60 transition-colors"
+                                                >
+                                                    <FileQuestion className="w-3.5 h-3.5" />
+                                                    <span>Quizzes</span>
+                                                </button>
+                                            </div>
+                                        </div>
                                     ) : (
                                         <div className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-400 text-sm font-semibold">
                                             <Lock className="w-4 h-4" />

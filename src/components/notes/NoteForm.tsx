@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { X, Upload, File, Trash2, FileText, Edit3, Bold, Italic, List, ListOrdered, Heading1, Heading2 } from 'lucide-react';
 import Button from '../ui/Button';
 import Input from '../ui/Input';
+import MultiCourseSelector from '../admin/MultiCourseSelector';
 
 interface NoteFormProps {
     initialData?: {
@@ -10,8 +11,9 @@ interface NoteFormProps {
         courseId?: string;
         subjectId?: string;
         subjectName?: string;
+        chapterName?: string;
+        chapterId?: string;
         fileType: string;
-        category?: string;
         tags?: string[];
         markdownContent?: string;
     };
@@ -36,19 +38,44 @@ const NoteForm: React.FC<NoteFormProps> = ({
     uploadProgress = 0,
     isFullPage = false,
 }) => {
+    const [selectedCourseIds, setSelectedCourseIds] = useState<string[]>(
+        initialData?.courseId ? [initialData.courseId] : []
+    );
     const [formData, setFormData] = useState({
         title: initialData?.title || '',
         description: initialData?.description || '',
         courseId: initialData?.courseId || '',
         subjectId: initialData?.subjectId || '',
         subjectName: initialData?.subjectName || '',
+        chapterName: initialData?.chapterName || '',
+        chapterId: initialData?.chapterId || '',
         fileType: initialData?.fileType || 'file',
-        category: initialData?.category || '',
         tags: initialData?.tags || [],
     });
 
-    // Derive subjects for the selected course
-    const selectedCourseSubjects = courses.find(c => c._id === formData.courseId)?.subjects || [];
+    // Derive subjects for single or multiple selected courses
+    const selectedCourseSubjects = useMemo(() => {
+        if (selectedCourseIds.length === 0) return [];
+        if (selectedCourseIds.length === 1) {
+            return courses.find(c => c._id === selectedCourseIds[0])?.subjects || [];
+        }
+        const seen = new Set<string>();
+        const list: Array<{ _id: string; name: string; icon?: string; count: number }> = [];
+        selectedCourseIds.forEach(cId => {
+            const c = courses.find(course => course._id === cId);
+            (c?.subjects || []).forEach(sub => {
+                const norm = sub.name.trim().toLowerCase();
+                if (!seen.has(norm)) {
+                    seen.add(norm);
+                    list.push({ _id: sub._id, name: sub.name.trim(), icon: sub.icon, count: 1 });
+                } else {
+                    const item = list.find(s => s.name.trim().toLowerCase() === norm);
+                    if (item) item.count += 1;
+                }
+            });
+        });
+        return list;
+    }, [courses, selectedCourseIds]);
 
     const [tagInput, setTagInput] = useState('');
     const [uploadedFile, setUploadedFile] = useState<File | null>(null);
@@ -139,18 +166,18 @@ const NoteForm: React.FC<NoteFormProps> = ({
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
-        if (!formData.courseId) {
-            alert('Please select a course');
+        if (selectedCourseIds.length === 0) {
+            alert('Please select at least one course');
             return;
         }
-        if (!formData.subjectId) {
+        if (!formData.subjectId && !formData.subjectName) {
             alert('Please select a subject');
             return;
         }
 
         // Validation based on mode
         if (contentMode === 'upload') {
-            if (!uploadedFile) {
+            if (!uploadedFile && !initialData) {
                 alert('Please upload a file (PDF, TXT, or DOC)');
                 return;
             }
@@ -159,23 +186,18 @@ const NoteForm: React.FC<NoteFormProps> = ({
             const formDataToSend = new FormData();
             formDataToSend.append('title', formData.title);
             formDataToSend.append('description', formData.description);
-            formDataToSend.append('courseId', formData.courseId);
+            formDataToSend.append('courseId', selectedCourseIds[0] || formData.courseId);
+            formDataToSend.append('courseIds', JSON.stringify(selectedCourseIds));
             formDataToSend.append('subjectId', formData.subjectId);
             formDataToSend.append('subjectName', formData.subjectName);
+            formDataToSend.append('chapterName', formData.chapterName);
+            formDataToSend.append('chapterId', formData.chapterId);
             formDataToSend.append('fileType', 'file');
-            formDataToSend.append('category', formData.category);
             formDataToSend.append('tags', JSON.stringify(formData.tags));
 
-
-            // Debug logging
-            console.log('Uploading file:', uploadedFile);
-            console.log('File details:', {
-                name: uploadedFile?.name,
-                size: uploadedFile?.size,
-                type: uploadedFile?.type
-            });
-
-            formDataToSend.append('file', uploadedFile);
+            if (uploadedFile) {
+                formDataToSend.append('file', uploadedFile);
+            }
 
             onSubmit(formDataToSend);
         } else {
@@ -189,12 +211,14 @@ const NoteForm: React.FC<NoteFormProps> = ({
             const formDataToSend = new FormData();
             formDataToSend.append('title', formData.title);
             formDataToSend.append('description', formData.description);
-            formDataToSend.append('courseId', formData.courseId);
+            formDataToSend.append('courseId', selectedCourseIds[0] || formData.courseId);
+            formDataToSend.append('courseIds', JSON.stringify(selectedCourseIds));
             formDataToSend.append('subjectId', formData.subjectId);
             formDataToSend.append('subjectName', formData.subjectName);
+            formDataToSend.append('chapterName', formData.chapterName);
+            formDataToSend.append('chapterId', formData.chapterId);
             formDataToSend.append('fileType', 'html');
 
-            formDataToSend.append('category', formData.category);
             formDataToSend.append('tags', JSON.stringify(formData.tags));
             formDataToSend.append('markdownContent', htmlContent);
 
@@ -231,30 +255,31 @@ const NoteForm: React.FC<NoteFormProps> = ({
                         />
                     </div>
 
-                    {/* Course Selection */}
+                    {/* Course Selection — Multi-Course or Single */}
                     {courses.length > 0 && (
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                Course
-                            </label>
-                            <select
-                                value={formData.courseId}
-                                onChange={(e) => {
-                                    handleChange('courseId', e.target.value);
-                                    // Reset subject when course changes
+                            <MultiCourseSelector
+                                courses={courses}
+                                selectedCourseIds={selectedCourseIds}
+                                disabled={!!initialData?.courseId}
+                                helperText={
+                                    initialData?.courseId
+                                        ? 'Editing an existing note is course-specific. To duplicate this note into other courses, use the "Copy to Courses" action on the notes list.'
+                                        : selectedCourseIds.length > 1
+                                        ? `Multi-course mode: Note will be independently created for each of the ${selectedCourseIds.length} selected courses.`
+                                        : undefined
+                                }
+                                onChange={(ids) => {
+                                    setSelectedCourseIds(ids);
+                                    if (ids.length > 0) {
+                                        handleChange('courseId', ids[0]);
+                                    } else {
+                                        handleChange('courseId', '');
+                                    }
                                     handleChange('subjectId', '');
                                     handleChange('subjectName', '');
                                 }}
-                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                                required
-                            >
-                                <option value="">Select a course</option>
-                                {courses.map((course) => (
-                                    <option key={course._id} value={course._id}>
-                                        {course.title}
-                                    </option>
-                                ))}
-                            </select>
+                            />
                         </div>
                     )}
 
@@ -291,14 +316,13 @@ const NoteForm: React.FC<NoteFormProps> = ({
                         )}
                     </div>
 
-
-                    {/* Category */}
+                    {/* Chapter */}
                     <Input
-                        label="Category (Optional)"
+                        label="Chapter (Optional)"
                         type="text"
-                        value={formData.category}
-                        onChange={(e) => handleChange('category', e.target.value)}
-                        placeholder="e.g., Study Guide, Summary, Lecture Notes"
+                        value={formData.chapterName}
+                        onChange={(e) => handleChange('chapterName', e.target.value)}
+                        placeholder="e.g. Chapter 1: Chemical Reactions and Equations"
                     />
 
                     {/* Tags */}

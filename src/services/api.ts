@@ -215,6 +215,22 @@ export const noteAPI = {
   getByCourse: (courseId: string) => api.get(`/notes/course/${courseId}`),
   // For text/markdown notes (small payload) — use default 30s timeout
   create: (data: any) => api.post("/notes", data),
+  createMultiCourse: (data: FormData | any, onProgress?: (pct: number) => void) => {
+    if (data instanceof FormData) {
+      return api.post("/notes/multi-course", data, {
+        timeout: 120000,
+        headers: { 'Content-Type': 'multipart/form-data' },
+        onUploadProgress: (e) => {
+          if (onProgress && e.total) {
+            onProgress(Math.round((e.loaded * 100) / e.total));
+          }
+        },
+      });
+    }
+    return api.post("/notes/multi-course", data);
+  },
+  copyToCourses: (id: string, targetCourseIds: string[]) =>
+    api.post(`/notes/${id}/copy-to-courses`, { targetCourseIds }),
   update: (id: string, data: any) => api.put(`/notes/${id}`, data),
   // For file uploads (PDF/TXT can be several MB) — use 120s timeout
   upload: (data: FormData, onProgress?: (pct: number) => void) =>

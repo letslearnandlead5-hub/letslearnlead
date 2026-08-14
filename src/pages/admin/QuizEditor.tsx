@@ -28,8 +28,9 @@ import {
     Loader2,
     PenLine,
 } from 'lucide-react';
-import { createQuiz, getQuizById, updateQuiz, saveDraft, lockQuiz, unlockQuiz, publishQuiz } from '../../services/quizService';
+import { createQuiz, createMultiCourseQuiz, getQuizById, updateQuiz, saveDraft, lockQuiz, unlockQuiz, publishQuiz } from '../../services/quizService';
 import { quizCategoryService } from '../../services/quizCategoryService';
+import MultiCourseSelector from '../../components/admin/MultiCourseSelector';
 import type { Quiz, QuizQuestion, QuestionOption, MatchPair, Subject, QuizCategory } from '../../types';
 import toast from 'react-hot-toast';
 import AdminHeader from '../../components/admin/AdminHeader';
@@ -103,14 +104,40 @@ const QuizEditor: React.FC = () => {
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
     const [courseId, setCourseId] = useState('');
+    const [selectedCourseIds, setSelectedCourseIds] = useState<string[]>([]);
     const [subjectId, setSubjectId] = useState('');
     const [subjectName, setSubjectName] = useState('');
     const [categoryId, setCategoryId] = useState('');
     const [categoryName, setCategoryName] = useState('');
     const [availableCategories, setAvailableCategories] = useState<QuizCategory[]>([]);
 
-    // Derive subjects for the selected course
-    const selectedCourseSubjects: Subject[] = courses.find(c => c._id === courseId)?.subjects || [];
+    // Derive subjects for the selected course or common subjects across multiple courses
+    const availableSubjectsList = React.useMemo(() => {
+        if (selectedCourseIds.length === 0) return [];
+        if (selectedCourseIds.length === 1) {
+            const c = courses.find((course) => (course._id || course.id) === selectedCourseIds[0]);
+            return c?.subjects || [];
+        }
+        // Multiple courses: aggregate unique subject names
+        const seen = new Set<string>();
+        const list: Array<{ _id: string; name: string; icon?: string; count: number }> = [];
+        selectedCourseIds.forEach((cId) => {
+            const c = courses.find((course) => (course._id || course.id) === cId);
+            (c?.subjects || []).forEach((sub: any) => {
+                const norm = sub.name.trim().toLowerCase();
+                if (!seen.has(norm)) {
+                    seen.add(norm);
+                    list.push({ _id: sub._id, name: sub.name.trim(), icon: sub.icon, count: 1 });
+                } else {
+                    const item = list.find((s) => s.name.trim().toLowerCase() === norm);
+                    if (item) item.count += 1;
+                }
+            });
+        });
+        return list;
+    }, [courses, selectedCourseIds]);
+
+    const selectedCourseSubjects: Subject[] = availableSubjectsList as any;
 
     // Quiz settings
     const [marksPerQuestion, setMarksPerQuestion] = useState(4);
@@ -238,7 +265,9 @@ const QuizEditor: React.FC = () => {
             const quiz = data.quiz || data;
             setTitle(quiz.title || '');
             setDescription(quiz.description || '');
-            setCourseId(quiz.courseId || '');
+            const cId = typeof quiz.courseId === 'object' && quiz.courseId ? (quiz.courseId._id || quiz.courseId.id) : quiz.courseId;
+            setCourseId(cId || '');
+            setSelectedCourseIds(cId ? [cId] : []);
             setSubjectId(quiz.subjectId || '');
             setSubjectName(quiz.subjectName || '');
             setCategoryId(quiz.categoryId || '');
@@ -271,7 +300,7 @@ const QuizEditor: React.FC = () => {
             }
         } catch (error: any) {
             toast.error(error.response?.data?.message || 'Failed to load quiz');
-            navigate('/dashboard/');
+            navigate('/admin/quizzes/');
         } finally {
             setLoading(false);
         }
@@ -606,7 +635,29 @@ const QuizEditor: React.FC = () => {
             }
 
             let id = currentQuizId;
-            if (!id) {
+            if (!id && selectedCourseIds.length > 1) {
+                // Multi-course quiz creation
+                const res: any = await createMultiCourseQuiz({
+                    ...payload,
+                    courseIds: selectedCourseIds,
+                    subjectName,
+                    categoryName,
+                    status: publish ? 'published' : 'draft',
+                });
+
+                setLastSavedAt(new Date());
+                setIsDirty(false);
+
+                if (res?.success) {
+                    if (res.skippedCourses?.length > 0) {
+                        toast.success(`Quiz ${publish ? 'published' : 'created'} for ${res.createdCount} course(s). ${res.skippedCourses.length} skipped: ${res.skippedCourses.map((s: any) => s.reason).join('; ')}`, { duration: 6000 });
+                    } else {
+                        toast.success(`Quiz ${publish ? 'published' : 'created'} for all ${res.createdCount} selected courses! 🎉`);
+                    }
+                    navigate('/admin/quizzes/');
+                    return;
+                }
+            } else if (!id) {
                 // Create new draft
                 const newQuiz = await createQuiz(payload);
                 id = newQuiz._id || newQuiz.id || null;
@@ -700,7 +751,7 @@ const QuizEditor: React.FC = () => {
                                 key={tab.id}
                                 onClick={() => {
                                     if (tab.id === 'quizzes') { navigate('/admin/quizzes/'); setShowMobileSidebar(false); }
-                                    else { window.dispatchEvent(new CustomEvent('selectAdminTab', { detail: tab.id })); navigate('/dashboard/'); setShowMobileSidebar(false); }
+                                    else { navigate(`/dashboard/?tab=${tab.id}`); setShowMobileSidebar(false); }
                                 }}
                                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${tab.id === 'quizzes' ? 'bg-blue-100 dark:bg-blue-950 text-blue-600' : 'hover:bg-gray-100 dark:hover:bg-gray-800'}`}
                             >
@@ -708,7 +759,7 @@ const QuizEditor: React.FC = () => {
                                 <span className="font-medium">{tab.label}</span>
                             </button>
                         ))}
-                        <button onClick={() => { window.dispatchEvent(new CustomEvent('selectAdminTab', { detail: 'settings' })); navigate('/dashboard/'); setShowMobileSidebar(false); }} className="w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors mt-6 hover:bg-gray-100 dark:hover:bg-gray-800">
+                        <button onClick={() => { navigate('/dashboard/?tab=settings'); setShowMobileSidebar(false); }} className="w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors mt-6 hover:bg-gray-100 dark:hover:bg-gray-800">
                             <Settings className="w-5 h-5" />
                             <span className="font-medium">Settings</span>
                         </button>
@@ -868,21 +919,33 @@ const QuizEditor: React.FC = () => {
                                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Description *</label>
                                             <textarea value={description} onChange={(e) => { setDescription(e.target.value); markDirty(); }} rows={4} className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white" placeholder="Enter quiz description" />
                                         </div>
+                                        {/* Course Selection — Multi-Course or Single Course */}
                                         <div>
-                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Course *</label>
-                                            <select
-                                                value={courseId}
-                                                onChange={(e) => {
-                                                    setCourseId(e.target.value);
+                                            <MultiCourseSelector
+                                                courses={courses}
+                                                selectedCourseIds={selectedCourseIds}
+                                                disabled={!!quizId}
+                                                helperText={
+                                                    quizId
+                                                        ? 'Editing an existing quiz is course-specific. To duplicate this quiz into other courses, use the "Copy to Courses" action on the quiz card.'
+                                                        : selectedCourseIds.length > 1
+                                                        ? `Multi-course mode: Quiz will be independently created for each of the ${selectedCourseIds.length} selected courses with 100% attempt isolation.`
+                                                        : undefined
+                                                }
+                                                onChange={(ids) => {
+                                                    setSelectedCourseIds(ids);
+                                                    if (ids.length > 0) {
+                                                        setCourseId(ids[0]);
+                                                    } else {
+                                                        setCourseId('');
+                                                    }
                                                     setSubjectId('');
                                                     setSubjectName('');
+                                                    setCategoryId('');
+                                                    setCategoryName('');
                                                     markDirty();
                                                 }}
-                                                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
-                                            >
-                                                <option value="">Select a course</option>
-                                                {courses.map((course) => (<option key={course._id} value={course._id}>{course.title}</option>))}
-                                            </select>
+                                            />
                                         </div>
                                         {/* Subject Selection */}
                                         {selectedCourseSubjects.length > 0 && (
@@ -901,9 +964,12 @@ const QuizEditor: React.FC = () => {
                                                     className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
                                                 >
                                                     <option value="">Select a subject *</option>
-                                                    {selectedCourseSubjects.map((sub) => (
+                                                    {selectedCourseSubjects.map((sub: any) => (
                                                         <option key={sub._id} value={sub._id}>
                                                             {sub.icon ? `${sub.icon} ` : ''}{sub.name}
+                                                            {selectedCourseIds.length > 1 && sub.count !== undefined
+                                                                ? ` (${sub.count}/${selectedCourseIds.length} courses)`
+                                                                : ''}
                                                         </option>
                                                     ))}
                                                 </select>

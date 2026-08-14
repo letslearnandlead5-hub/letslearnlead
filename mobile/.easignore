@@ -1,0 +1,9 @@
+# Exclude large files not needed for EAS build
+node_modules/
+.git/
+android/
+ios/
+dist/
+.expo/
+*.log
+*.md

@@ -137,7 +137,7 @@ export const MyQuizzesScreen: React.FC = () => {
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [filter, setFilter] = useState<FilterType>('all');
   const [selectedSubject, setSelectedSubject] = useState<string>('all');
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -174,10 +174,21 @@ export const MyQuizzesScreen: React.FC = () => {
     new Set(subjectFiltered.map((q) => q.categoryName).filter((c): c is string => Boolean(c && c.trim())))
   );
 
+  // Automatically select the first available real category
+  useEffect(() => {
+    if (categoryList.length > 0) {
+      if (!selectedCategory || !categoryList.includes(selectedCategory)) {
+        setSelectedCategory(categoryList[0]);
+      }
+    } else {
+      setSelectedCategory('');
+    }
+  }, [categoryList, selectedCategory]);
+
   const filtered = quizzes.filter((q) => {
     const matchesStatus = filter === 'all' || q.status === filter;
     const matchesSubject = selectedSubject === 'all' || q.subjectName === selectedSubject;
-    const matchesCategory = selectedCategory === 'all' || q.categoryName === selectedCategory;
+    const matchesCategory = selectedCategory ? q.categoryName === selectedCategory : true;
     return matchesStatus && matchesSubject && matchesCategory;
   });
 
@@ -305,10 +316,7 @@ export const MyQuizzesScreen: React.FC = () => {
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
                   <TouchableOpacity
                     style={[styles.chip, selectedSubject === 'all' && styles.chipActive]}
-                    onPress={() => {
-                      setSelectedSubject('all');
-                      setSelectedCategory('all');
-                    }}
+                    onPress={() => setSelectedSubject('all')}
                     activeOpacity={0.7}>
                     <Text style={[styles.chipText, selectedSubject === 'all' && styles.chipTextActive]}>
                       📚 All Subjects
@@ -318,10 +326,7 @@ export const MyQuizzesScreen: React.FC = () => {
                     <TouchableOpacity
                       key={sub}
                       style={[styles.chip, selectedSubject === sub && styles.chipActive]}
-                      onPress={() => {
-                        setSelectedSubject(sub);
-                        setSelectedCategory('all');
-                      }}
+                      onPress={() => setSelectedSubject(sub)}
                       activeOpacity={0.7}>
                       <Text style={[styles.chipText, selectedSubject === sub && styles.chipTextActive]}>
                         {sub.toLowerCase().includes('bio') ? '🧬' : sub.toLowerCase().includes('chem') ? '⚗️' : sub.toLowerCase().includes('phys') ? '⚡' : sub.toLowerCase().includes('math') ? '📐' : '📚'} {sub}
@@ -332,21 +337,13 @@ export const MyQuizzesScreen: React.FC = () => {
               </View>
             )}
 
-            {/* Category Filter Chips */}
-            {categoryList.length > 0 && (
+            {/* Category Filter Chips — Real categories only, NO 'All Categories' */}
+            {categoryList.length > 0 ? (
               <View style={{ paddingHorizontal: Spacing.md, paddingTop: 14, paddingBottom: 4 }}>
                 <Text style={{ fontSize: 11, fontWeight: '800', color: Colors.primary, textTransform: 'uppercase', marginBottom: 8, letterSpacing: 0.5 }}>
                   🏷️ Quiz Categories
                 </Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-                  <TouchableOpacity
-                    style={[styles.chip, selectedCategory === 'all' && styles.chipActive]}
-                    onPress={() => setSelectedCategory('all')}
-                    activeOpacity={0.7}>
-                    <Text style={[styles.chipText, selectedCategory === 'all' && styles.chipTextActive]}>
-                      📚 All Categories
-                    </Text>
-                  </TouchableOpacity>
                   {categoryList.map((cat) => (
                     <TouchableOpacity
                       key={cat}
@@ -360,7 +357,13 @@ export const MyQuizzesScreen: React.FC = () => {
                   ))}
                 </ScrollView>
               </View>
-            )}
+            ) : selectedSubject !== 'all' ? (
+              <View style={{ paddingHorizontal: Spacing.md, paddingTop: 14, paddingBottom: 4 }}>
+                <Text style={{ fontSize: 12, color: Colors.textMuted, fontStyle: 'italic' }}>
+                  No quiz categories available for this subject.
+                </Text>
+              </View>
+            ) : null}
 
             {/* Filter Pills */}
             <View style={styles.filterSection}>

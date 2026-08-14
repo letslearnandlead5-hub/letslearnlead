@@ -14,10 +14,11 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { HomeStackParamList, CourseSubject, Course, Note } from '../../types';
+import { HomeStackParamList, CourseSubject, Course, Note, Quiz } from '../../types';
 import { courseService } from '../../services/courseService';
 import { enrollmentService } from '../../services/enrollmentService';
 import { noteService } from '../../services/noteService';
+import { quizService } from '../../services/quizService';
 import { LoadingSpinner } from '../../components/ui/LoadingSpinner';
 import { ErrorMessage } from '../../components/ui/ErrorMessage';
 import { Colors, Spacing } from '../../theme';
@@ -283,6 +284,169 @@ const SubjectNotesView = ({
   );
 };
 
+// ─── Subject Quizzes Tab Component ───────────────────────────────────────────
+const SubjectQuizzesView = ({
+  courseId,
+  subjectId,
+  subjectName,
+  navigation,
+}: {
+  courseId: string;
+  subjectId: string;
+  subjectName: string;
+  navigation: any;
+}) => {
+  const [quizzes, setQuizzes] = useState<Quiz[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<string>('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchQuizzes = useCallback(async () => {
+    try {
+      setError(null);
+      const res = await quizService.getAvailableQuizzes();
+      const allQuizzes = res.data || [];
+      const subjectQuizzes = allQuizzes.filter((q) => {
+        const matchesSubjectId = q.subjectId && q.subjectId.toString() === subjectId.toString();
+        const matchesSubjectName = q.subjectName && q.subjectName.toLowerCase().trim() === subjectName.toLowerCase().trim();
+        return matchesSubjectId || matchesSubjectName;
+      });
+      setQuizzes(subjectQuizzes);
+    } catch (err: any) {
+      setError(err.userMessage || 'Failed to load quizzes for this subject.');
+    } finally {
+      setIsLoading(false);
+      setRefreshing(false);
+    }
+  }, [courseId, subjectId, subjectName]);
+
+  useEffect(() => {
+    fetchQuizzes();
+  }, [fetchQuizzes]);
+
+  // Extract unique categories
+  const categoryList = Array.from(
+    new Set(quizzes.map((q) => q.categoryName).filter((c): c is string => Boolean(c && c.trim())))
+  );
+
+  // Auto-select the first real category
+  useEffect(() => {
+    if (categoryList.length > 0) {
+      if (!selectedCategory || !categoryList.some(c => c.toLowerCase() === selectedCategory.toLowerCase())) {
+        setSelectedCategory(categoryList[0]);
+      }
+    } else {
+      setSelectedCategory('');
+    }
+  }, [categoryList, selectedCategory]);
+
+  const filteredQuizzes = quizzes.filter((q) => {
+    if (!selectedCategory) return true;
+    return q.categoryName?.toLowerCase().trim() === selectedCategory.toLowerCase().trim();
+  });
+
+  const handleQuizPress = (quiz: Quiz) => {
+    if (!quiz || !quiz._id) return;
+    if (quiz.status === 'in-progress' && quiz.inProgressAttemptId) {
+      navigation.navigate('QuizAttempt', {
+        quizId: quiz._id,
+        quizTitle: quiz.title || 'Quiz',
+        attemptId: quiz.inProgressAttemptId,
+      });
+    } else if (quiz.status === 'completed' && quiz.allAttempts && quiz.allAttempts.length > 0) {
+      navigation.navigate('QuizResult', {
+        attemptId: quiz.allAttempts[0].attemptId,
+        quizId: quiz._id,
+        quizTitle: quiz.title || 'Quiz',
+        allowRetake: quiz.settings?.allowRetake ?? false,
+      });
+    } else {
+      navigation.navigate('QuizAttempt', {
+        quizId: quiz._id,
+        quizTitle: quiz.title || 'Quiz',
+      });
+    }
+  };
+
+  if (isLoading) return <LoadingSpinner message="Loading quizzes..." />;
+  if (error) return <ErrorMessage message={error} onRetry={fetchQuizzes} />;
+
+  return (
+    <View style={styles.notesContainer}>
+      {categoryList.length > 0 ? (
+        <View style={styles.notesControls}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+            {categoryList.map((cat) => (
+              <TouchableOpacity
+                key={cat}
+                style={[styles.typeFilterChip, selectedCategory.toLowerCase() === cat.toLowerCase() && styles.typeFilterChipActive]}
+                onPress={() => setSelectedCategory(cat)}>
+                <Text style={[styles.typeFilterChipText, selectedCategory.toLowerCase() === cat.toLowerCase() && styles.typeFilterChipTextActive]}>
+                  {cat.toUpperCase()}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      ) : (
+        <View style={{ padding: 16 }}>
+          <Text style={{ fontSize: 13, color: Colors.textMuted, fontStyle: 'italic', textAlign: 'center' }}>
+            No quiz categories available for this subject.
+          </Text>
+        </View>
+      )}
+
+      <FlatList
+        data={filteredQuizzes}
+        keyExtractor={(item) => item._id}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchQuizzes(); }} tintColor="#4F46E5" />}
+        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 40 }}
+        renderItem={({ item }) => {
+          const statusKey = item.status || 'not-attempted';
+          const isDone = statusKey === 'completed';
+          const inProg = statusKey === 'in-progress';
+          return (
+            <TouchableOpacity style={styles.card} onPress={() => handleQuizPress(item)} activeOpacity={0.85}>
+              <View style={styles.cardInfo}>
+                <View style={styles.cardTitleRow}>
+                  <Text style={styles.cardTitle} numberOfLines={1}>{item.title}</Text>
+                  <Text style={[styles.completeBadge, {
+                    color: isDone ? '#22C55E' : inProg ? '#D97706' : '#4F46E5',
+                    backgroundColor: isDone ? '#DCFCE7' : inProg ? '#FEF3C7' : '#EEF2FF',
+                  }]}>
+                    {isDone ? '✓ Completed' : inProg ? '⏱ In Progress' : 'Start'}
+                  </Text>
+                </View>
+                {item.categoryName ? (
+                  <Text style={[styles.chapterBadge, { marginBottom: 6 }]}>🏷️ {item.categoryName}</Text>
+                ) : null}
+                <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}>
+                  <Text style={styles.progressLabel}>⏱ {item.settings?.timeLimit || 30} mins</Text>
+                  <Text style={styles.progressLabel}>❓ {item.totalQuestions ?? item.questions?.length ?? 0} Qs</Text>
+                  {item.settings?.passingPercentage ? (
+                    <Text style={styles.progressLabel}>🎯 {item.settings.passingPercentage}% Pass</Text>
+                  ) : null}
+                </View>
+              </View>
+              <Text style={styles.arrow}>›</Text>
+            </TouchableOpacity>
+          );
+        }}
+        ListEmptyComponent={
+          <View style={styles.emptyBox}>
+            <Text style={{ fontSize: 48, marginBottom: 12 }}>📝</Text>
+            <Text style={styles.emptyTitle}>No Quizzes Available</Text>
+            <Text style={styles.emptySub}>
+              Quizzes created for {subjectName} will appear here.
+            </Text>
+          </View>
+        }
+      />
+    </View>
+  );
+};
+
 // ─── Screen ───────────────────────────────────────────────────────────────────
 export const SubjectSelectionScreen: React.FC<Props> = ({ route, navigation }) => {
   const { courseId, courseTitle } = route.params;
@@ -291,7 +455,7 @@ export const SubjectSelectionScreen: React.FC<Props> = ({ route, navigation }) =
   const [course, setCourse] = useState<Course | null>(null);
   const [completedIds, setCompletedIds] = useState<Set<string>>(new Set());
   const [selectedSubject, setSelectedSubject] = useState<CourseSubject | null>(null);
-  const [activeTab, setActiveTab] = useState<'videos' | 'notes'>('videos');
+  const [activeTab, setActiveTab] = useState<'videos' | 'notes' | 'quizzes'>('videos');
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -362,7 +526,7 @@ export const SubjectSelectionScreen: React.FC<Props> = ({ route, navigation }) =
             </View>
           </View>
 
-          {/* Sub-Tabs: Videos | Notes */}
+          {/* Sub-Tabs: Videos | Notes | Quizzes */}
           <View style={styles.subTabsRow}>
             <TouchableOpacity
               style={[styles.subTab, activeTab === 'videos' && styles.subTabActive]}
@@ -378,11 +542,25 @@ export const SubjectSelectionScreen: React.FC<Props> = ({ route, navigation }) =
                 📄 Notes
               </Text>
             </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.subTab, activeTab === 'quizzes' && styles.subTabActive]}
+              onPress={() => setActiveTab('quizzes')}>
+              <Text style={[styles.subTabText, activeTab === 'quizzes' && styles.subTabTextActive]}>
+                📝 Quizzes
+              </Text>
+            </TouchableOpacity>
           </View>
         </LinearGradient>
 
         {activeTab === 'notes' ? (
           <SubjectNotesView courseId={courseId} subjectId={selectedSubject._id} />
+        ) : activeTab === 'quizzes' ? (
+          <SubjectQuizzesView
+            courseId={courseId}
+            subjectId={selectedSubject._id}
+            subjectName={selectedSubject.name}
+            navigation={navigation}
+          />
         ) : (
           <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 24 }}>
             {(selectedSubject.sections || []).length === 0 ? (

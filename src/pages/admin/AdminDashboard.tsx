@@ -41,7 +41,7 @@ import api from '../../services/api';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useThemeStore } from '../../store/useThemeStore';
 import { useToastStore } from '../../store/useToastStore';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import Modal from '../../components/ui/Modal';
 
 // Lazy load heavy components
@@ -88,7 +88,12 @@ interface DashboardStats {
 }
 
 const AdminDashboard: React.FC = () => {
-    const [selectedTab, setSelectedTab] = useState('overview');
+    const [searchParams, setSearchParams] = useSearchParams();
+    const validTabs = ['overview', 'students', 'users', 'courses', 'payments', 'notes', 'doubts', 'notifications', 'settings'];
+    const tabFromUrl = searchParams.get('tab');
+    const initialTab = tabFromUrl && validTabs.includes(tabFromUrl) ? tabFromUrl : 'overview';
+
+    const [selectedTab, setSelectedTab] = useState(initialTab);
     const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(null);
     const [showLogoutModal, setShowLogoutModal] = useState(false);
     const [showMobileSidebar, setShowMobileSidebar] = useState(false);
@@ -113,6 +118,31 @@ const AdminDashboard: React.FC = () => {
     const [userRegistration, setUserRegistration] = useState(true);
     const [loadingSettings, setLoadingSettings] = useState(false);
 
+    // Sync tab when URL query param changes
+    useEffect(() => {
+        const currentUrlTab = searchParams.get('tab');
+        if (currentUrlTab && validTabs.includes(currentUrlTab)) {
+            setSelectedTab(currentUrlTab);
+        } else if (!currentUrlTab && selectedTab !== 'overview') {
+            setSelectedTab('overview');
+        }
+    }, [searchParams]);
+
+    const switchTab = (tabId: string) => {
+        if (tabId === 'quizzes') {
+            navigate('/admin/quizzes/');
+        } else if (tabId === 'banners') {
+            navigate('/admin/banners/');
+        } else {
+            setSelectedTab(tabId);
+            setSearchParams({ tab: tabId }, { replace: true });
+            setShowMobileSidebar(false);
+            if (tabId === 'notifications') {
+                fetchUnreadCount();
+            }
+        }
+    };
+
     useEffect(() => {
         if (selectedTab === 'overview') {
             fetchDashboardData();
@@ -124,7 +154,10 @@ const AdminDashboard: React.FC = () => {
     // Listen for tab selection events from other pages
     useEffect(() => {
         const handleTabSelection = (event: CustomEvent) => {
-            setSelectedTab(event.detail);
+            const tabId = event.detail;
+            if (tabId && validTabs.includes(tabId)) {
+                switchTab(tabId);
+            }
         };
         window.addEventListener('selectAdminTab', handleTabSelection as EventListener);
         return () => {
@@ -351,20 +384,7 @@ const AdminDashboard: React.FC = () => {
                         {tabs.map((tab) => (
                             <button
                                 key={tab.id}
-                                onClick={() => {
-                                    if (tab.id === 'quizzes') {
-                                        navigate('/admin/quizzes/');
-                                    } else if (tab.id === 'banners') {
-                                        navigate('/admin/banners/');
-                                    } else {
-                                        setSelectedTab(tab.id);
-                                        setShowMobileSidebar(false);
-                                        // Refresh notification count when viewing notifications
-                                        if (tab.id === 'notifications') {
-                                            fetchUnreadCount();
-                                        }
-                                    }
-                                }}
+                                onClick={() => switchTab(tab.id)}
                                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${selectedTab === tab.id
                                     ? 'bg-primary-100 dark:bg-primary-950 text-primary-600'
                                     : 'hover:bg-gray-100 dark:hover:bg-gray-800'
@@ -380,10 +400,7 @@ const AdminDashboard: React.FC = () => {
                             </button>
                         ))}
                         <button
-                            onClick={() => {
-                                setSelectedTab('settings');
-                                setShowMobileSidebar(false);
-                            }}
+                            onClick={() => switchTab('settings')}
                             className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors mt-6 ${selectedTab === 'settings'
                                 ? 'bg-primary-100 dark:bg-primary-950 text-primary-600'
                                 : 'hover:bg-gray-100 dark:hover:bg-gray-800'

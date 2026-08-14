@@ -13,6 +13,16 @@
         "buildType": "apk"
       }
     },
+    "preview-apk": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk",
+        "gradleCommand": ":app:assembleRelease"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_BASE_URL": "https://api.letslearnandlead.com"
+      }
+    },
     "production": {}
   },
   "submit": {

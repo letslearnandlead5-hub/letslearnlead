@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -119,7 +119,7 @@ const SubjectNotesView = ({
   courseId: string;
   subjectId: string;
 }) => {
-  const [notes, setNotes] = useState<Note[]>([]);
+  const [allNotes, setAllNotes] = useState<Note[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -131,12 +131,8 @@ const SubjectNotesView = ({
     try {
       setError(null);
       console.log(`[MOBILE NOTE FETCH] courseId: ${courseId}, subjectId: ${subjectId}`);
-      const res = await noteService.getSubjectNotes(courseId, subjectId, {
-        search: search || undefined,
-        fileType: filterType !== 'all' ? filterType : undefined,
-        sort: sortOption,
-      });
-      setNotes(res.notes || []);
+      const res = await noteService.getSubjectNotes(courseId, subjectId);
+      setAllNotes(res.notes || []);
     } catch (err: any) {
       console.error('[MOBILE NOTE FETCH ERROR]', err);
       setError(err.userMessage || 'Failed to load notes for this subject.');
@@ -144,12 +140,41 @@ const SubjectNotesView = ({
       setIsLoading(false);
       setRefreshing(false);
     }
-  }, [courseId, subjectId, search, filterType, sortOption]);
+  }, [courseId, subjectId]);
 
   useEffect(() => {
     setIsLoading(true);
     fetchNotes();
   }, [fetchNotes]);
+
+  // Instant in-memory filtering and sorting (no API re-fetch or spinner on keystrokes)
+  const filteredNotes = useMemo(() => {
+    let list = [...allNotes];
+
+    if (filterType !== 'all') {
+      list = list.filter(n => n.fileType === filterType);
+    }
+
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      list = list.filter(n =>
+        (n.title && n.title.toLowerCase().includes(q)) ||
+        (n.description && n.description.toLowerCase().includes(q)) ||
+        (n.chapterName && n.chapterName.toLowerCase().includes(q)) ||
+        (n.tags && n.tags.some(t => t.toLowerCase().includes(q)))
+      );
+    }
+
+    if (sortOption === 'newest') {
+      list.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+    } else if (sortOption === 'oldest') {
+      list.sort((a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime());
+    } else if (sortOption === 'alphabetical') {
+      list.sort((a, b) => (a.title || '').localeCompare(b.title || ''));
+    }
+
+    return list;
+  }, [allNotes, filterType, search, sortOption]);
 
   // Viewer state
   const [viewerVisible, setViewerVisible] = useState(false);
@@ -190,6 +215,7 @@ const SubjectNotesView = ({
             placeholderTextColor="#9CA3AF"
             value={search}
             onChangeText={setSearch}
+            autoCapitalize="none"
           />
           {search.length > 0 && (
             <TouchableOpacity onPress={() => setSearch('')}>
@@ -230,7 +256,7 @@ const SubjectNotesView = ({
 
       {/* Notes List */}
       <FlatList
-        data={notes}
+        data={filteredNotes}
         keyExtractor={item => item._id}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchNotes(); }} tintColor="#4F46E5" />}
         contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 40 }}
@@ -271,12 +297,19 @@ const SubjectNotesView = ({
         ListEmptyComponent={
           <View style={styles.emptyBox}>
             <Text style={{ fontSize: 48, marginBottom: 12 }}>📂</Text>
-            <Text style={styles.emptyTitle}>No Notes Available</Text>
+            <Text style={styles.emptyTitle}>
+              {search ? 'No results found' : 'No Notes Available'}
+            </Text>
             <Text style={styles.emptySub}>
               {search
                 ? `No notes match "${search}". Try clearing your search.`
                 : 'Notes uploaded by your teachers for this subject will appear here.'}
             </Text>
+            {search ? (
+              <TouchableOpacity onPress={() => setSearch('')} style={styles.clearSearchBtn}>
+                <Text style={styles.clearSearchBtnText}>Clear Search</Text>
+              </TouchableOpacity>
+            ) : null}
           </View>
         }
       />
@@ -298,6 +331,7 @@ const SubjectQuizzesView = ({
 }) => {
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('');
+  const [search, setSearch] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -342,8 +376,12 @@ const SubjectQuizzesView = ({
   }, [categoryList, selectedCategory]);
 
   const filteredQuizzes = quizzes.filter((q) => {
-    if (!selectedCategory) return true;
-    return q.categoryName?.toLowerCase().trim() === selectedCategory.toLowerCase().trim();
+    const matchesCategory = !selectedCategory ||
+      q.categoryName?.toLowerCase().trim() === selectedCategory.toLowerCase().trim();
+    const matchesSearch = search.trim() === '' ||
+      q.title.toLowerCase().includes(search.trim().toLowerCase()) ||
+      (q.categoryName || '').toLowerCase().includes(search.trim().toLowerCase());
+    return matchesCategory && matchesSearch;
   });
 
   const handleQuizPress = (quiz: Quiz) => {
@@ -374,6 +412,24 @@ const SubjectQuizzesView = ({
 
   return (
     <View style={styles.notesContainer}>
+      {/* Search Bar */}
+      <View style={styles.quizSearchBox}>
+        <Text style={styles.searchIconText}>🔍</Text>
+        <TextInput
+          style={styles.quizSearchInput}
+          placeholder="Search quizzes..."
+          placeholderTextColor="#9CA3AF"
+          value={search}
+          onChangeText={setSearch}
+          returnKeyType="search"
+        />
+        {search.length > 0 && (
+          <TouchableOpacity onPress={() => setSearch('')}>
+            <Text style={{ color: '#9CA3AF', fontSize: 14 }}>✕</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
       {categoryList.length > 0 ? (
         <View style={styles.notesControls}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
@@ -389,13 +445,7 @@ const SubjectQuizzesView = ({
             ))}
           </ScrollView>
         </View>
-      ) : (
-        <View style={{ padding: 16 }}>
-          <Text style={{ fontSize: 13, color: Colors.textMuted, fontStyle: 'italic', textAlign: 'center' }}>
-            No quiz categories available for this subject.
-          </Text>
-        </View>
-      )}
+      ) : null}
 
       <FlatList
         data={filteredQuizzes}
@@ -436,10 +486,19 @@ const SubjectQuizzesView = ({
         ListEmptyComponent={
           <View style={styles.emptyBox}>
             <Text style={{ fontSize: 48, marginBottom: 12 }}>📝</Text>
-            <Text style={styles.emptyTitle}>No Quizzes Available</Text>
-            <Text style={styles.emptySub}>
-              Quizzes created for {subjectName} will appear here.
+            <Text style={styles.emptyTitle}>
+              {search ? 'No results found' : 'No Quizzes Available'}
             </Text>
+            <Text style={styles.emptySub}>
+              {search
+                ? `No quizzes match "${search}". Try clearing search.`
+                : `Quizzes created for ${subjectName} will appear here.`}
+            </Text>
+            {search ? (
+              <TouchableOpacity onPress={() => setSearch('')} style={styles.clearSearchBtn}>
+                <Text style={styles.clearSearchBtnText}>Clear Search</Text>
+              </TouchableOpacity>
+            ) : null}
           </View>
         }
       />
@@ -757,6 +816,30 @@ const styles = StyleSheet.create({
   lessonDuration: { fontSize: 11, color: Colors.textMuted },
   emptyBox: { alignItems: 'center', paddingVertical: 50, paddingHorizontal: 20 },
   emptyTitle: { fontSize: 18, fontWeight: '700', color: Colors.text, marginBottom: 6 },
-  emptySub: { fontSize: 13, color: Colors.textSecondary, textAlign: 'center', lineHeight: 20 },
+  emptySub: { fontSize: 13, color: Colors.textSecondary, textAlign: 'center', lineHeight: 20, marginBottom: 12 },
+  // Quiz search
+  quizSearchBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F3F4F6',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    gap: 8,
+    margin: 14,
+    marginBottom: 0,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  quizSearchInput: { flex: 1, fontSize: 14, color: Colors.text, padding: 0 },
+  clearSearchBtn: {
+    alignSelf: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    backgroundColor: '#EEF2FF',
+    borderRadius: 10,
+    marginTop: 10,
+  },
+  clearSearchBtnText: { fontSize: 13, color: '#4F46E5', fontWeight: '600' },
 });
 

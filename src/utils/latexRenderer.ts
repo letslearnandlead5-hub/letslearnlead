@@ -160,6 +160,26 @@ export function hasLatex(text: string): boolean {
     );
 }
 
+// ── Balanced-brace argument extractor ────────────────────────────────────────
+/**
+ * Walk `str` starting at `pos` (which must be the opening `{`) and return
+ * the content inside the matching closing `}` plus the index after it.
+ * Returns null if `str[pos]` is not `{`.
+ */
+function extractBracedArg(str: string, pos: number): { content: string; end: number } | null {
+    if (str[pos] !== '{') return null;
+    let depth = 0;
+    let start = pos + 1;
+    for (let i = pos; i < str.length; i++) {
+        if (str[i] === '{') depth++;
+        else if (str[i] === '}') {
+            depth--;
+            if (depth === 0) return { content: str.slice(start, i), end: i + 1 };
+        }
+    }
+    return null; // unbalanced braces
+}
+
 /**
  * Built-in zero-dependency HTML fraction & math renderer.
  */
@@ -169,15 +189,37 @@ function renderBuiltinMathHtml(expr: string, displayMode = false): string {
     // Greek letters & math symbols
     html = html.replace(/\\([a-zA-Z]+)/g, (match, cmd) => GREEK_MAP[cmd] || match);
 
-    // Fractions: \frac{num}{den}
-    html = html.replace(/\\frac\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}/g, (_, num, den) => {
-        const numHtml = renderBuiltinMathHtml(num);
-        const denHtml = renderBuiltinMathHtml(den);
-        return `<span class="math-frac" style="display:inline-flex;flex-direction:column;align-items:center;vertical-align:middle;font-size:0.88em;margin:0 3px;line-height:1.2;">` +
-            `<span style="border-bottom:1.5px solid currentColor;padding:0 2px;text-align:center;">${numHtml}</span>` +
-            `<span style="padding:0 2px;text-align:center;">${denHtml}</span>` +
+    // Fractions: \frac{num}{den} — use balanced-brace extractor to avoid swap bug
+    // We process iteratively so nested \frac inside num/den are handled recursively.
+    let fracResult = '';
+    let remaining = html;
+    while (true) {
+        const fracIdx = remaining.indexOf('\\frac{');
+        if (fracIdx === -1) { fracResult += remaining; break; }
+        // Append everything before \frac
+        fracResult += remaining.slice(0, fracIdx);
+        // Extract numerator (first braced arg)
+        const numArg = extractBracedArg(remaining, fracIdx + 5); // +5 = length of '\frac'
+        if (!numArg) { fracResult += remaining.slice(fracIdx); break; }
+        // Extract denominator (second braced arg immediately after numerator)
+        const denArg = extractBracedArg(remaining, numArg.end);
+        if (!denArg) { fracResult += remaining.slice(fracIdx); break; }
+        // Recursively render numerator and denominator
+        const numHtml = renderBuiltinMathHtml(numArg.content);
+        const denHtml = renderBuiltinMathHtml(denArg.content);
+        // Build fraction HTML:
+        //   numerator
+        //   ─────────── (solid bar span — more reliable than border-bottom)
+        //   denominator
+        fracResult +=
+            `<span class="math-frac" style="display:inline-flex;flex-direction:column;align-items:center;vertical-align:middle;font-size:0.9em;margin:0 3px;line-height:1.3;">` +
+            `<span style="padding:0 3px 1px 3px;text-align:center;">${numHtml}</span>` +
+            `<span style="display:block;width:100%;min-width:1em;height:1.5px;background:currentColor;flex-shrink:0;"></span>` +
+            `<span style="padding:1px 3px 0 3px;text-align:center;">${denHtml}</span>` +
             `</span>`;
-    });
+        remaining = remaining.slice(denArg.end);
+    }
+    html = fracResult;
 
     // Square roots: \sqrt{x}
     html = html.replace(/\\sqrt\{([^{}]*)\}/g, (_, inner) => {
@@ -247,8 +289,27 @@ export function renderLatexInHtml(html: string, fieldType: FieldType = 'question
         });
 
         // 3. Render standalone LaTeX commands like \frac{a+b}{c} or \sqrt{x}
+        //    Use a balanced-brace walk to find each \frac so we never mis-pair
+        //    numerator and denominator (old fragile regex caused the swap bug).
         if (/\\(?:frac|sqrt|alpha|beta|gamma|delta|theta|lambda|mu|sigma|omega|times|pm|leq|geq|neq|approx)\b/.test(processed)) {
-            processed = processed.replace(/(\\frac\{[^{}]*\{[^{}]*\}[^{}]*\}|\\frac\{[^{}]*\}\{[^{}]*\}|\\sqrt\{[^{}]*\}|\\(?:alpha|beta|gamma|delta|theta|lambda|mu|sigma|omega|times|pm|leq|geq|neq|approx)\b)/g, (match) => {
+            // First handle \frac with balanced extractor
+            let fracOut = '';
+            let rem = processed;
+            while (true) {
+                const fi = rem.indexOf('\\frac{');
+                if (fi === -1) { fracOut += rem; break; }
+                fracOut += rem.slice(0, fi);
+                const n = extractBracedArg(rem, fi + 5);
+                if (!n) { fracOut += rem.slice(fi); break; }
+                const d = extractBracedArg(rem, n.end);
+                if (!d) { fracOut += rem.slice(fi); break; }
+                // Reconstruct canonical \frac{num}{den} and let renderLatex handle it
+                fracOut += renderLatex(`\\frac{${n.content}}{${d.content}}`, false);
+                rem = rem.slice(d.end);
+            }
+            processed = fracOut;
+            // Then handle \sqrt and Greek/operator symbols with simple regex
+            processed = processed.replace(/(\\sqrt\{[^{}]*\}|\\(?:alpha|beta|gamma|delta|theta|lambda|mu|sigma|omega|times|pm|leq|geq|neq|approx)\b)/g, (match) => {
                 return renderLatex(match, false);
             });
         }

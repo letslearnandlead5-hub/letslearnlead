@@ -346,11 +346,14 @@ router.post('/refresh', async (req: Request, res: Response, next) => {
         // Hash the incoming token
         const hashedToken = hashRefreshToken(rawRefreshToken);
 
-        // ── Admin path: look up by adminSessions slot ───────────────────────────────
-        // Try to find an admin whose adminSessions[] contains a matching tokenHash.
+        // ── Admin path: look up by adminSessions slot ─────────────────────────────────
+        // Explicitly select +adminSessions.tokenHash as a defense-in-depth measure:
+        // without this, a future accidental inner select:false on the tokenHash field
+        // would silently strip it (even though +adminSessions is specified) and break
+        // all admin token refreshes, causing every admin to be logged out every 15 min.
         let user = await User.findOne(
             { 'adminSessions.tokenHash': hashedToken, role: 'admin' }
-        ).select('+currentDeviceId +activeSessionToken +sessionStatus +adminSessions');
+        ).select('+currentDeviceId +activeSessionToken +sessionStatus +adminSessions +adminSessions.tokenHash');
 
         let isAdminSession = !!user;
         let adminSessionSlot: any = null;
@@ -359,7 +362,9 @@ router.post('/refresh', async (req: Request, res: Response, next) => {
             // Identify which slot matched
             adminSessionSlot = user.adminSessions?.find((s: any) => s.tokenHash === hashedToken);
             if (!adminSessionSlot) {
-                // Shouldn't happen, but guard defensively
+                // This should never happen — the query matched the token, but the
+                // in-memory find didn't. Log details to help diagnose if it recurs.
+                console.error(`[REFRESH] Admin slot not found in memory after DB match for: ${user.email}. Sessions: ${user.adminSessions?.length}`);
                 res.status(401).json({ success: false, code: 'INVALID_REFRESH_TOKEN', message: 'Invalid or expired refresh token' });
                 return;
             }
@@ -421,6 +426,10 @@ router.post('/refresh', async (req: Request, res: Response, next) => {
         setRefreshTokenCookie(res, newRawRefreshToken);
 
         const newAccessToken = signAccessToken(String(user._id), deviceFingerprintForNewToken);
+
+        if (isAdminSession) {
+            console.log(`✅ [REFRESH] Admin token rotated: ${user.email} | device: ${deviceFingerprintForNewToken.substring(0, 8)}...`);
+        }
 
         res.status(200).json({
             success: true,

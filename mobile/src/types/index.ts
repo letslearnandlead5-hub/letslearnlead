@@ -435,6 +435,9 @@ export type HomeStackParamList = {
   Search: { initialQuery?: string };
   PaymentSubmit: { courseId: string; courseTitle: string };
   PaymentsList: undefined;
+  // Quiz screens reachable from course/subject screens
+  QuizAttempt: { quizId: string; quizTitle?: string; attemptId?: string };
+  QuizResult: { attemptId: string; quizId: string; quizTitle?: string; allowRetake?: boolean };
 };
 
 export type MyCoursesStackParamList = {
@@ -444,5 +447,8 @@ export type MyCoursesStackParamList = {
   VideoPlayer: { courseId: string; lessonId: string; lessonTitle?: string; subjectId?: string };
   PaymentSubmit: { courseId: string; courseTitle: string };
   PaymentsList: undefined;
+  // Quiz screens reachable from course/subject screens
+  QuizAttempt: { quizId: string; quizTitle?: string; attemptId?: string };
+  QuizResult: { attemptId: string; quizId: string; quizTitle?: string; allowRetake?: boolean };
 };
 

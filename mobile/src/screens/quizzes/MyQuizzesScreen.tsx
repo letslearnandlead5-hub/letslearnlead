@@ -11,6 +11,7 @@ import {
   Alert,
   ActionSheetIOS,
   Platform,
+  TextInput,
 } from 'react-native';
 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -138,6 +139,7 @@ export const MyQuizzesScreen: React.FC = () => {
   const [filter, setFilter] = useState<FilterType>('all');
   const [selectedSubject, setSelectedSubject] = useState<string>('all');
   const [selectedCategory, setSelectedCategory] = useState<string>('');
+  const [search, setSearch] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -189,7 +191,11 @@ export const MyQuizzesScreen: React.FC = () => {
     const matchesStatus = filter === 'all' || q.status === filter;
     const matchesSubject = selectedSubject === 'all' || q.subjectName === selectedSubject;
     const matchesCategory = selectedCategory ? q.categoryName === selectedCategory : true;
-    return matchesStatus && matchesSubject && matchesCategory;
+    const matchesSearch = search.trim() === '' ||
+      q.title.toLowerCase().includes(search.trim().toLowerCase()) ||
+      (q.subjectName || '').toLowerCase().includes(search.trim().toLowerCase()) ||
+      (q.categoryName || '').toLowerCase().includes(search.trim().toLowerCase());
+    return matchesStatus && matchesSubject && matchesCategory && matchesSearch;
   });
 
   const handlePress = (quiz: Quiz) => {
@@ -290,6 +296,25 @@ export const MyQuizzesScreen: React.FC = () => {
               style={[styles.header, { paddingTop: topInset + 16 }]}>
               <Text style={styles.headerTitle}>📋 My Quizzes</Text>
               <Text style={styles.headerSub}>Assess your knowledge and improve daily</Text>
+
+              {/* Search bar */}
+              <View style={styles.searchBar}>
+                <Text style={styles.searchIcon}>🔍</Text>
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder="Search quizzes, subjects, categories…"
+                  placeholderTextColor="rgba(255,255,255,0.6)"
+                  value={search}
+                  onChangeText={setSearch}
+                  autoCapitalize="none"
+                  returnKeyType="search"
+                />
+                {search.length > 0 && (
+                  <TouchableOpacity onPress={() => setSearch('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <Text style={styles.searchClear}>✕</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
 
               {/* Stats overview strip */}
               <View style={styles.statsStrip}>
@@ -394,13 +419,20 @@ export const MyQuizzesScreen: React.FC = () => {
           <View style={styles.empty}>
             <Text style={styles.emptyIcon}>🎯</Text>
             <Text style={styles.emptyTitle}>
-              {filter === 'all' ? 'No quizzes available' : `No matching quizzes`}
+              {search ? 'No results found' : filter === 'all' ? 'No quizzes available' : 'No matching quizzes'}
             </Text>
             <Text style={styles.emptySub}>
-              {filter === 'all'
-                ? 'Quizzes related to your enrolled courses will appear here.'
-                : 'Try switching filters to view other quizzes.'}
+              {search
+                ? `No quizzes match "${search}". Try a different search.`
+                : filter === 'all'
+                  ? 'Quizzes related to your enrolled courses will appear here.'
+                  : 'Try switching filters to view other quizzes.'}
             </Text>
+            {search ? (
+              <TouchableOpacity onPress={() => setSearch('')} style={styles.clearSearchBtn}>
+                <Text style={styles.clearSearchText}>Clear Search</Text>
+              </TouchableOpacity>
+            ) : null}
           </View>
         }
       />
@@ -413,7 +445,27 @@ const styles = StyleSheet.create({
   // Header
   header: { paddingHorizontal: Spacing.md, paddingBottom: 24 },
   headerTitle: { ...Typography.h2, color: '#fff', marginBottom: 4 },
-  headerSub: { ...Typography.bodySmall, color: 'rgba(255,255,255,0.85)', marginBottom: 20 },
+  headerSub: { ...Typography.bodySmall, color: 'rgba(255,255,255,0.85)', marginBottom: 14 },
+
+  // Search bar
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 8,
+    marginBottom: 16,
+  },
+  searchIcon: { fontSize: 15 },
+  searchInput: {
+    flex: 1,
+    fontSize: 13,
+    color: '#fff',
+    padding: 0,
+  },
+  searchClear: { fontSize: 14, color: 'rgba(255,255,255,0.75)' },
   statsStrip: {
     flexDirection: 'row',
     backgroundColor: 'rgba(255,255,255,0.15)',
@@ -504,5 +556,7 @@ const styles = StyleSheet.create({
   empty: { alignItems: 'center', paddingVertical: 60, paddingHorizontal: 32 },
   emptyIcon: { fontSize: 60, marginBottom: 12 },
   emptyTitle: { ...Typography.h5, color: Colors.text, marginBottom: 6, fontWeight: '700' },
-  emptySub: { ...Typography.bodySmall, color: Colors.textSecondary, textAlign: 'center', lineHeight: 18 },
+  emptySub: { ...Typography.bodySmall, color: Colors.textSecondary, textAlign: 'center', lineHeight: 18, marginBottom: 16 },
+  clearSearchBtn: { paddingHorizontal: 16, paddingVertical: 8, backgroundColor: '#EEF2FF', borderRadius: 10 },
+  clearSearchText: { fontSize: 13, color: '#4F46E5', fontWeight: '600' },
 });

@@ -187,8 +187,12 @@ app.use(errorHandler);
 
 // 🔹 Start server
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+// Bind to 0.0.0.0 so the server is reachable from mobile devices on the same Wi-Fi.
+// '0.0.0.0' means "listen on all network interfaces", not just localhost.
+app.listen(PORT as number, '0.0.0.0', () => {
+    console.log(`✅ Server running on http://0.0.0.0:${PORT}`);
+    console.log(`   Local:   http://localhost:${PORT}`);
+    console.log(`   Network: http://192.168.29.235:${PORT}  ← mobile APK uses this`);
 });
 
 export default app;

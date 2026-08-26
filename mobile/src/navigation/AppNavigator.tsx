@@ -50,6 +50,9 @@ const HomeStackNavigator = () => (
     <HomeStack.Screen name="NotificationDetail" component={NotificationDetailScreen} options={{ animation: 'slide_from_right' }} />
     <HomeStack.Screen name="PaymentSubmit" component={PaymentSubmitScreen} options={{ animation: 'slide_from_right' }} />
     <HomeStack.Screen name="PaymentsList" component={MyPaymentsScreen} options={{ animation: 'slide_from_right' }} />
+    {/* Quiz screens — must be registered here so SubjectSelectionScreen can open them */}
+    <HomeStack.Screen name="QuizAttempt" component={QuizAttemptScreen} options={{ animation: 'slide_from_right' }} />
+    <HomeStack.Screen name="QuizResult" component={QuizResultScreen} options={{ animation: 'slide_from_right' }} />
   </HomeStack.Navigator>
 );
 
@@ -64,6 +67,9 @@ const MyCoursesStackNavigator = () => (
     <MyCoursesStack.Screen name="VideoPlayer" component={VideoPlayerScreen} options={{ animation: 'slide_from_bottom' }} />
     <MyCoursesStack.Screen name="PaymentSubmit" component={PaymentSubmitScreen} options={{ animation: 'slide_from_right' }} />
     <MyCoursesStack.Screen name="PaymentsList" component={MyPaymentsScreen} options={{ animation: 'slide_from_right' }} />
+    {/* Quiz screens — must be registered here so SubjectSelectionScreen can open them */}
+    <MyCoursesStack.Screen name="QuizAttempt" component={QuizAttemptScreen} options={{ animation: 'slide_from_right' }} />
+    <MyCoursesStack.Screen name="QuizResult" component={QuizResultScreen} options={{ animation: 'slide_from_right' }} />
   </MyCoursesStack.Navigator>
 );
 

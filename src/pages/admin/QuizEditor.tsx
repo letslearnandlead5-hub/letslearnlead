@@ -564,6 +564,22 @@ const QuizEditor: React.FC = () => {
     // ── Perform save from REFS (called by autosave interval — no stale closure) ──
     const performSaveFromRefs = async (publish: boolean, autosave = false) => {
         if (isSavingRef.current) return;
+
+        // For autosave on a NEW (unsaved) quiz: skip silently until both title
+        // and courseId are present. Without a courseId the backend would create an
+        // invalid draft, and the subsequent URL change would lock the course
+        // selector before the user has had a chance to choose a course.
+        const isNewQuiz = !currentQuizIdRef.current;
+        if (autosave && isNewQuiz) {
+            const hasMinimumInfo =
+                titleRef.current.trim().length > 0 &&
+                courseIdRef.current.trim().length > 0;
+            if (!hasMinimumInfo) {
+                console.debug('[AUTOSAVE] Skipped — waiting for title + course selection on new quiz');
+                return;
+            }
+        }
+
         isSavingRef.current = true;
         setIsSaving(true);
 
@@ -806,6 +822,10 @@ const QuizEditor: React.FC = () => {
                                             ) : lastSavedAt ? (
                                                 <span className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
                                                     <CheckCircle2 className="w-3 h-3 text-green-500" /> Saved {lastSavedAgo}
+                                                </span>
+                                            ) : !currentQuizId && !courseId ? (
+                                                <span className="flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500" title="Autosave is paused until you select a course">
+                                                    <AlertCircle className="w-3 h-3" /> Select a course to enable autosave
                                                 </span>
                                             ) : isDirty ? (
                                                 <span className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400">

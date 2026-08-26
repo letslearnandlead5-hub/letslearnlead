@@ -1,4 +1,14 @@
-const BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || 'http://192.168.1.100:5000';
+const BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || 'http://192.168.29.235:5000';
+
+// Dev warning: if EXPO_PUBLIC_API_BASE_URL is not set, we use the fallback above.
+// Make sure your .env file in the mobile folder has: EXPO_PUBLIC_API_BASE_URL=http://<YOUR_IP>:5000
+if (__DEV__ && !process.env.EXPO_PUBLIC_API_BASE_URL) {
+  console.warn(
+    '[API] ⚠️  EXPO_PUBLIC_API_BASE_URL is not set in mobile/.env\n' +
+    `       Using fallback: ${BASE_URL}\n` +
+    '       If the app shows "Network Error", update mobile/.env with your machine\'s IP.'
+  );
+}
 
 export const API_BASE_URL = `${BASE_URL}/api`;
 

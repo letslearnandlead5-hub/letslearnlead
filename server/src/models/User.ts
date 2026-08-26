@@ -129,7 +129,13 @@ const UserSchema = new Schema<IUser>(
             type: [
                 {
                     deviceFingerprint: { type: String, required: true },
-                    tokenHash:         { type: String, required: true, select: false },
+                    // NOTE: do NOT add select:false here. The outer adminSessions array
+                    // already has select:false, which protects the whole subdocument.
+                    // An inner select:false on tokenHash caused Mongoose to strip the
+                    // field even after an explicit .select('+adminSessions') — making
+                    // every admin token-refresh fail with INVALID_REFRESH_TOKEN and
+                    // logging the admin out every 15 minutes.
+                    tokenHash:         { type: String, required: true },
                     lastUsedAt:        { type: Date,   default: Date.now },
                 },
             ],
@@ -149,5 +155,7 @@ UserSchema.index({ enrolledCourses: 1 });
 UserSchema.index({ role: 1 });
 // Compound: role filter + newest-first sort in admin panel
 UserSchema.index({ role: 1, createdAt: -1 });
+// Sparse index for fast admin token-refresh lookup (avoids full collection scan)
+UserSchema.index({ 'adminSessions.tokenHash': 1 }, { sparse: true });
 
 export const User = mongoose.models.User || mongoose.model<IUser>('User', UserSchema);

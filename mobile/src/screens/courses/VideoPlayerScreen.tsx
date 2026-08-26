@@ -26,21 +26,27 @@ type Props = NativeStackScreenProps<HomeStackParamList, 'VideoPlayer'>;
 // Extract YouTube video ID from URL
 const extractYouTubeId = (url: string): string => {
   if (!url) return '';
+  const trimmed = url.trim();
   
-  // Handle different YouTube URL formats
-  const patterns = [
-    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/,
-    /^([a-zA-Z0-9_-]{11})$/, // Direct video ID
-  ];
-  
-  for (const pattern of patterns) {
-    const match = url.match(pattern);
-    if (match && match[1]) {
-      return match[1];
-    }
+  // Direct 11-char ID
+  if (/^[a-zA-Z0-9_-]{11}$/.test(trimmed)) {
+    return trimmed;
   }
   
-  return url; // Return as-is if no pattern matches
+  // Extract video ID from standard YouTube URLs (watch?v=, youtu.be/, embed/, shorts/)
+  const match = trimmed.match(
+    /(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=|shorts\/))([\w-]{11})/
+  );
+  if (match && match[1]) {
+    return match[1];
+  }
+  
+  const fallback = trimmed.match(/(?:v=|\/)([\w-]{11})(?:[&?]|$)/);
+  if (fallback && fallback[1]) {
+    return fallback[1];
+  }
+  
+  return trimmed;
 };
 
 export const VideoPlayerScreen: React.FC<Props> = ({ route, navigation }) => {
@@ -58,6 +64,14 @@ export const VideoPlayerScreen: React.FC<Props> = ({ route, navigation }) => {
   const [totalLessons, setTotalLessons] = useState(0);
   // Track which lessons have been completed in this session
   const [completedLessonIds, setCompletedLessonIds] = useState<Set<string>>(new Set());
+
+  // Refs to avoid stale closures in callbacks
+  const currentLessonRef = useRef<CourseContent | null>(null);
+  const courseSectionsRef = useRef<CourseSection[]>([]);
+
+  // Keep refs in sync with state
+  useEffect(() => { currentLessonRef.current = currentLesson; }, [currentLesson]);
+  useEffect(() => { courseSectionsRef.current = courseSections; }, [courseSections]);
 
   // Demo YouTube video ID (Big Buck Bunny)
   const defaultVideoId = 'aqz-KE-bpKQ';
@@ -158,14 +172,28 @@ export const VideoPlayerScreen: React.FC<Props> = ({ route, navigation }) => {
     }
   };
 
+  // Auto-dismiss loading overlay after 1.5s as safety fallback
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsReady(true);
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [currentVideoId]);
+
   const onStateChange = useCallback((state: string) => {
+    console.log('[YOUTUBE STATE CHANGE]', state);
     if (state === 'ended') {
-      handleVideoComplete();
-      playNextLesson();
+      // Use ref-based versions to avoid stale closure
+      handleVideoCompleteRef.current();
+      playNextLessonRef.current();
     } else if (state === 'playing') {
       setIsPlaying(true);
+      setIsReady(true);
     } else if (state === 'paused') {
       setIsPlaying(false);
+      setIsReady(true);
+    } else if (state === 'buffering' || state === 'cued' || state === 'unstarted') {
+      setIsReady(true);
     }
   }, []);
 
@@ -193,12 +221,14 @@ export const VideoPlayerScreen: React.FC<Props> = ({ route, navigation }) => {
     });
   };
 
-  const playNextLesson = () => {
-    // Find next video lesson
+  const playNextLesson = useCallback(() => {
+    // Use ref to avoid stale closure — always reads latest currentLesson & courseSections
+    const sections = courseSectionsRef.current;
+    const current = currentLessonRef.current;
     let foundCurrent = false;
     let nextLesson: CourseContent | null = null;
     
-    for (const section of courseSections) {
+    for (const section of sections) {
       for (const subsection of section.subsections) {
         for (const content of subsection.content) {
           if (content.type === 'video') {
@@ -206,7 +236,7 @@ export const VideoPlayerScreen: React.FC<Props> = ({ route, navigation }) => {
               nextLesson = content;
               break;
             }
-            if (content._id === currentLesson?._id) {
+            if (content._id === current?._id) {
               foundCurrent = true;
             }
           }
@@ -218,20 +248,23 @@ export const VideoPlayerScreen: React.FC<Props> = ({ route, navigation }) => {
     
     if (nextLesson) {
       setCurrentLesson(nextLesson);
+      setIsPlaying(true);
       setIsReady(false);
     }
-  };
+  }, []);
 
-  const playPreviousLesson = () => {
-    // Find previous video lesson
+  const playPreviousLesson = useCallback(() => {
+    // Use ref to avoid stale closure
+    const sections = courseSectionsRef.current;
+    const current = currentLessonRef.current;
     let previousLesson: CourseContent | null = null;
     let foundCurrent = false;
     
-    for (const section of courseSections) {
+    for (const section of sections) {
       for (const subsection of section.subsections) {
         for (const content of subsection.content) {
           if (content.type === 'video') {
-            if (content._id === currentLesson?._id) {
+            if (content._id === current?._id) {
               foundCurrent = true;
               break;
             }
@@ -245,9 +278,16 @@ export const VideoPlayerScreen: React.FC<Props> = ({ route, navigation }) => {
     
     if (previousLesson) {
       setCurrentLesson(previousLesson);
+      setIsPlaying(true);
       setIsReady(false);
     }
-  };
+  }, []);
+
+  // Keep stable refs so onStateChange (memoized with []) can always call latest version
+  const playNextLessonRef = useRef(playNextLesson);
+  const handleVideoCompleteRef = useRef(handleVideoComplete);
+  useEffect(() => { playNextLessonRef.current = playNextLesson; }, [playNextLesson]);
+  useEffect(() => { handleVideoCompleteRef.current = handleVideoComplete; }, [handleVideoComplete]);
 
   const hasNextLesson = () => {
     let foundCurrent = false;
@@ -265,12 +305,17 @@ export const VideoPlayerScreen: React.FC<Props> = ({ route, navigation }) => {
   };
 
   const hasPreviousLesson = () => {
+    // Walk through all videos; return true only if we find a video BEFORE the current one
+    let previousFound = false;
     for (const section of courseSections) {
       for (const subsection of section.subsections) {
         for (const content of subsection.content) {
           if (content.type === 'video') {
-            if (content._id === currentLesson?._id) return false;
-            return true;
+            if (content._id === currentLesson?._id) {
+              // We reached the current lesson — was there anything before it?
+              return previousFound;
+            }
+            previousFound = true;
           }
         }
       }
@@ -279,9 +324,10 @@ export const VideoPlayerScreen: React.FC<Props> = ({ route, navigation }) => {
   };
 
   const playLesson = (lesson: CourseContent) => {
+    if (lesson._id === currentLesson?._id) return;
     setCurrentLesson(lesson);
     setIsReady(false);
-    setIsPlaying(false);
+    setIsPlaying(true);
   };
 
   const toggleSection = (sectionId: string) => {
@@ -428,19 +474,34 @@ export const VideoPlayerScreen: React.FC<Props> = ({ route, navigation }) => {
       {/* YouTube Video Player */}
       <View style={styles.videoContainer}>
         {!isReady && (
-          <View style={styles.loadingOverlay}>
+          <View style={styles.loadingOverlay} pointerEvents="none">
             <ActivityIndicator size="large" color={Colors.primary} />
             <Text style={styles.loadingText}>Loading video...</Text>
           </View>
         )}
         <YoutubePlayer
+          key={currentVideoId}
           ref={playerRef}
           height={VIDEO_HEIGHT}
-          play={false}
+          play={isPlaying}
           videoId={currentVideoId}
           onChangeState={onStateChange}
           onReady={onReady}
+          onError={(e: any) => {
+            console.warn('[YOUTUBE PLAYER ERROR]', e);
+            setIsReady(true);
+          }}
+          initialPlayerParams={{
+            preventFullScreen: false,
+            cc_lang_pref: 'en',
+            showClosedCaptions: false,
+          }}
           webViewStyle={styles.webView}
+          webViewProps={{
+            androidLayerType: 'hardware',
+            allowsInlineMediaPlayback: true,
+            mediaPlaybackRequiresUserAction: false,
+          }}
         />
       </View>
 

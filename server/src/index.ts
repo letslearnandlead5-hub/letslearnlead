@@ -73,54 +73,56 @@ configurePassport();
 const allowedOrigins = [
     "https://letslearnandlead.com",
     "https://www.letslearnandlead.com",
-    // Add localhost for development
-    ...(process.env.NODE_ENV === 'development' ? [
-        "http://localhost:5173",
-        "http://localhost:3000",
-        "http://127.0.0.1:5173",
-        "http://127.0.0.1:3000"
-    ] : [])
+    "http://localhost:5173",
+    "http://localhost:3000",
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:3000",
+    ...(process.env.FRONTEND_URL ? [process.env.FRONTEND_URL.replace(/\/$/, '')] : []),
 ];
 
+const isOriginAllowed = (origin: string): boolean => {
+    if (!origin) return true;
+    const cleanOrigin = origin.replace(/\/$/, '');
+    if (allowedOrigins.includes(cleanOrigin)) return true;
+    // Allow any subdomain of letslearnandlead.com (e.g., api, app, www)
+    if (/^https?:\/\/([a-z0-9-]+\.)*letslearnandlead\.com(:[0-9]+)?$/i.test(cleanOrigin)) return true;
+    // Allow localhost / 127.0.0.1 on any port for local dev/testing
+    if (/^https?:\/\/(localhost|127\.0\.0\.1)(:[0-9]+)?$/i.test(cleanOrigin)) return true;
+    return false;
+};
+
+const corsOptions: cors.CorsOptions = {
+    origin: (origin, callback) => {
+        if (!origin || isOriginAllowed(origin)) {
+            return callback(null, true);
+        }
+        return callback(null, false);
+    },
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allowedHeaders: [
+        "Content-Type",
+        "Authorization",
+        "X-Device-Id",
+        "X-Requested-With",
+        "Accept",
+        "Origin"
+    ],
+    exposedHeaders: ["Content-Range", "X-Content-Range"]
+};
+
 // 🔹 CORS (MUST be before routes)
-app.use(
-    cors({
-        origin: (origin, callback) => {
-            // allow server-to-server, curl, postman
-            if (!origin) return callback(null, true);
-
-            if (allowedOrigins.includes(origin)) {
-                return callback(null, true);
-            }
-
-            return callback(new Error("CORS not allowed"));
-        },
-        credentials: true,
-        methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        allowedHeaders: ["Content-Type", "Authorization", "X-Device-Id"]
-    })
-);
+app.use(cors(corsOptions));
+app.options("*", cors(corsOptions));
 
 // 🔹 Security headers with Helmet
 app.use(helmet({
-    contentSecurityPolicy: {
-        directives: {
-            defaultSrc: ["'self'"],
-            styleSrc: ["'self'", "'unsafe-inline'"], // Allow inline styles for Tailwind
-            scriptSrc: ["'self'"],
-            imgSrc: ["'self'", "data:", "https:", "http:"],
-            connectSrc: ["'self'", "https://api.letslearnandlead.com"],
-            frameSrc: ["'self'", "https://api.letslearnandlead.com"], // Allow iframes for PDFs
-            fontSrc: ["'self'", "data:"],
-            objectSrc: ["'none'"],
-            upgradeInsecureRequests: [],
-        },
-    },
-    crossOriginEmbedderPolicy: false, // Allow embedding resources
-    crossOriginResourcePolicy: false, // Don't block CORS requests
+    contentSecurityPolicy: false, // Not needed on API backend; frontend HTML manages its own CSP
+    crossOriginEmbedderPolicy: false,
+    crossOriginResourcePolicy: { policy: "cross-origin" },
 }));
 
-console.log('✅ Security headers configured');
+console.log('✅ CORS and Security headers configured');
 
 // 🔹 Global body limits — 2MB protects public routes against Out-of-Memory DoS attacks
 app.use(express.json({ limit: '2mb' }));

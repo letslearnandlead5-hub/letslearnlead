@@ -135,7 +135,7 @@ const UserSchema = new Schema<IUser>(
                     // field even after an explicit .select('+adminSessions') — making
                     // every admin token-refresh fail with INVALID_REFRESH_TOKEN and
                     // logging the admin out every 15 minutes.
-                    tokenHash:         { type: String, required: true },
+                    tokenHash:         { type: String, required: false },
                     lastUsedAt:        { type: Date,   default: Date.now },
                 },
             ],

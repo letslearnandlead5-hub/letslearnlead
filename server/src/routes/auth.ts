@@ -60,8 +60,9 @@ const bindDeviceSession = async (
         if (!user.adminSessions) user.adminSessions = [];
 
         // Remove any stale slot for this same fingerprint (re-login from same device)
+        // and clean up any legacy entries that lack a valid tokenHash from the previous bug
         user.adminSessions = user.adminSessions.filter(
-            (s: any) => s.deviceFingerprint !== deviceFingerprint
+            (s: any) => s && s.deviceFingerprint && s.tokenHash && s.deviceFingerprint !== deviceFingerprint
         );
 
         // Enforce cap: evict the oldest slot if at limit
@@ -106,9 +107,9 @@ const bindDeviceSession = async (
 const clearDeviceSession = async (user: any, deviceFingerprint?: string): Promise<void> => {
     if (user.role === 'admin') {
         if (deviceFingerprint && user.adminSessions?.length) {
-            // Log out only this device
+            // Log out only this device and purge any legacy slots without tokenHash
             user.adminSessions = user.adminSessions.filter(
-                (s: any) => s.deviceFingerprint !== deviceFingerprint
+                (s: any) => s && s.deviceFingerprint && s.tokenHash && s.deviceFingerprint !== deviceFingerprint
             );
         } else {
             // Log out all devices

@@ -364,8 +364,7 @@ router.put('/approve/:id', protect, authorize('admin'), async (req: AuthRequest,
             });
         }
 
-        // Increment course students count
-        await Course.findByIdAndUpdate(payment.courseId, { $inc: { studentsEnrolled: 1 } });
+        // studentsEnrolled is auto-incremented by the Enrollment post-save hook
 
         // In-app notification to student
         await Notification.create({

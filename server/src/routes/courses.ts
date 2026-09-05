@@ -387,8 +387,7 @@ router.post('/:id/enroll', protect, async (req: AuthRequest, res: Response, next
             });
         }
 
-        course.studentsEnrolled += 1;
-        await course.save();
+        // studentsEnrolled is auto-incremented by the Enrollment post-save hook
 
         const { Notification } = await import('../models/Notification');
         await Notification.create({

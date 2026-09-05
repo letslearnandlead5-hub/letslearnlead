@@ -463,12 +463,82 @@ router.post('/enroll-student', async (req: AuthRequest, res: Response, next) => 
             await student.save();
         }
 
+        // studentsEnrolled is auto-incremented by the Enrollment post-save hook
+        // (cache is also invalidated there)
+
         console.log(`✅ Admin enrolled student ${student.email} in ${course.title} (course-level)`);
 
         res.status(201).json({
             success: true,
             message: `Successfully enrolled ${student.name} in ${course.title} — all subjects are now unlocked`,
             data: enrollment,
+        });
+    } catch (error) {
+        next(error);
+    }
+});
+
+// ==================== ENROLLMENT COUNT RESYNC ====================
+
+// @route   POST /api/admin/resync-enrollment-counts
+// @desc    Recalculate studentsEnrolled on every Course from actual Enrollment records.
+//          Fixes courses whose counter drifted (e.g., students enrolled manually without counter update).
+// @access  Private (Admin)
+router.post('/resync-enrollment-counts', async (req: AuthRequest, res: Response, next) => {
+    try {
+        // Aggregate: count distinct paid enrollments per course (subjectId=null = course-level)
+        // We count UNIQUE users per course to avoid counting multiple enrollment records
+        // for the same user (e.g., progress updates that create duplicate entries).
+        const enrollmentCounts = await Enrollment.aggregate([
+            { $match: { status: 'paid' } },
+            {
+                $group: {
+                    _id: { courseId: '$courseId', userId: '$userId' }, // distinct user+course
+                },
+            },
+            {
+                $group: {
+                    _id: '$_id.courseId',
+                    count: { $sum: 1 }, // count of unique users per course
+                },
+            },
+        ]);
+
+        let updatedCourses = 0;
+        const results: any[] = [];
+
+        for (const ec of enrollmentCounts) {
+            const updated = await Course.findByIdAndUpdate(
+                ec._id,
+                { $set: { studentsEnrolled: ec.count } },
+                { new: true }
+            ).select('title studentsEnrolled');
+
+            if (updated) {
+                updatedCourses++;
+                results.push({ courseId: ec._id, title: updated.title, studentsEnrolled: ec.count });
+            }
+        }
+
+        // Also zero-out any course that has no enrollments at all (counter may be stale positive)
+        const courseIdsWithEnrollments = enrollmentCounts.map((ec: any) => ec._id.toString());
+        const zeroed = await Course.updateMany(
+            { _id: { $nin: courseIdsWithEnrollments }, studentsEnrolled: { $gt: 0 } },
+            { $set: { studentsEnrolled: 0 } }
+        );
+
+        // Invalidate all course caches so the admin list refreshes immediately
+        const { cache } = await import('../utils/cache');
+        cache.invalidatePrefix('courses:');
+        cache.invalidatePrefix('course:');
+
+        console.log(`✅ Resynced enrollment counts for ${updatedCourses} courses. Zeroed ${zeroed.modifiedCount} stale courses.`);
+
+        res.status(200).json({
+            success: true,
+            message: `Resynced enrollment counts for ${updatedCourses} courses`,
+            zeroedCourses: zeroed.modifiedCount,
+            data: results,
         });
     } catch (error) {
         next(error);

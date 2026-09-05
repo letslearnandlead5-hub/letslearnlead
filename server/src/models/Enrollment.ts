@@ -100,4 +100,28 @@ EnrollmentSchema.index({ razorpayPaymentId: 1 });
 EnrollmentSchema.index({ status: 1 });
 EnrollmentSchema.index({ userId: 1, status: 1 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// AUTO-INCREMENT studentsEnrolled on the parent Course whenever a NEW paid
+// enrollment is created.  This is the single authoritative place so that ALL
+// enrollment paths (payment approval, free enroll, admin manual enroll,
+// progress-route fallback, etc.) are covered automatically.
+// ─────────────────────────────────────────────────────────────────────────────
+EnrollmentSchema.post('save', async function (doc) {
+    // Only fire for brand-new paid documents
+    if (!doc.isNew || doc.status !== 'paid') return;
+
+    try {
+        const Course = mongoose.model('Course');
+        await Course.findByIdAndUpdate(doc.courseId, { $inc: { studentsEnrolled: 1 } });
+
+        // Bust cache so admin list reflects the new count immediately
+        const { cache } = await import('../utils/cache');
+        cache.invalidatePrefix('courses:');
+        cache.invalidate(`course:${doc.courseId.toString()}`);
+    } catch (err) {
+        // Log but never crash the request — enrollment itself already succeeded
+        console.error('⚠️  [Enrollment hook] Failed to increment studentsEnrolled:', err);
+    }
+});
+
 export const Enrollment = mongoose.model<IEnrollment>('Enrollment', EnrollmentSchema);

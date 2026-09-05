@@ -5,7 +5,7 @@ import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
 import Modal from '../../components/ui/Modal';
-import { courseAPI } from '../../services/api';
+import { courseAPI, adminAPI } from '../../services/api';
 import { useToastStore } from '../../store/useToastStore';
 import { formatPrice } from '../../utils/helpers';
 
@@ -34,6 +34,7 @@ const CourseManagement: React.FC = () => {
     const [isViewerOpen, setIsViewerOpen] = useState(false);
     const [selectedCategory, setSelectedCategory] = useState<string>('all');
     const [selectedLevel, setSelectedLevel] = useState<string>('all');
+    const [isResyncing, setIsResyncing] = useState(false);
 
     const { addToast } = useToastStore();
     const navigate = useNavigate();
@@ -97,6 +98,26 @@ const CourseManagement: React.FC = () => {
         }
     };
 
+    const handleResyncCounts = async () => {
+        if (!window.confirm(
+            'This will recalculate enrollment counts for ALL courses from the actual Enrollment records in the database.\n\nProceed?'
+        )) return;
+        try {
+            setIsResyncing(true);
+            const response: any = await adminAPI.resyncEnrollmentCounts();
+            addToast({
+                type: 'success',
+                message: response.message || 'Enrollment counts resynced successfully!',
+            });
+            fetchCourses(); // Refresh list with corrected counts
+        } catch (error) {
+            console.error('Error resyncing enrollment counts:', error);
+            addToast({ type: 'error', message: 'Failed to resync enrollment counts' });
+        } finally {
+            setIsResyncing(false);
+        }
+    };
+
     const clearFilters = () => {
         setSearchTerm('');
         setSelectedCategory('all');
@@ -131,13 +152,24 @@ const CourseManagement: React.FC = () => {
                         Create and manage courses for students
                     </p>
                 </div>
-                <Button
-                    variant="primary"
-                    leftIcon={<Plus className="w-5 h-5" />}
-                    onClick={handleCreateCourse}
-                >
-                    Add New Course
-                </Button>
+                <div className="flex items-center gap-3">
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleResyncCounts}
+                        disabled={isResyncing}
+                        title="Recalculate student counts from real enrollment data"
+                    >
+                        {isResyncing ? 'Resyncing...' : '🔄 Resync Counts'}
+                    </Button>
+                    <Button
+                        variant="primary"
+                        leftIcon={<Plus className="w-5 h-5" />}
+                        onClick={handleCreateCourse}
+                    >
+                        Add New Course
+                    </Button>
+                </div>
             </div>
 
             {/* Search and Filters */}

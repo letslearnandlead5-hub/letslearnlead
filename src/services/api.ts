@@ -301,6 +301,7 @@ export const adminAPI = {
   },
   enrollStudent: (studentEmail: string, courseId: string, subjectId?: string, subjectName?: string) =>
     api.post("/admin/enroll-student", { studentEmail, courseId, subjectId, subjectName }),
+  resyncEnrollmentCounts: () => api.post("/admin/resync-enrollment-counts"),
 };
 
 /* ================= USER NOTES (PERSONAL LIBRARY) ================= */
